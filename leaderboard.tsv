@@ -1,8 +1,0 @@
-# config	half_thickness_mm	S_over_sqrtB
-config_t0375	0.0375	2.84
-config_t0875	0.0875	3.73
-config_t1250	0.125	3.81
-config_t1100	0.11	3.78
-config_t1400	0.14	3.76
-config_t1175	0.1175	3.79
-config_t1325	0.1325	3.77

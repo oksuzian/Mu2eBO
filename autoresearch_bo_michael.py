@@ -41,7 +41,6 @@ import argparse
 import csv
 import fcntl
 import json
-import os
 import re
 import shutil
 import subprocess

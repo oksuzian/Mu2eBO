@@ -1,8 +1,8 @@
 # bo-foil — original 7D foil-stack BO
 
 **Type:** project
-**Status:** superseded by [[bo-michael]]
-**Updated:** 2026-05-15
+**Status:** superseded by [[bo-michael]]; driver removed 2026-05-21
+**Updated:** 2026-05-21
 
 ## Summary
 First-generation Bayesian Optimization driver. Searches a 7D space of foil-stack
@@ -13,11 +13,12 @@ configs the foil features collapse to only 5 unique vectors yet S/√B ranges
 what [[bo-michael]] now optimizes.
 
 ## Key facts
-- **Driver:** `autoresearch_bo.py` ([[autoresearch-bo]])
-- **History:** `leaderboard_bo.tsv`
-- **Why kept around:** still the reference for the SETUP env, fork_config,
-  run_pipeline, append_leaderboard patterns reused by [[bo-michael]]
+- **Driver:** `autoresearch_bo.py` ([[autoresearch-bo]]) — **removed 2026-05-21**;
+  its patterns (SETUP env, fork_config, run_pipeline, append_leaderboard)
+  live on in `autoresearch_bo_michael.py`.
+- **History:** `leaderboard_bo.tsv` (kept on disk; consumed by slides/
+  analyzers and the data-side overlay scripts).
 
 ## Cross-links
 - Successor: [[bo-michael]]
-- Source: `autoresearch_bo.py`
+- Driver page: [[autoresearch-bo]]
