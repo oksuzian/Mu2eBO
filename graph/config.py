@@ -13,6 +13,10 @@ PIPELINE_DRIVER = PROJECT_ROOT / "pipeline.py"
 # Per-config grid work tree lives under here; harvest/summary.json gets written here.
 GRID_DATA_ROOT = Path("/exp/mu2e/data/users/oksuzian/autoresearch_grid")
 
+# Mu2e environment sources. Sourced by every preflight/grid invocation.
+SETUPMU2E = "/cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh"
+MUSING = "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bak/setup.sh"
+
 # Stage chain (Phase 2b). Each entry is the stage name; per-stage `run_stage`
 # calls submit → poll → list-outputs internally. Harvest runs once after the
 # four stages complete.

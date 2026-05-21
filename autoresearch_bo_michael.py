@@ -55,11 +55,8 @@ ROOT = Path("/exp/mu2e/app/users/oksuzian/autoresearch")
 GEOM_TSV = Path("/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/geom_params.tsv")
 MMACKENZ_WORKFLOWS = Path("/exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows")
 
-SETUPMU2E = "/cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh"
-MUSING = "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bak/setup.sh"
-
 sys.path.insert(0, str(ROOT / "graph"))
-from config import PREFLIGHT_TIMEOUT_S  # noqa: E402
+from config import MUSING, PREFLIGHT_TIMEOUT_S, SETUPMU2E  # noqa: E402
 
 DEFAULT_ALPHA = 1.0e5  # mmackenz calo range 4e-8..2.5e-5; alpha=1e5 makes
                        # 1e-5 calo cost 1 unit of S/sqrt(B). Override per study.

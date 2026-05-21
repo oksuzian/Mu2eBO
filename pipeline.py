@@ -65,8 +65,10 @@ def _submit_lock(stage: str):
 
 # --- Paths fixed at the code-repo level (config-independent) ---
 TEMPLATES_ROOT = Path(__file__).resolve().parent / "pipeline_templates"
-DATA_ROOT = Path("/exp/mu2e/data/users/oksuzian/autoresearch_grid")
-MUSING = "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bak/setup.sh"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "graph"))
+from config import GRID_DATA_ROOT as DATA_ROOT, MUSING, SETUPMU2E  # noqa: E402
+
 # Canonical muse-built Code.tar.bz2 produced by `muse tarball` from
 # /exp/mu2e/app/users/oksuzian/autoresearch_muse/ (mgit Mu2eG4 sparse
 # checkout of v13_12_10 + helical-plug.patch, backed by SimJob/Run1Bak).
@@ -78,7 +80,6 @@ MUSING = "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bak/setup.sh"
 MUSE_BASE_TARBALL = Path(
     "/exp/mu2e/app/users/oksuzian/autoresearch_muse/Code_helical_base.tar.bz2"
 )
-SETUPMU2E = "/cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh"
 USER = os.environ["USER"]
 OUTSTAGE = Path(f"/pnfs/mu2e/scratch/users/{USER}/workflow/default/outstage")
 
