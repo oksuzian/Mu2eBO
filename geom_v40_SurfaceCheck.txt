@@ -1,0 +1,7 @@
+// G4 surface check on geom_run1_b_ds_on_v40 geometry.
+#include "Offline/Mu2eG4/geom/geom_run1_b_ds_on_v40.txt"
+
+bool g4.doSurfaceCheck             = true;
+int  g4.nSurfaceCheckPointsPercmsq = 1;
+int  g4.minSurfaceCheckPoints      = 100;
+int  g4.maxSurfaceCheckPoints      = 10000000;

@@ -1,0 +1,399 @@
+"""Thin wrappers around autoresearch_bo_michael.py + pipeline.py.
+
+Phase 1 — only the BO seam (propose / preflight / evaluate) is wired.
+BO ops go in-process via `import autoresearch_bo_michael as bo` (HelicalMode
+is already a clean adapter — no need to fork a subprocess for those).
+Preflight and evaluate use subprocess to keep their I/O side-effects
+firewalled from the long-lived LangGraph server process.
+
+Phase 2 will add submit_stage / poll_stage / harvest wrappers that shell out
+to pipeline.py.
+"""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+# Ensure the project root is importable so we can pull HelicalMode in-process.
+sys.path.insert(0, "/exp/mu2e/app/users/oksuzian/autoresearch")
+
+import autoresearch_bo_michael as bo  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).parent))
+from config import (  # noqa: E402
+    BO_DRIVER,
+    DEFAULT_ALPHA,
+    GRID_DATA_ROOT,
+    GRID_STAGES,
+    PIPELINE_DRIVER,
+    STAGE_TARGETS,
+)
+
+
+# --- propose (in-process, single-config flavor of cmd_propose) ---
+
+
+def propose_one(mode_name: str, config_name: str, alpha: float = DEFAULT_ALPHA,
+                x_override: list[float] | None = None):
+    """Propose a single config, materialize its geom, append to pending TSV.
+
+    If x_override is given, skip the BO ask and use that x directly (used to
+    force-evaluate GP-Pareto picks). The pending row is still written so
+    concurrent BO proposals see this point as in-flight.
+
+    Returns: (x_point: list[float], geom_path: str). Raises ValueError if the
+    config name collides with an existing leaderboard or pending entry.
+    """
+    mode = bo.MODES[mode_name]
+
+    pending = mode.load_pending()
+    existing = {p.cfg for p in mode.load_history()} | {n for n, _ in pending}
+    if config_name in existing:
+        raise ValueError(f"config name {config_name!r} already in leaderboard or pending")
+
+    if x_override is not None:
+        x = list(x_override)
+    else:
+        priors = mode.load_priors()
+        history = mode.load_history()
+        opt, space = mode.build_optimizer()
+        real_ys = []
+        for p in priors + history:
+            y = -p.obj(alpha)
+            try:
+                opt.tell(p.x, y)
+                real_ys.append(y)
+            except ValueError:
+                continue
+        if pending and real_ys:
+            fake_y = sum(real_ys) / len(real_ys)
+            for _, px in pending:
+                try:
+                    opt.tell(px, fake_y)
+                except ValueError:
+                    continue
+        x = opt.ask()
+    geom_path = mode.render_proposal(config_name, x)
+    # Stage geom into pipeline.py's per-config work tree (mirror cmd_propose in
+    # autoresearch_bo_michael.py:567-570; pipeline.py's submit checks for this
+    # exact path and refuses otherwise).
+    work_geom_dir = GRID_DATA_ROOT / config_name / "geom"
+    work_geom_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(geom_path, work_geom_dir / f"autoresearch_{config_name}_geom.txt")
+    mode.append_pending(config_name, x, alpha)
+    return list(x), str(geom_path)
+
+
+# --- preflight (subprocess) ---
+
+
+def run_preflight(mode_name: str, config_name: str, timeout_s: int = 1200) -> tuple[str, str]:
+    """Run `autoresearch_bo_michael.py preflight <cfg>`.
+
+    Returns (status, log_tail). status ∈ {"pass", "fail_managed", "fail_init",
+    "ambiguous", "timeout"}. log_tail is the last ~80 lines of stdout for
+    surfacing in the GUI.
+    """
+    cmd = [
+        sys.executable,
+        str(BO_DRIVER),
+        "--mode", mode_name,
+        "preflight", config_name,
+    ]
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_s
+        )
+    except subprocess.TimeoutExpired:
+        return "timeout", "(preflight timed out)"
+
+    tail = "\n".join(proc.stdout.splitlines()[-80:])
+    rc = proc.returncode
+
+    # autoresearch_bo_michael cmd_preflight returns: 0 pass, 1 managed-volume
+    # overlap, 2 init failure, 3 ambiguous surface-check error.
+    status = {0: "pass", 1: "fail_managed", 2: "fail_init", 3: "ambiguous"}.get(rc, "ambiguous")
+    return status, tail
+
+
+# --- mock grid (Phase 1) ---
+
+_HELICAL_KNOB_RANGES = {
+    "dx":         (0.01, 5.0),
+    "dy":         (40.0, 400.0),
+    "halflength": (25.0, 500.0),
+    "angle":      (60.0, 540.0),
+}
+
+
+def mock_metrics(x_point: list[float]) -> dict:
+    """Synthesize a (s_over_sqrt_b, calo_per_pot) pair from x via a smooth surface.
+
+    The intent is just to give the BO loop *some* gradient so end-to-end Phase 1
+    iterations are not trivially flat. Peak sob lives near the mid-range of
+    each knob; calo grows mildly with halflength × angle (the "more material"
+    direction).
+    """
+    if len(x_point) != 4:
+        raise ValueError(f"expected 4D helical x, got {len(x_point)}")
+    dx, dy, hl, angle = x_point
+    keys = ("dx", "dy", "halflength", "angle")
+    # Normalize each knob to [0, 1].
+    u = []
+    for k, v in zip(keys, x_point):
+        lo, hi = _HELICAL_KNOB_RANGES[k]
+        u.append((v - lo) / (hi - lo))
+    # sob: gaussian bump centered at 0.5 in each dim.
+    import math
+    r2 = sum((ui - 0.5) ** 2 for ui in u)
+    sob = 0.9 * math.exp(-2.5 * r2) + 0.05
+    # calo: grows with halflength × angle (the "denser/longer plug" direction).
+    calo = 1e-7 + 6e-7 * u[2] * u[3]
+    return {
+        "config": "mock",
+        "s_over_sqrt_b": round(sob, 6),
+        "calo_per_pot": calo,
+        "ce_seen": 0,
+        "muminus_stops": 0,
+        "mubeam_sim_total": 0,
+        "stopping_factor": 0.0,
+        "ce_abs_eff": 0.0,
+        "calo_total": 0.0,
+        "calo_files_seen": 0,
+        "nts_path": "mock",
+        "edep_log": "mock",
+        "macro_log": "mock",
+        "mock": True,
+    }
+
+
+# --- per-stage grid driver (Phase 2b) ---
+
+
+def _run_pipeline_verb(config_name: str, verb: str, stage: str | None) -> Path:
+    """Shell out to pipeline.py with one verb + optional stage. Returns log path.
+
+    Raises RuntimeError on non-zero exit; caller adds stage context.
+    """
+    log_dir = GRID_DATA_ROOT / config_name / "graph_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [sys.executable, str(PIPELINE_DRIVER), "--config", config_name, verb]
+    if stage is not None:
+        cmd.append(stage)
+    log_path = log_dir / f"{verb}_{stage or 'harvest'}_{int(time.time())}.log"
+    with log_path.open("w") as fh:
+        fh.write(f"$ {' '.join(cmd)}\n\n")
+        fh.flush()
+        proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"{verb} {stage or ''} failed (rc={proc.returncode}); see {log_path}"
+        )
+    return log_path
+
+
+def run_stage(config_name: str, stage: str) -> dict:
+    """Run submit → poll → list-outputs for one stage. Returns a StageStatus.
+
+    Each pipeline.py verb is idempotent: submit no-ops if the cluster file
+    exists; list-outputs no-ops if the outputs file validates. Poll is
+    naturally re-entrant. So a killed-and-resumed graph node re-runs this
+    helper without double-submitting.
+    """
+    for verb in ("submit", "poll", "list-outputs"):
+        _run_pipeline_verb(config_name, verb, stage)
+    return read_stage_status(config_name, stage)
+
+
+def run_harvest(config_name: str) -> dict:
+    """Run pipeline.py harvest; return parsed summary.json."""
+    _run_pipeline_verb(config_name, "harvest", None)
+    summary_path = GRID_DATA_ROOT / config_name / "harvest" / "summary.json"
+    if not summary_path.exists():
+        raise RuntimeError(f"harvest finished but {summary_path} is missing")
+    return json.loads(summary_path.read_text())
+
+
+def read_stage_status(config_name: str, stage: str) -> dict:
+    """Parse state/<stage>_cluster.txt + outputs.txt into a StageStatus dict.
+
+    Pure I/O — testable with a tmpdir of fake state files. n_failed is
+    inferred as `target - n_done`; with our idempotency guards, "stage done"
+    means submit + poll + list-outputs all returned, so n_done is final.
+    """
+    state_dir = GRID_DATA_ROOT / config_name / "state"
+    cluster_file = state_dir / f"{stage}_cluster.txt"
+    outputs_file = state_dir / f"{stage}_outputs.txt"
+    cid = cluster_file.read_text().strip() if cluster_file.exists() else None
+    outputs = ([ln for ln in outputs_file.read_text().splitlines() if ln.strip()]
+               if outputs_file.exists() else [])
+    target = STAGE_TARGETS.get(stage, 0)
+    n_done = len(outputs)
+    status = "done" if (cid and outputs) else ("in_flight" if cid else "pending")
+    return {
+        "cluster_id": cid,
+        "status": status,
+        "n_done": n_done,
+        "n_failed": max(0, target - n_done),
+        "last_poll_ts": time.time(),
+    }
+
+
+def run_grid_real(mode_name: str, config_name: str) -> dict:
+    """Deprecated shim. Prefer per-stage nodes (graph.build) for live runs.
+
+    Kept for ad-hoc scripted use that wants to drive the full chain in one
+    process. Loops `run_stage` over GRID_STAGES then harvest.
+    """
+    for stage in GRID_STAGES:
+        run_stage(config_name, stage)
+    return run_harvest(config_name)
+
+
+# --- end-of-workflow log scanner (report-only) ---
+
+
+# Patterns counted per worker log. Order matters only for report column order.
+_SCAN_PATTERNS = (
+    ("G4Exception",            r"G4Exception"),
+    ("StuckTrack",             r"Stuck Track"),
+    ("LikelyGeomOverlap",      r"Likely geometry overlap"),
+    ("GeomSolids1001",         r"GeomSolids1001"),
+    ("GeomNav1002",            r"GeomNav1002"),
+    ("Error",                  r"\bError\b"),
+    ("Warning",                r"\bWarning\b"),
+    ("FATAL",                  r"FATAL"),
+    ("SEGV",                   r"SEGV|segmentation fault|Segmentation fault"),
+)
+
+
+def _worker_log_paths(config_name: str, stage: str) -> list[Path]:
+    """Resolve every .log under the per-worker outstage dirs for one stage.
+
+    Reads `<state>/<stage>_outputs.txt`, takes the dirname of each .art path,
+    globs *.log in that dir. Returns [] if outputs file is missing (stage
+    didn't reach list-outputs yet).
+    """
+    state_dir = GRID_DATA_ROOT / config_name / "state"
+    outputs_file = state_dir / f"{stage}_outputs.txt"
+    if not outputs_file.exists():
+        return []
+    logs: list[Path] = []
+    for line in outputs_file.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        worker_dir = Path(line).parent
+        try:
+            logs.extend(sorted(worker_dir.glob("*.log")))
+        except OSError:
+            continue
+    return logs
+
+
+def _scan_one_stage(config_name: str, stage: str, jobs: int = 16) -> dict[str, int]:
+    """Count occurrences of each _SCAN_PATTERNS regex across all worker logs.
+
+    Uses `xargs -P jobs grep -cE` for a single fan-out per pattern; on /pnfs
+    this is ~4-5s per 200 logs (file-open is the bottleneck, not regex).
+    """
+    logs = _worker_log_paths(config_name, stage)
+    if not logs:
+        return {code: 0 for code, _ in _SCAN_PATTERNS}
+    counts: dict[str, int] = {}
+    paths_blob = "\n".join(str(p) for p in logs).encode()
+    for code, regex in _SCAN_PATTERNS:
+        proc = subprocess.run(
+            ["xargs", "-0", "-P", str(jobs), "-n", "20",
+             "grep", "-cE", "--", regex],
+            input=paths_blob.replace(b"\n", b"\0"),
+            capture_output=True,
+        )
+        # grep -c prints one line per file: "path:N". Sum the N.
+        total = 0
+        for ln in proc.stdout.decode("utf-8", "replace").splitlines():
+            _, _, n = ln.rpartition(":")
+            try:
+                total += int(n)
+            except ValueError:
+                continue
+        counts[code] = total
+    return counts
+
+
+def scan_worker_logs(config_name: str) -> tuple[dict[str, dict[str, int]], Path]:
+    """Scan all stages' worker logs for known issue patterns.
+
+    Returns ({stage: {code: count}}, report_path). Always writes the TSV
+    even when all counts are zero — downstream visibility wants the row.
+    Report-only: never raises on pattern hits, never gates anything.
+    """
+    report_dir = GRID_DATA_ROOT / config_name / "scan_logs"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report: dict[str, dict[str, int]] = {}
+    for stage in GRID_STAGES:
+        report[stage] = _scan_one_stage(config_name, stage)
+    # TSV: stage \t n_logs \t <pattern_columns...>
+    report_path = report_dir / "report.tsv"
+    headers = ["stage", "n_logs"] + [code for code, _ in _SCAN_PATTERNS]
+    lines = ["\t".join(headers)]
+    for stage in GRID_STAGES:
+        n_logs = len(_worker_log_paths(config_name, stage))
+        row = [stage, str(n_logs)] + [str(report[stage].get(c, 0)) for c, _ in _SCAN_PATTERNS]
+        lines.append("\t".join(row))
+    report_path.write_text("\n".join(lines) + "\n")
+    (report_dir / "report.json").write_text(json.dumps(report, indent=2))
+    return report, report_path
+
+
+# --- evaluate (subprocess; writes leaderboard, clears pending) ---
+
+
+def run_evaluate(mode_name: str, config_name: str, metrics: dict,
+                 alpha: float = DEFAULT_ALPHA) -> tuple[float | None, str]:
+    """Write metrics to a tmp summary.json and call the driver's evaluate verb.
+
+    Returns (objective, stdout_tail). objective is None if the driver could
+    not compute it (missing fields, etc.).
+    """
+    tmp = Path(tempfile.mkdtemp(prefix=f"graph_eval_{config_name}_"))
+    summary_path = tmp / "summary.json"
+    summary_path.write_text(json.dumps(metrics, indent=2))
+
+    cmd = [
+        sys.executable,
+        str(BO_DRIVER),
+        "--mode", mode_name,
+        "--alpha", f"{alpha}",
+        "evaluate", config_name, str(summary_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-40:])
+
+    obj = None
+    # Driver prints `obj={:+.3f}` so the sign is always present; allow both
+    # `obj=+0.519` and `obj: 0.5` to be forgiving across formats.
+    m = re.search(r"obj\s*[:=]\s*([+-]?\d+\.\d+)", proc.stdout)
+    if m:
+        obj = float(m.group(1))
+    return obj, tail
+
+
+# --- helper: synthesize next config name from leaderboard width ---
+
+
+def next_config_name(mode_name: str, prefix: str = "graph") -> str:
+    """Pick the next free `<prefix>NNN` not in leaderboard or pending."""
+    mode = bo.MODES[mode_name]
+    used = {p.cfg for p in mode.load_history()} | {n for n, _ in mode.load_pending()}
+    for i in range(1, 10_000):
+        cand = f"{prefix}{i:03d}"
+        if cand not in used:
+            return cand
+    raise RuntimeError("ran out of config name candidates (1..9999)")

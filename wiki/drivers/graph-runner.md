@@ -1,0 +1,110 @@
+# graph-runner — LangGraph orchestrator for the BO loop
+
+**Type:** driver
+**Status:** active
+**Updated:** 2026-05-20 (scan_logs end-of-workflow node added)
+
+## Summary
+LangGraph runner that replaces the manual `propose → preflight → submit → poll
+→ harvest → evaluate` script chain with a state-machine graph. Provides
+checkpointed iteration state, visual step-through in LangGraph Studio, and a
+Streamlit read-only overlay (leaderboard, threads, GP surface). Phase 2b ships
+the real four-stage grid path (one node per stage) alongside the Phase 1
+mock-grid branch; helical mode only.
+
+## Key facts
+- **Code**: `graph/{state,nodes,pipeline_io,build,config,run}.py` + `graph_app/streamlit_app.py`.
+- **Topology (Phase 2b + scan_logs)**: `START → propose → render_preflight →
+  {stage_mubeam → stage_run1b_mubeam → stage_concat → stage_mustops_ce → harvest → scan_logs, OR mock_grid}
+  → evaluate → decide_next → END`. Mock path bypasses `scan_logs` (no grid
+  logs exist). Each `stage_X` node calls
+  `pio.run_stage(cfg, X)` which shells out to `pipeline.py --config CFG submit|poll|list-outputs X`
+  in series. `route_after_stage` (between every pair of stages) terminates the
+  iteration on the first stage that returns `status="failed"`, so `evaluate`
+  never runs with partial metrics.
+- **Per-stage idempotency lives in pipeline.py, not in the graph node.** Re-entering
+  `stage_X` after a checkpoint kill or a hot-reload re-runs submit/poll/list-outputs;
+  pipeline.py's submit/list-outputs guards no-op when the cluster file already
+  exists (and, for list-outputs, every basename in `<stage>_outputs.txt` still
+  resolves on /pnfs). Override with `--force`. See [[pipeline]].
+- **`langgraph dev` hot-reload is hostile to long-running subprocess nodes.**
+  The dev server watches `graph/` and SIGKILLs the worker on file change, mid-`subprocess.run`.
+  graph007 (2026-05-19) suffered three double-submits of `stage_mubeam` because
+  successive edits during the run aborted the in-flight verb between cluster-file
+  write and graph state-update. Mitigation: never edit `graph/` while a real-grid
+  thread is mid-flight, OR rely on the Phase 2b per-stage idempotency to absorb
+  re-entry. The dev server itself has no `--no-reload` flag we've found.
+- **Python version**: 3.11+ required for `langgraph dev` (the in-mem server hard-fails on 3.9).
+  Venv built with `uv venv --python 3.11 .venv-graph`.
+- **uv cache**: `/exp/mu2e/app/users/oksuzian/uv_cache` — `/nashome` quota is too tight
+  (~2 GB available) for langgraph's dep tree (grpcio + langchain-core pull >300 MB).
+- **State**: `BOIterationState` TypedDict at `graph/state.py`. `stages: Dict[str, StageStatus]`
+  is the per-iteration scoreboard; each `StageStatus` has `cluster_id`, `status`,
+  `n_done`, `n_failed`, `last_poll_ts`. `STAGE_TARGETS` in `graph/config.py`
+  (`mubeam=200, run1b_mubeam=200, concat=1, mustops_ce=100`) drives the
+  `n_failed = max(0, target - n_done)` inference in `read_stage_status`.
+- **Conditional retry edge** `render_preflight → propose` on `fail_managed` (max 3 attempts).
+- **Resume gotcha — same-config_name does NOT recover a stalled chain.** Launching
+  a fresh thread_id with `--config-name graphNNN` (where graphNNN already exists in
+  leaderboard or pending) triggers `pio.propose_one`'s collision guard
+  (`graph/pipeline_io.py:57`); the except branch falls through to
+  `next_config_name()` and the iteration silently morphs into a FRESH config
+  (`graph022/023/024` minted at the auto-increment boundary). Log signature:
+  `[run] {"config_name": "graph018"}` immediately followed by
+  `[run] {"config_name": "graph022", "preflight": "pending"}`. The fresh chain
+  reuses the passed `--x-point`, so the new config is a noise-replicate of
+  the stalled one — not a recovery. **To actually recover a stalled chain**,
+  drive `pipeline.py --config <stalled_cfg>` directly for each missing
+  stage (per-stage idempotency means submit/poll/list-outputs reuse existing
+  `<stage>_cluster.txt` and only re-do the missing tail). Or: delete the
+  pending row for `<stalled_cfg>` from the BO mode's pending TSV so propose
+  doesn't see a collision (untested 2026-05-20).
+- **Python version**: 3.11+ required for `langgraph dev` (the in-mem server hard-fails on 3.9).
+  Venv built with `uv venv --python 3.11 .venv-graph`.
+- **uv cache**: `/exp/mu2e/app/users/oksuzian/uv_cache` — `/nashome` quota is too tight
+  (~2 GB available) for langgraph's dep tree (grpcio + langchain-core pull >300 MB).
+- **State**: `BOIterationState` TypedDict at `graph/state.py`. Uses `Optional[X]` not
+  `X | None` because LangGraph re-evaluates annotations via `get_type_hints` at
+  StateGraph construction; PEP 604 union syntax fails on 3.9 even with
+  `from __future__ import annotations` (we no longer target 3.9 but the doc-note remains).
+- **Imports**: `build.py` and `nodes.py` use `sys.path.insert + absolute imports`
+  (not `from .nodes import …`) because `langgraph dev` loads the entrypoint as a
+  standalone file path, breaking package-relative imports.
+- **No checkpointer at compile under `langgraph dev`**: the platform supplies one.
+  `graph/build.py` calls `compile()` with no args. Headless `graph/run.py` wires
+  `SqliteSaver(sqlite3.connect(CHECKPOINT_DB))` itself.
+- **REST API**: `http://127.0.0.1:2024` (assistants, threads, runs, docs at `/docs`).
+  Studio UI at `https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024`
+  (browser must reach 127.0.0.1:2024 — use `ssh -L 2024:127.0.0.1:2024 <gpvm>`).
+- **Smoke command**: `curl -sS http://127.0.0.1:2024/runs/wait -X POST -H 'Content-Type: application/json' -d '{"assistant_id":"bo_helical","input":{"mode":"helical","alpha":100000.0,"mock":true,"config_name":"graphsmoke001"}}'`
+- **`--allow-blocking` is required** in dev because `pipeline_io.run_preflight` is
+  a synchronous `subprocess.run` that blocks the worker's event loop. Without
+  it, langgraph_api raises on every node call.
+- **`scan_logs` end-of-workflow node (2026-05-20)** — between `harvest` and
+  `evaluate`. Walks every worker `.log` derived from each `<stage>_outputs.txt`,
+  fans out `xargs -P 16 grep -cE` over patterns: `G4Exception`, `Stuck Track`,
+  `Likely geometry overlap`, `GeomSolids1001`, `GeomNav1002`, `Error`,
+  `Warning`, `FATAL`, `SEGV`. Writes `<grid_root>/<config>/scan_logs/report.tsv`
+  + `report.json`; populates `state.scan_report` (dict of `{stage:
+  {code: count}}`) and `state.scan_report_path`. **Report-only** — never
+  raises, never fails the iteration, no leaderboard mutation. Cost: ~4 min on
+  helical050a (which has 28M GeomNav1002 hits making `grep -c` outputs huge);
+  near-zero on clean iterations. `n_logs` in the report counts only workers
+  whose `.art` made it to `<stage>_outputs.txt`, not raw outstage dirs —
+  matches the scope of data actually being harvested. See
+  [[tessellated-solid-facet-orientation]] for the first issue this caught.
+
+## Cross-links
+- Related: [[autoresearch-bo-michael]], [[preflight]], [[bo-helical]], [[orchestrator-evaluation-2026-05]]
+- Source files: `graph/build.py`, `graph/nodes.py`, `graph/pipeline_io.py`, `graph_app/streamlit_app.py`
+- Config: `langgraph.json`, `requirements-graph.txt`
+- External: [LangGraph docs](https://langchain-ai.github.io/langgraph/)
+
+## Open questions / TODO
+- Supervisor loop to re-invoke pending threads every N min (Phase 3).
+- michael mode in `build.py` (one-line change once Phase 2b stabilizes).
+- Studio observability for the SQLite checkpoint produced by `graph/run.py`
+  (Studio currently only sees the dev server's in-memory store).
+- Per-stage `submit` retry edge inside the graph (currently any failure
+  inside `pio.run_stage` terminates the iteration; we rely on the next manual
+  re-resume to recover).

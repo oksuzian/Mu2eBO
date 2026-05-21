@@ -1,0 +1,58 @@
+"""Typed state shared across nodes of the BO iteration graph.
+
+Note: PEP 604 union syntax (`X | None`) is not used here because LangGraph's
+`StateGraph` calls `typing.get_type_hints` which re-evaluates annotations at
+runtime; on Python 3.9 that raises `TypeError: unsupported operand type(s)
+for |`. Use `Optional[X]` / `Union[X, Y]` instead until we drop 3.9.
+
+`TypedDict` is imported from `typing_extensions`, not `typing`: pydantic 2.13
+(used by langgraph_api for schema introspection) rejects `typing.TypedDict`
+on Python <3.12, which prevents Studio from rendering the input form.
+"""
+from typing import Dict, List, Literal, Optional
+from typing_extensions import TypedDict
+
+
+PreflightStatus = Literal["pending", "pass", "fail_managed", "fail_init", "ambiguous"]
+StageName = Literal["mubeam", "run1b_mubeam", "concat", "mustops_ce"]
+
+
+class StageStatus(TypedDict, total=False):
+    cluster_id: Optional[str]
+    n_done: int
+    n_failed: int
+    status: Literal["pending", "submitted", "running", "done", "failed"]
+    last_poll_ts: Optional[float]
+
+
+class BOIterationState(TypedDict, total=False):
+    """Per-iteration state. Persisted by SqliteSaver between node transitions."""
+
+    config_name: str
+    mode: Literal["helical", "michael"]
+    alpha: float
+
+    x_point: List[float]
+    geom_path: Optional[str]
+
+    preflight: PreflightStatus
+
+    stages: Dict[str, StageStatus]
+
+    metrics: Optional[dict]
+    objective: Optional[float]
+
+    attempts: Dict[str, int]
+    errors: List[str]
+
+    mock: bool
+
+    auto_continue: bool
+    iter: int
+    max_iter: int
+
+    # End-of-workflow log scan (report-only; never gates evaluate).
+    # `scan_report` is {stage: {pattern_code: total_count}}; `scan_report_path`
+    # points at the per-iteration TSV under <grid_root>/<config_name>/scan_logs/.
+    scan_report: Optional[Dict[str, Dict[str, int]]]
+    scan_report_path: Optional[str]

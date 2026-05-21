@@ -1,0 +1,7 @@
+{
+  "dependencies": ["./graph"],
+  "graphs": {
+    "bo_helical": "./graph/build.py:graph"
+  },
+  "env": ".env"
+}
