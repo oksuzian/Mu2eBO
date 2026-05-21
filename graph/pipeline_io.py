@@ -32,6 +32,7 @@ from config import (  # noqa: E402
     GRID_DATA_ROOT,
     GRID_STAGES,
     PIPELINE_DRIVER,
+    PREFLIGHT_TIMEOUT_S,
     STAGE_TARGETS,
 )
 
@@ -93,7 +94,7 @@ def propose_one(mode_name: str, config_name: str, alpha: float = DEFAULT_ALPHA,
 # --- preflight (subprocess) ---
 
 
-def run_preflight(mode_name: str, config_name: str, timeout_s: int = 1200) -> tuple[str, str]:
+def run_preflight(mode_name: str, config_name: str, timeout_s: int = PREFLIGHT_TIMEOUT_S) -> tuple[str, str]:
     """Run `autoresearch_bo_michael.py preflight <cfg>`.
 
     Returns (status, log_tail). status ∈ {"pass", "fail_managed", "fail_init",

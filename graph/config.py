@@ -34,6 +34,13 @@ DEFAULT_ALPHA = 1.0e5
 # Retry policy for preflight-failed proposals (managed-volume overlap).
 MAX_PROPOSE_RETRIES = 3
 
+# Wall-clock cap on a local `mu2e -n 1` preflight (G4 init + surface check).
+# Single source of truth; both the BO driver and the graph runner import this.
+# Was previously split as 600s (autoresearch_bo_michael.py) vs 1200s
+# (graph/pipeline_io.py:run_preflight) — the lower value caused silent
+# preflight timeouts on cold-cache CVMFS hits.
+PREFLIGHT_TIMEOUT_S = 1200
+
 # Mock metrics knobs (Phase 1 only) — smooth analytic surface over the
 # 4D helical search space so the graph has something to optimize.
 MOCK_SOB_PEAK = 1.0
