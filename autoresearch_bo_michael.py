@@ -48,8 +48,28 @@ import sys
 import tempfile
 import time
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+
+
+@contextmanager
+def _flock_ex(target: Path):
+    """Exclusive-lock a sibling <target>.lock file for the duration of the block.
+
+    Used by leaderboard/pending TSV writers when multiple closed-loop child
+    processes may append concurrently. The lock file is created if absent
+    and intentionally NEVER deleted — keeping it around lets a later writer
+    acquire-without-create.
+    """
+    lock_path = target.with_suffix(target.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
 
 ROOT = Path("/exp/mu2e/app/users/oksuzian/autoresearch")
 GEOM_TSV = Path("/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/geom_params.tsv")
@@ -146,12 +166,13 @@ class BOMode(ABC):
         return out
 
     def append_history(self, p: Point, alpha: float):
-        new_file = not self.leaderboard.exists()
-        header, line = self.format_row(p, alpha)
-        with self.leaderboard.open("a") as f:
-            if new_file:
-                f.write(header)
-            f.write(line)
+        with _flock_ex(self.leaderboard):
+            new_file = not self.leaderboard.exists()
+            header, line = self.format_row(p, alpha)
+            with self.leaderboard.open("a") as f:
+                if new_file:
+                    f.write(header)
+                f.write(line)
 
     def build_optimizer(self):
         from skopt import Optimizer
@@ -183,25 +204,29 @@ class BOMode(ABC):
 
     def append_pending(self, name: str, x, alpha: float):
         pp = self.pending_path()
-        new = not pp.exists()
-        with pp.open("a") as f:
-            if new:
-                f.write("config\tx\talpha\tsubmitted_at\n")
-            f.write(f"{name}\t{json.dumps(list(x))}\t{alpha:.3f}\t{int(time.time())}\n")
+        with _flock_ex(pp):
+            new = not pp.exists()
+            with pp.open("a") as f:
+                if new:
+                    f.write("config\tx\talpha\tsubmitted_at\n")
+                f.write(f"{name}\t{json.dumps(list(x))}\t{alpha:.3f}\t{int(time.time())}\n")
 
     def remove_pending(self, name: str) -> bool:
         pp = self.pending_path()
-        if not pp.exists():
-            return False
-        rows = pp.read_text().splitlines()
-        if len(rows) < 2:
-            return False
-        header, body = rows[0], rows[1:]
-        kept = [r for r in body if not r.startswith(name + "\t")]
-        if len(kept) == len(body):
-            return False
-        pp.write_text("\n".join([header] + kept) + ("\n" if kept else ""))
-        return True
+        # Read-modify-write under lock: without LOCK_EX two concurrent removals
+        # can race and one's truncate overwrites the other's deletion.
+        with _flock_ex(pp):
+            if not pp.exists():
+                return False
+            rows = pp.read_text().splitlines()
+            if len(rows) < 2:
+                return False
+            header, body = rows[0], rows[1:]
+            kept = [r for r in body if not r.startswith(name + "\t")]
+            if len(kept) == len(body):
+                return False
+            pp.write_text("\n".join([header] + kept) + ("\n" if kept else ""))
+            return True
 
 
 # ============================================================================
