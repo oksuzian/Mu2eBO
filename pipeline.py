@@ -67,7 +67,12 @@ def _submit_lock(stage: str):
 TEMPLATES_ROOT = Path(__file__).resolve().parent / "pipeline_templates"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "graph"))
-from config import GRID_DATA_ROOT as DATA_ROOT, MUSING, SETUPMU2E  # noqa: E402
+from config import (  # noqa: E402
+    GRID_DATA_ROOT as DATA_ROOT,
+    MUSING,
+    SETUPMU2E,
+    STAGE_TARGETS,
+)
 
 # Canonical muse-built Code.tar.bz2 produced by `muse tarball` from
 # /exp/mu2e/app/users/oksuzian/autoresearch_muse/ (mgit Mu2eG4 sparse
@@ -109,7 +114,7 @@ def _bind_config(cfg: str) -> None:
 STAGES = {
     "mubeam": {
         "desc_fmt": "Run1A_MuBeam_{cfg}",
-        "njobs": 200,
+        "njobs": STAGE_TARGETS["mubeam"],
         "events_per_job": 5000,
         "run_number": 1800,
         "ships_geom": True,
@@ -119,7 +124,7 @@ STAGES = {
     },
     "run1b_mubeam": {
         "desc_fmt": "Run1B_MuBeam_{cfg}",
-        "njobs": 200,
+        "njobs": STAGE_TARGETS["run1b_mubeam"],
         "events_per_job": 5000,
         "run_number": 1810,
         "ships_geom": True,
@@ -129,7 +134,7 @@ STAGES = {
     },
     "concat": {
         "desc_fmt": "Run1A_MuStopsCat_{cfg}",
-        "njobs": 1,
+        "njobs": STAGE_TARGETS["concat"],
         "merge_factor": 200,
         "ships_geom": False,
         "default_loc": "disk",
@@ -139,7 +144,7 @@ STAGES = {
         "desc_fmt": "Run1A_CeEndpoint_{cfg}",
         # 100 jobs per A/B noise test on helical001 (2026-05-16): half-vs-half
         # ce_seen agreed to 0.4% at 97 jobs each — well below GP noise floor.
-        "njobs": 100,
+        "njobs": STAGE_TARGETS["mustops_ce"],
         # 5000 events/job. Briefly cut to 2500 (2026-05-21 AM) to chase a
         # historical 24–147 min long-pole tail, but that tail was driven by
         # broken-plug stuck-track floods (see [[tessellated-solid-facet-orientation]]);

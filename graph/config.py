@@ -22,8 +22,9 @@ MUSING = "/cvmfs/mu2e.opensciencegrid.org/Musings/SimJob/Run1Bak/setup.sh"
 # four stages complete.
 GRID_STAGES = ["mubeam", "run1b_mubeam", "concat", "mustops_ce"]
 
-# Per-stage njobs targets — used by read_stage_status to infer n_failed.
-# Kept in sync with pipeline.py STAGES[*]["njobs"]; if those change, update here.
+# Per-stage njobs targets — canonical source of truth for both
+# pipeline.STAGES (consumed as njobs at submit) and read_stage_status
+# (consumed to infer n_failed). Changing these here changes both.
 STAGE_TARGETS = {
     "mubeam":       200,
     "run1b_mubeam": 200,
