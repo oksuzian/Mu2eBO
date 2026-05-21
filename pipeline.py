@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -167,6 +168,43 @@ STAGES = {
 
 def _stage_desc(stage: str) -> str:
     return STAGES[stage]["desc_fmt"].format(cfg=CONFIG)
+
+
+def _stage_config_sha(stage: str) -> str:
+    """Stable SHA-256 of STAGES[stage] — the per-stage config snapshot.
+
+    Stamped at submit, re-read at harvest. Generalizes the events_per_job
+    stamp (which only covered one field) to the whole stage dict.
+    Path objects are coerced to str so the serialization is reproducible.
+    See wiki/incidents/events-per-job-mid-flight-edit.md.
+    """
+    payload = json.dumps(STAGES[stage], sort_keys=True, default=str)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _stamp_stage_config_sha(stage: str) -> None:
+    (STATE / f"{stage}_config_sha.txt").write_text(_stage_config_sha(stage) + "\n")
+
+
+def _check_stage_config_sha(stage: str) -> None:
+    """Warn (do not fail) if STAGES[stage] changed between submit and read.
+
+    Called from cmd_harvest. Silent if no stamp file (legacy chains
+    submitted before this guard existed).
+    """
+    stamp_path = STATE / f"{stage}_config_sha.txt"
+    if not stamp_path.exists():
+        return
+    stamped = stamp_path.read_text().strip()
+    current = _stage_config_sha(stage)
+    if stamped != current:
+        print(
+            f"[harvest] WARN: STAGES[{stage!r}] changed since submit "
+            f"(stamp={stamped[:12]}, current={current[:12]}). "
+            f"Harvest may compute biased metrics; see "
+            f"wiki/incidents/events-per-job-mid-flight-edit.md.",
+            file=sys.stderr, flush=True,
+        )
 
 
 def _materialize_template(stage: str) -> Path:
@@ -386,6 +424,7 @@ def submit_stage(stage: str, env: dict, *, inputs_file: Path | None = None,
             raise SystemExit(f"[{stage}] could not parse cluster id from mu2ejobsub output")
         cluster = int(m.group(1))
         (STATE / f"{stage}_cluster.txt").write_text(f"{cluster}\n")
+        _stamp_stage_config_sha(stage)
         print(f"[{stage}] cluster={cluster}")
         return cluster
 
@@ -660,6 +699,8 @@ def cmd_harvest(args):
          ce_abs_eff = ce_seen * ce_scale
       4. Run rough_run1a_sensitivity.C -> parse 'S/sqrt(B) = X'
     """
+    for stage in ("mubeam", "run1b_mubeam", "concat", "mustops_ce"):
+        _check_stage_config_sha(stage)
     env = sourced_env(with_muse=True)
     harvest_dir = ROOT / "harvest"
     harvest_dir.mkdir(parents=True, exist_ok=True)
