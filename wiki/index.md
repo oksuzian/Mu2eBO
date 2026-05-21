@@ -29,6 +29,7 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [pipeline](drivers/pipeline.md) — per-config runner: forks config, submits grid, harvests
 - [preflight](drivers/preflight.md) — local `mu2e -n 1` G4 init feasibility check
 - [graph-runner](drivers/graph-runner.md) — LangGraph state-machine orchestrator (Phase 1 mock-grid); Studio + Streamlit overlay
+- [closed-loop-runner](drivers/closed-loop-runner.md) — multi-round Pareto-pick BO driver: wraps q parallel graph-runner children, refits GP between rounds
 
 ## Incidents (root-caused gotchas)
 - [geom-run1a-vs-run1b](incidents/geom-run1a-vs-run1b.md) — `geom_run1_a.txt` baseline missing TT_MidInner fix; fails in run1b_mubeam

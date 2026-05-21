@@ -54,6 +54,9 @@ reach the calorimeter, complementing the foil-stack approach.
 
 ## Cross-links
 - Driver: [[autoresearch-bo-michael]] (`--mode helical`)
+- Autonomous-exploration driver: [[closed-loop-runner]] (multi-round Pareto
+  picks; replaces the operator-paced "compute 5 picks → launch 5 chains →
+  refit → repeat" loop used through helicalP01-P05)
 - Sibling mode: [[bo-michael]]
 - Related concepts: [[tsda]], [[scalarized-objective]], [[fixed-geometry-constraint]]
 - Priors: [[mmackenz-priors]]

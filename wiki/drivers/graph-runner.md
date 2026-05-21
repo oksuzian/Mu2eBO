@@ -101,6 +101,9 @@ mock-grid branch; helical mode only.
 - External: [LangGraph docs](https://langchain-ai.github.io/langgraph/)
 
 ## Open questions / TODO
+- **Multi-round driver lives in [[closed-loop-runner]]** — `graph.run` remains
+  the single-iteration entrypoint; `graph.closed_loop` wraps q parallel
+  `graph.run` children per round and refits the GP between rounds.
 - Supervisor loop to re-invoke pending threads every N min (Phase 3).
 - michael mode in `build.py` (one-line change once Phase 2b stabilizes).
 - Studio observability for the SQLite checkpoint produced by `graph/run.py`
