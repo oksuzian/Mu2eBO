@@ -328,12 +328,31 @@ def _scan_one_stage(config_name: str, stage: str, jobs: int = 16) -> dict[str, i
     return counts
 
 
-def scan_worker_logs(config_name: str) -> tuple[dict[str, dict[str, int]], Path]:
+# Pattern codes whose nonzero count means the run is physics-broken (do not
+# trust the metrics). GeomSolids1001 is the smoking gun for the
+# tessellated-facet-orientation incident: a single misfacetted solid floods
+# logs with GeomNav1002 entries and silently corrupts particle navigation.
+# Any nonzero hit gates the leaderboard append.
+SCAN_BROKEN_CODES = ("GeomSolids1001",)
+
+
+def is_scan_broken(report: dict[str, dict[str, int]]) -> bool:
+    """Return True if any stage's report has a nonzero count for a broken-code."""
+    for stage_counts in report.values():
+        for code in SCAN_BROKEN_CODES:
+            if stage_counts.get(code, 0) > 0:
+                return True
+    return False
+
+
+def scan_worker_logs(config_name: str) -> tuple[dict[str, dict[str, int]], Path, bool]:
     """Scan all stages' worker logs for known issue patterns.
 
-    Returns ({stage: {code: count}}, report_path). Always writes the TSV
-    even when all counts are zero — downstream visibility wants the row.
-    Report-only: never raises on pattern hits, never gates anything.
+    Returns ({stage: {code: count}}, report_path, broken). Always writes the
+    TSV even when all counts are zero — downstream visibility wants the row.
+    When `broken` is True (see SCAN_BROKEN_CODES), also writes
+    `<config>/state/broken.txt` so the closed-loop refit can filter the chain
+    out without re-running the scan.
     """
     report_dir = GRID_DATA_ROOT / config_name / "scan_logs"
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -350,7 +369,23 @@ def scan_worker_logs(config_name: str) -> tuple[dict[str, dict[str, int]], Path]
         lines.append("\t".join(row))
     report_path.write_text("\n".join(lines) + "\n")
     (report_dir / "report.json").write_text(json.dumps(report, indent=2))
-    return report, report_path
+    broken = is_scan_broken(report)
+    if broken:
+        state_dir = GRID_DATA_ROOT / config_name / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        marker = state_dir / "broken.txt"
+        hit_codes = sorted({
+            code
+            for stage_counts in report.values()
+            for code in SCAN_BROKEN_CODES
+            if stage_counts.get(code, 0) > 0
+        })
+        marker.write_text(
+            "scan_logs detected broken-run patterns; leaderboard append suppressed.\n"
+            f"codes={','.join(hit_codes)}\n"
+            f"report={report_path}\n"
+        )
+    return report, report_path, broken
 
 
 # --- evaluate (subprocess; writes leaderboard, clears pending) ---

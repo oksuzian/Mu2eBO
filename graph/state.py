@@ -51,8 +51,13 @@ class BOIterationState(TypedDict, total=False):
     iter: int
     max_iter: int
 
-    # End-of-workflow log scan (report-only; never gates evaluate).
-    # `scan_report` is {stage: {pattern_code: total_count}}; `scan_report_path`
-    # points at the per-iteration TSV under <grid_root>/<config_name>/scan_logs/.
+    # End-of-workflow log scan. `scan_report` is {stage: {pattern_code:
+    # total_count}}; `scan_report_path` points at the per-iteration TSV under
+    # <grid_root>/<config_name>/scan_logs/. `scan_logs_broken` is set True
+    # when scan_logs detects physics-breaking patterns (tessellated-facet
+    # GeomSolids1001 floods, see [[tessellated-solid-facet-orientation]]);
+    # node_evaluate refuses to append the leaderboard row when set, and the
+    # closed-loop refit filters chains whose run dir has state/broken.txt.
     scan_report: Optional[Dict[str, Dict[str, int]]]
     scan_report_path: Optional[str]
+    scan_logs_broken: bool

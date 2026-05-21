@@ -113,36 +113,57 @@ def node_mock_grid(state: BOIterationState) -> dict:
 
 
 def node_scan_logs(state: BOIterationState) -> dict:
-    """End-of-workflow log scan. Report-only — never fails the iteration.
+    """End-of-workflow log scan. Gates the leaderboard append on broken runs.
 
     Walks every worker .log under the four stage outstage dirs and counts
     G4Exception / Stuck Track / Warning / FATAL / SEGV hits. Writes a TSV +
-    JSON report under <grid_root>/<config_name>/scan_logs/ and populates
-    state.scan_report for checkpoint visibility. Iteration continues to
-    evaluate regardless of findings.
+    JSON report under <grid_root>/<config_name>/scan_logs/. When the report
+    trips a SCAN_BROKEN_CODES pattern (today: any GeomSolids1001 hit;
+    see [[tessellated-solid-facet-orientation]]) the iteration's metrics
+    are physics-broken — sets `scan_logs_broken=True` and writes
+    `state/broken.txt`; node_evaluate then refuses to append the row.
     """
     name = state["config_name"]
     errors = list(state.get("errors", []))
     try:
-        report, report_path = pio.scan_worker_logs(name)
+        report, report_path, broken = pio.scan_worker_logs(name)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"scan_logs[{name}]: {exc}")
-        return {"scan_report": None, "scan_report_path": None, "errors": errors}
+        return {
+            "scan_report": None,
+            "scan_report_path": None,
+            "scan_logs_broken": False,
+            "errors": errors,
+        }
+    if broken:
+        errors.append(
+            f"scan_logs[{name}]: broken-run patterns detected; leaderboard "
+            f"append suppressed (see {report_path})"
+        )
     return {
         "scan_report": report,
         "scan_report_path": str(report_path),
+        "scan_logs_broken": broken,
         "errors": errors,
     }
 
 
 def node_evaluate(state: BOIterationState) -> dict:
-    """Append the (x, metrics) point to the leaderboard."""
-    mode = state["mode"]
+    """Append the (x, metrics) point to the leaderboard.
+
+    Skips the append when scan_logs flagged the run as broken — the metrics
+    in `state["metrics"]` are physics-invalid and including them would let
+    the next BO refit chase a phantom Pareto frontier.
+    """
     name = state["config_name"]
+    errors = list(state.get("errors", []))
+    if state.get("scan_logs_broken"):
+        errors.append(f"evaluate[{name}]: skipped (scan_logs_broken=True)")
+        return {"objective": None, "errors": errors}
+    mode = state["mode"]
     alpha = state.get("alpha", DEFAULT_ALPHA)
     metrics = state["metrics"]
     obj, tail = pio.run_evaluate(mode, name, metrics, alpha=alpha)
-    errors = list(state.get("errors", []))
     if obj is None:
         errors.append(f"evaluate[{name}]: could not parse objective; tail={tail}")
     return {"objective": obj, "errors": errors}
