@@ -1,3 +1,0 @@
-#include "Offline/Mu2eG4/fcl/surfaceCheck.fcl"
-services.GeometryService.inputFile : "geom_test_run1a.txt"
-services.TFileService.fileName     : "surfaceCheck_test_run1a.root"
