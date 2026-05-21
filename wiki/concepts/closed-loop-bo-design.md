@@ -91,11 +91,20 @@ already paid to learn.
 - Plan: `~/.claude/plans/zazzy-booping-ladybug.md`
 
 ## Open questions / TODO
-- WAL mode safety on the project's NFS-mounted home? SQLite WAL is fragile
-  on some NFS implementations. `graph_data/` is on `/exp/mu2e/app` — verify
-  before flipping.
-- Whether to land the closed-loop driver as `graph/closed_loop.py` (LangGraph
-  outer graph, deep-test-pass on resume semantics) or as `graph/loop.py`
-  (plain script, ~80 LOC). Decision blocked on a working WAL test.
 - Whether `compute_explore_picks` should grow a `--min-spacing` knob or
   the closed loop should post-filter picks. Choose before round 2.
+
+## Resolved (2026-05-21)
+- **WAL safety on the mount: OK.** `graph_data/` is on **CephFS**
+  (`/exp/mu2e/app` resolves to ceph), not NFS — POSIX locking semantics
+  apply. Smoke (5 concurrent writers × 5 inserts with 2s gap, 30s
+  connection timeout): 25 writes, 0 lock errors, 11s wall. Aggressive
+  test (4 writers × 50 inserts back-to-back, 5s timeout): one
+  `OperationalError('database is locked')`. Closed-loop workload (q=5,
+  ~10 checkpoints per child over 2h ≈ 0.01 writes/sec) is two orders
+  below the failure regime. Adopt: explicit `PRAGMA journal_mode=WAL`
+  + 30s SQLite timeout in `graph/run.py` and `graph/closed_loop.py`.
+- **Driver shape: LangGraph outer graph (closed_loop.py) wins the
+  deletion test.** WAL works → cross-thread checkpoint visibility
+  preserved → barrier can re-poll via `SqliteSaver.list({thread_id})`
+  after parent restart, justifying the LangGraph node structure.

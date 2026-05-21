@@ -50,3 +50,40 @@ PREFLIGHT_TIMEOUT_S = 1200
 # 4D helical search space so the graph has something to optimize.
 MOCK_SOB_PEAK = 1.0
 MOCK_CALO_FLOOR = 1.0e-7
+
+# ============================================================================
+# Closed-loop (graph/closed_loop.py) constants
+# ============================================================================
+# Number of parallel chains per round.
+CLOSED_LOOP_Q = 5
+# Cap on rounds in one closed-loop invocation; --max-rounds overrides per call.
+CLOSED_LOOP_MAX_ROUNDS = 10
+# Delay between consecutive child launches (mitigates concurrent-token-contention;
+# see wiki/incidents/concurrent-token-contention.md). 90s matches the value
+# proven safe in helicalP01-P05.
+CLOSED_LOOP_STAGGER_SEC = 90
+# Barrier polling cadence — how often the parent re-reads child checkpoints.
+# Closed-loop write rate is ~0.01 writes/sec, so polling every 5min is plenty
+# without flooding the SqliteSaver.
+CLOSED_LOOP_BARRIER_POLL_SEC = 300
+# Wall-clock cap on a single round; tripping this returns control to
+# decide_next which will normally end the loop.
+CLOSED_LOOP_BARRIER_TIMEOUT_MIN = 240
+# Budget knob passed to gp_predict_helical.compute_explore_picks. Larger =
+# more Sobol samples in the acquisition search; 5000 matches today's CLI.
+NSTEPS_BUDGET = 5000
+# Operator stop file. `touch graph_data/STOP_CLOSED_LOOP` and the next
+# barrier-poll iteration or decide_next will exit cleanly without affecting
+# in-flight children.
+STOP_FLAG = GRAPH_DATA / "STOP_CLOSED_LOOP"
+# Minimum normalized-L2 distance between picks returned by
+# compute_explore_picks (revision #7). Guards against the degenerate case
+# where a short Pareto frontier yields near-duplicate q-picks.
+CLOSED_LOOP_MIN_PICK_SPACING = 0.05
+
+# SqliteSaver connection timeout — closed-loop adds outer parent + q children
+# all writing to checkpoints.sqlite. WAL is on by default (see
+# wiki/concepts/closed-loop-bo-design.md) but bumping the connect timeout
+# from the SQLite default 5s to 30s absorbs CephFS lock-acquire jitter
+# under bursty multi-writer load.
+SQLITE_TIMEOUT_S = 30.0
