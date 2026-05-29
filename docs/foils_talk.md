@@ -106,7 +106,7 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 
 ## GP cloud evolution (animated)
 
-![h:380](gp_predicted_foils_cloud.gif)
+![h:500](gp_predicted_foils_cloud.gif)
 
 **Frontier widened across X01 → X03:**
 - sob peak: **3.31 → 3.87** (+17 %)
