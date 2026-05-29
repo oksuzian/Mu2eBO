@@ -30,7 +30,10 @@ subcommands, each independently runnable.
   base-class `render_proposal(name, x)` writes it to `proposal_dir/`.
 
 ## Cross-links
-- Project: [[bo-michael]]
+- Projects: [[bo-michael]], [[bo-helical]], [[bo-foils]] (modes registered in `MODES`)
+- Predecessor driver: [[autoresearch-bo]]
 - Priors: [[mmackenz-priors]]
 - Helper: [[preflight]]
+- Consumed by: [[pipeline]], [[graph-runner]], [[closed-loop-runner]]
+- Regression tests: [[tests]]
 - Known render bug: [[geom-run1a-vs-run1b]]

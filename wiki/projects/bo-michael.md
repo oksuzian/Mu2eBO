@@ -31,6 +31,8 @@ S/√B and minimize Run1B calo_stop_per_pot, scalarized as
 
 ## Cross-links
 - Source: `autoresearch_bo_michael.py`
+- Sibling modes: [[bo-helical]], [[bo-foils]]
+- Predecessor: [[bo-foil]] (this supersedes it)
 - Priors: [[mmackenz-priors]]
 - Design constraint: [[fixed-geometry-constraint]] (degrader=off in both Run1A and Run1B)
 - Known failure mode: [[geom-run1a-vs-run1b]]

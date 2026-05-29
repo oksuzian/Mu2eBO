@@ -104,8 +104,9 @@ for the failure that motivated this).
   staging, so worker mounts don't matter.
 
 ## Cross-links
-- Consumed by: [[autoresearch-bo-michael]] `evaluate`
+- Consumed by: [[autoresearch-bo-michael]] `evaluate`, [[graph-runner]] (per-stage nodes)
 - Geom rendered by: [[autoresearch-bo-michael]] `propose` (auto-stages into work tree)
+- Regression tests: [[tests]] (pins the `_check_stage_config_sha` contract)
 - See: [[grid-job-completion-check]] for monitoring conventions
 - History: [[template-fcl-staleness]] (the bug this refactor closes)
 

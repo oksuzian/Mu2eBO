@@ -1,0 +1,77 @@
+# Self-tests (`tests/`)
+
+**Type:** driver
+**Status:** active
+**Updated:** 2026-05-29
+
+## Summary
+Regression tests for the Python drivers in this project. Two files today;
+37 tests run in ~1.1 s and require no grid contact (all mocks/tempdirs).
+Added 2026-05-29 alongside the 5-finding `/simplify` audit so future
+refactors that revert the audit fixes fail loudly.
+
+## Key facts
+- **Venv & invocation:** `.venv-graph/bin/python -m unittest discover -s tests -v`.
+  Do NOT use `.venv-botorch` — its env lacks langgraph/sqlite for
+  closed_loop imports.
+- **Files:**
+  - `tests/test_closed_loop.py` — 22 tests over `graph/closed_loop.py`
+    (Pareto hash, route_after_decide, decide_next, assign_names, renew_token,
+    predict_picks, _child_is_broken, _build_outer_graph). After the
+    2026-05-28 `_import_gp(mode)` refactor (helical/michael/foils), the
+    two `TestPredictPicks` fixtures MUST set `state["mode"] = "helical"`
+    or `_import_gp` raises KeyError.
+  - `tests/test_audit_fixes.py` — 15 tests across 5 classes that pin
+    the 5 /simplify audit fixes (#1-#5 on `oksuzian/Mu2eBO`, closed
+    2026-05-29 in commit `5aeb22d`).
+- **Off-tree module import recipe.** `gp_predict_helical.py` lives at
+  `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/`
+  (NOT in this git repo). To unit-test it, load via
+  `importlib.util.spec_from_file_location("gp_predict_helical", path)`
+  + `spec.loader.exec_module(mod)`. `setUpClass` should
+  `raise unittest.SkipTest(...)` if the path is unavailable.
+- **`@functools.lru_cache` test pollution gotcha.** `_is_broken` in
+  `gp_predict_helical.py` is `@functools.lru_cache(maxsize=None)`. If
+  multiple test methods stage different `scan_logs/report.tsv` contents
+  under the **same** config name, the first call's return value is
+  cached and all subsequent calls see stale results — `mock.patch.object(
+  GRID_DATA_ROOT)` cannot override a cached call. Two-line fix:
+    1. `setUp` calls `self.gp._is_broken.cache_clear()`,
+    2. each test uses a unique config name (`cfg_parse_err`, `cfg_clean`,
+       `cfg_overlap`, ...).
+- **`_check_stage_config_sha` contract test pattern.** To exercise the
+  helper in isolation:
+    ```python
+    mock.patch.object(pipeline, "STATE", tmp)
+    mock.patch.dict(pipeline.STAGES, {"poke": {"events_per_job": 1}},
+                    clear=False)
+    pipeline._stamp_stage_config_sha("poke")    # write stamp
+    pipeline.STAGES["poke"]["events_per_job"] = 2  # mutate after stamp
+    # capture stderr — helper warns "WARN ... poke ..." and returns
+    ```
+  The helper writes to stderr and never raises; callers
+  (`cmd_poll`/`cmd_list_outputs`/`cmd_harvest`) depend on that no-raise
+  contract.
+- **Static-source-pattern asserts** (regex on the file text instead of
+  importing) are intentional in 6/15 audit tests: they cheaply pin
+  argparse `choices=[...]`, ordering of `remove_pending` vs
+  `append_history`, presence of `_check_stage_config_sha` at the top of
+  `cmd_poll`/`cmd_list_outputs`, and the `MAX_RETRY = 20` literal —
+  WITHOUT pulling skopt/langgraph/sqlite into the test import graph.
+
+## Cross-links
+- Related: [[closed-loop-runner]], [[graph-runner]],
+  [[autoresearch-bo-michael]], [[pipeline]]
+- Pins fixes for: [[events-per-job-mid-flight-edit]] (poll+list-outputs
+  SHA-check extension), [[scan-broken-codes-too-narrow]] (broken-unknown
+  parse exception)
+- Source files: `tests/test_closed_loop.py`, `tests/test_audit_fixes.py`
+- Off-tree under test:
+  `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predict_helical.py:158`
+
+## Open questions / TODO
+- No coverage yet for: `autoresearch_bo_michael.HelicalMode` /
+  `FoilsMode` (`_geom_text`, `parse_geom` round-trip),
+  `pipeline.cmd_submit` topology, `graph/pipeline_io.propose_one`
+  end-to-end (only the retry loop's shape is pinned via static check).
+  Add when next refactor lands.

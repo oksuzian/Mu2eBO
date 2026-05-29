@@ -36,6 +36,7 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [preflight](drivers/preflight.md) — local `mu2e -n 1` G4 init feasibility check
 - [graph-runner](drivers/graph-runner.md) — LangGraph state-machine orchestrator (Phase 1 mock-grid); Studio + Streamlit overlay
 - [closed-loop-runner](drivers/closed-loop-runner.md) — multi-round Pareto-pick BO driver: wraps q parallel graph-runner children, refits GP between rounds
+- [tests](drivers/tests.md) — `tests/test_closed_loop.py` + `tests/test_audit_fixes.py`; 37 tests, no grid contact; `.venv-graph/bin/python -m unittest discover -s tests -v`
 
 ## Incidents (root-caused gotchas)
 - [geom-run1a-vs-run1b](incidents/geom-run1a-vs-run1b.md) — `geom_run1_a.txt` baseline missing TT_MidInner fix; fails in run1b_mubeam
@@ -67,3 +68,4 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [mu2e-overlap-check](external/mu2e-overlap-check.md) — `g4.doSurfaceCheck=true` + `surfaceCheck.fcl` recipe for detecting silent volume overlaps
 - [slack-file-upload-flow](external/slack-file-upload-flow.md) — three-step `getUploadURLExternal → POST bytes → completeUploadExternal` recipe for posting binary files to Slack from this project
 - [mu2e-exp-website-docroot](external/mu2e-exp-website-docroot.md) — `https://mu2e-exp.fnal.gov` docroot is NFS-mounted at `/web/sites/m/mu2e-exp.fnal.gov/htdocs/`; readable without Shibboleth login
+- [github-pages-publish-dir](external/github-pages-publish-dir.md) — GitHub Pages branch-deploy folder dropdown hardcodes `/(root)` and `/docs` only; arbitrary names like `/talks` require switching source to GitHub Actions

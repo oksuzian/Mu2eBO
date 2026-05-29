@@ -57,5 +57,5 @@ missing-include-chain issues. Subcommand of [[autoresearch-bo-michael]].
   end-of-workflow scan_logs node).
 
 ## Cross-links
-- Used by: [[autoresearch-bo-michael]]
+- Used by: [[autoresearch-bo-michael]], [[graph-runner]] (per-iteration preflight node)
 - Surfaced bug: [[geom-run1a-vs-run1b]]

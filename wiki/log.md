@@ -283,3 +283,21 @@ Verbs: `created`, `updated`, `merged`, `superseded`, `linted`.
 2026-05-29: foilsX03 complete (5 rounds, 50 evals); pareto_hash a8f16932→ddf0adc1→b30ac643→62608fc9→6459d20d — 5 distinct, never converged. New highs: sob 3.87, calo floor 8.3e-7 — bo-foils
 2026-05-29: mu2e-exp.fnal.gov docroot is NFS-mounted at /web/sites/m/mu2e-exp.fnal.gov/htdocs/ — readable without Shibboleth — mu2e-exp-website-docroot
 2026-05-29: ssh-agent unreachable from Claude Bash-tool subshells — claude-bash-no-ssh-agent
+2026-05-29: GitHub Pages branch-deploy mode only offers /(root) or /docs as publish dir — github-pages-publish-dir
+2026-05-29: claude-bash-no-ssh-agent — confirmed all 3 SSH keys passphrase-protected; no ~/.netrc or git-credentials; gh auth login is cleanest unlock for Claude pushes
+2026-05-29: claude-bash-no-ssh-agent — gh auth setup-git only fixes HTTPS remotes; SSH remotes still hit ssh-agent gap. Switched Mu2eBO origin to HTTPS, push unblocked
+2026-05-29: github-pages-publish-dir — Marp ![bg left:N%] suppresses global footer outside the right N%; use CSS grid for 2-column layouts when footer must span full slide
+2026-05-29: slack-bot-dm-channel-not-found — confirmed private channels return channel_not_found until bot is /invite'd; conversations.open does not bypass
+2026-05-29: closed-loop-runner — simplify-audit found min_spacing silently hardcoded to 0.02 in gp_predict_helical.compute_explore_picks (line 347), bypassing the CLI/--min-spacing knob
+2026-05-29: closed-loop-runner — fixed min_spacing hardcode in gp_predict_helical.py:347 (now propagates through to _select_picks)
+2026-05-29: bo-foils — fixed FoilsMode.parse_geom rIn round-trip (autoresearch_bo_michael.py:696); n_up=n_down=0 corner now returns BASE_HOLE_RADIUS_MM=21.5 instead of 0.0
+2026-05-29: barrier-false-positive-round1 — suspected 3rd variant on foilsX04 (q=10, 10 rounds); "all 10 resolved" + converged=True but 0 leaderboard rows; foils pacing may break the snapshot-step>=1 gate
+2026-05-29: graph-runner — fixed node_decide_next auto_continue (graph/nodes.py:184): also clear x_point and scan_logs_broken so iter N+1 asks BO afresh and is not skipped at evaluate when iter N was scan-broken
+2026-05-29: scan-broken-codes-too-narrow — fixed gp_predict_helical._is_broken parse-exception branch (line 158): now returns True (broken-unknown) instead of False, closing silent-pass hole for malformed report.tsv
+2026-05-29: closed-loop-runner — added choices=[helical,michael,foils] to --mode argparse; typos now fail fast instead of dispatching to KeyError mid-round
+2026-05-29: events-per-job-mid-flight-edit — extended _check_stage_config_sha() from harvest-only to also fire at cmd_poll and cmd_list_outputs, so the operator sees the WARN before harvest computes biased metrics
+2026-05-29: autoresearch-bo-michael — swapped order in cmd_evaluate: remove_pending now runs BEFORE append_history, so a crash between leaves the loud "missing leaderboard row" failure rather than the silent "phantom pending row → graph-runner config-rename" footgun
+2026-05-29: graph-runner — propose_one (graph/pipeline_io.py) now retries with is_buildable+penalty on unbuildable picks (max 20), mirroring cmd_propose's N_crit guard; x_override path still bypasses (caller intentional)
+2026-05-29: created tests/test_audit_fixes.py — 15 tests across 5 classes pin the 5 /simplify audit fixes (parse-exception broken-unknown, --mode choices, poll+list-outputs SHA-check, remove-before-append, propose_one is_buildable retry); also fixed pre-existing TestPredictPicks fixtures (missing "mode" key from _import_gp refactor)
+2026-05-29: created wiki/drivers/tests.md — captures the .venv-graph invocation, the @functools.lru_cache cache_clear gotcha for _is_broken, off-tree importlib loader recipe for gp_predict_helical.py, and the _check_stage_config_sha contract test pattern
+2026-05-29: /wiki-lint --fix applied 8 same-Type-backlink fixes across projects/{bo-michael,bo-helical,bo-foils}.md + drivers/{pipeline,graph-runner,closed-loop-runner,preflight,autoresearch-bo-michael}.md; also unbracketed dangling [[gp_predict_foils]] in projects/bo-foils.md (off-tree code path, not a wiki page)

@@ -8,7 +8,7 @@ type: project
 
 **Type:** project
 **Status:** active (Phase 0 preflight PASS on +12 extreme-corner envelope 2026-05-28; awaiting first closed-loop round)
-**Updated:** 2026-05-29 (foilsX03 complete, 5 rounds non-converged, sob peak 3.87)
+**Updated:** 2026-05-29 (parse_geom rIn round-trip fix when n_up=n_down=0)
 
 ## Summary
 Third BO mode in `autoresearch_bo_michael.py` (select with `--mode foils`).
@@ -45,6 +45,14 @@ in (sob, calo) is attributable to the +12 envelope alone.
   `n_up == n_down == 0`, emission of holeRadius is skipped and the v02
   include's 21.5 survives. `is_buildable` rejects `rIn >= BASE_ROUT_MM` to
   avoid vanishing the base annulus.
+  - **2026-05-29 round-trip fix** (`autoresearch_bo_michael.py:696`):
+    `parse_geom` previously returned `extra_rIn = 0.0` when no
+    `holeRadius` line was present, but that's exactly the corner where
+    the v02 baseline 21.5 mm is in force. Result: round-trip
+    `render_proposal → parse_geom` corrupted the no-extras corner from
+    21.5 → 0.0, biasing any leaderboard re-load and `cmd_show_priors`-
+    style audits. Fix: fall back to `self.BASE_HOLE_RADIUS_MM` when the
+    regex misses, matching what `_geom_text` actually emits.
 
 - **Phase 0 preflight result (2026-05-28):** all three extreme-corner
   configs PASS:
@@ -178,7 +186,7 @@ in (sob, calo) is attributable to the +12 envelope alone.
   — frontier still moving at round 2→3 boundary (no convergence by
   k=2 hash repeat). 30 new evals → leaderboard at 38 lines (37 data
   rows incl. foilsX01 R00_09 missing). np.int64 msgpack fix
-  ([[gp_predict_foils]] `compute_explore_picks` int/float cast) held
+  (`gp_predict_foils.compute_explore_picks` int/float cast) held
   through 3 predict_picks invocations. **Followed by foilsX03** (q=10,
   max-rounds=5, pid 29851, started 2026-05-28T23:50) — 50-eval budget
   to push past current non-convergence.

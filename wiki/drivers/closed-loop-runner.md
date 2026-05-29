@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-25 (3rd PC02 bug — poll settled-counter — root-caused to pipeline.py:470 and fixed)
+**Updated:** 2026-05-29 (min_spacing silently hardcoded — known bug, see Key facts)
 
 ## Summary
 Multi-round closed-loop runner that wraps q parallel
@@ -69,10 +69,18 @@ in this phase.
   jitter — rounding is required, see `_pareto_hash`.
 - **q-pick spacing** (`[[closed-loop-bo-design]]` revision #7): even-spaced
   ranks along a short Pareto frontier yield near-degenerate picks.
-  `gp_predict_helical.compute_explore_picks` enforces a normalized-L2 ≥
-  `min_spacing` gate (default 0.05) and falls back to fewer than q picks if
-  the frontier is too clustered. Future migration to skopt-native CL-min
-  (`[[batch-bo]]`) is the cleaner long-term fix.
+  `gp_predict_helical.compute_explore_picks` is *supposed* to enforce a
+  normalized-L2 ≥ `min_spacing` gate (default 0.05) and fall back to fewer
+  than q picks if the frontier is too clustered. Future migration to
+  skopt-native CL-min (`[[batch-bo]]`) is the cleaner long-term fix.
+  - **2026-05-29 simplify-audit fixed**: `compute_explore_picks`
+    (gp_predict_helical.py:347) had `min_spacing` declared in the
+    signature but the call to `_select_picks(par_idx, s['Xd_all'], q,
+    0.02)` hardcoded 0.02 — every closed-loop round prior to this fix
+    used 0.02 regardless of `--min-spacing` or
+    `CLOSED_LOOP_MIN_PICK_SPACING`. Fix: pass `min_spacing` through.
+    Past leaderboard rounds are tighter-clustered than their
+    `--min-spacing` setting suggests.
 - **WAL gate** (`[[closed-loop-bo-design]]` revision #1, #6): the outer
   graph and q children all write to the same
   `graph_data/checkpoints.sqlite`. WAL is set explicitly in both
@@ -202,6 +210,7 @@ in this phase.
 - Related: [[graph-runner]], [[closed-loop-bo-design]], [[bo-helical]],
   [[batch-bo]], [[autoresearch-bo-michael]], [[scalarized-objective]],
   [[kerberos-mid-run-expiry]]
+- Regression tests: [[tests]]
 - Source files: `graph/closed_loop.py`,
   `graph/config.py` (CLOSED_LOOP_* constants),
   `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predict_helical.py`

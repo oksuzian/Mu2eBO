@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-25 (`--x-point` bypasses is_buildable + BOUNDS — hand-check N_crit and angle nodes before forced launches)
+**Updated:** 2026-05-29 (propose_one now retries with is_buildable+penalty; node_decide_next auto_continue clears x_point + scan_logs_broken — see Key facts)
 
 ## Summary
 LangGraph runner that replaces the manual `propose → preflight → submit → poll
@@ -129,6 +129,9 @@ mock-grid branch; helical mode only.
 
 ## Cross-links
 - Related: [[autoresearch-bo-michael]], [[preflight]], [[bo-helical]], [[orchestrator-evaluation-2026-05]]
+- Wrapped by: [[closed-loop-runner]] (multi-round driver spawns q parallel `graph.run` children per round)
+- Per-stage I/O: [[pipeline]] (idempotent submit/poll/list-outputs/harvest)
+- Regression tests: [[tests]]
 - Source files: `graph/build.py`, `graph/nodes.py`, `graph/pipeline_io.py`, `graph_app/streamlit_app.py`
 - Config: `langgraph.json`, `requirements-graph.txt`
 - External: [LangGraph docs](https://langchain-ai.github.io/langgraph/)

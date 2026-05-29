@@ -54,11 +54,23 @@ Claude's subshell.
   `git push` from their own shell. The two auth surfaces are
   independent.
 - **Three candidate SSH keys exist** at `~/.ssh/`:
-  `id_ed25519` (newest), `github_rsa`, `id_rsa`. None are individually
-  reachable from a Claude subshell without the agent (the `id_ed25519`
-  key has a passphrase; a non-interactive `ssh -i ~/.ssh/id_ed25519`
-  fails with `Permission denied (publickey)` because the key file
-  isn't actually loaded without the agent unlocking it).
+  `id_ed25519` (newest), `github_rsa`, `id_rsa`. **All three are
+  passphrase-protected** (confirmed 2026-05-29 via
+  `ssh-keygen -y -P "" -f <key>` returning "incorrect passphrase
+  supplied to decrypt private key" on each). Without the agent
+  unlocking one, `ssh -i ~/.ssh/<key>` fails `Permission denied
+  (publickey)` non-interactively.
+- **No `~/.netrc` and no `~/.git-credentials`** as of 2026-05-29, so
+  HTTPS fallback also requires explicit setup. `gh auth login` +
+  `gh auth setup-git` is the cleanest path to making future Claude
+  pushes Just Work.
+- **`gh auth setup-git` alone is NOT enough** (confirmed 2026-05-29
+  on Mu2eBO): gh's credential helper only intercepts HTTPS git
+  operations. If the remote is `git@github.com:...` (SSH), gh is
+  bypassed and push still hits `Permission denied (publickey)`. Fix:
+  `git remote set-url origin https://github.com/<owner>/<repo>.git`
+  after `gh auth login`. From then on, push from Claude's subshell
+  works without any agent.
 - **User's interactive `$SSH_AUTH_SOCK` lives at
   `/tmp/ssh-XXXXv4gZfn/agent.<pid>`** — but copying that path into a
   Bash-tool subshell still produces `Error connecting to agent: No

@@ -2,7 +2,7 @@
 
 **Type:** incident
 **Status:** resolved
-**Updated:** 2026-05-24 (second false-positive root-caused: barrier count-comparison bug, fixed `closed_loop.py:390`)
+**Updated:** 2026-05-29 (suspected third variant on foilsX04: barrier exited "all 10 resolved" with 0 leaderboard rows for round 1)
 
 ## Summary
 First `--max-rounds 2` real closed-loop run (`helicalFT05`, q=8) silently
@@ -114,9 +114,23 @@ masking it — the snapshot path resolved children before the count
 check mattered. Once snapshot was patched, the count bug surfaced
 nakedly on the next multi-round run.
 
-## Open questions / TODO
-- After fix, replay FT05R01 children's pareto contribution by harvesting
-  their rows and re-running the GP refit offline (the children DID
-  complete normally — they just landed after parent had already exited).
-- Consider `convergence_k` floor of 3 to require evidence of true plateau
-  (defensive depth even though the underlying bug is now fixed).
+## 2026-05-29 foilsX04 regression (suspected third variant)
+
+`foilsX04` (q=10, max-rounds=10) launched 2026-05-29 ~07:15 UTC. Parent log
+shows `barrier: all 10 children resolved` for round 1 followed by refit
+`converged=True` at completed=20, but the leaderboard `leaderboard_bo_foils_v1.tsv`
+has **ZERO foilsX04 rows** (filtered `grep -c foilsX04` = 0). No
+`<grid>/foilsX04R*/state/broken.txt` either. Both prior fixes
+(snapshot-step gate + `all(n in completed for n in children)`) were already
+in place, so a child can only get into `completed` via:
+(a) a leaderboard row appearing — refuted (no X04 rows ever landed), or
+(b) `<grid>/<name>/state/broken.txt` — refuted (none exist), or
+(c) `_child_terminal_via_checkpoint` returning True.
+
+That leaves (c) as the suspected culprit: foils-mode children's StateSnapshot
+may legitimately reach `step >= 1` with non-empty values *before* the
+leaderboard write, so the third-AND-only gate (`metadata.step >= 1`) is not
+strict enough for foils-mode pacing. Both fixes for helical assumed `step >= 1`
++ non-empty values implied "harvest committed" but that may be helical-pacing-
+specific. Next step: dump a stuck X04R01 child's StateSnapshot via
+`saver.get_tuple()` to see at what step the snapshot first satisfies the gate.

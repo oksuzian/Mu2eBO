@@ -2,7 +2,7 @@
 
 **Type:** incident
 **Status:** active
-**Updated:** 2026-05-27 (mmackenz table.org structurally unverifiable note)
+**Updated:** 2026-05-29 (parse-exception branch now broken-unknown to match missing-report)
 
 ## Summary
 `graph/pipeline_io.py:336` defines `SCAN_BROKEN_CODES = ("GeomSolids1001",)`
@@ -238,6 +238,16 @@ The `_is_broken` gate in `gp_predict_helical.py:117` (ovr>100) catches
 both classes, so the GP cloud is protected. The TSV files themselves
 still carry all 41 broken rows — repo-hygiene cleanup is a separate task
 (see "Open questions").
+
+### Parse-exception now treated as broken-unknown (2026-05-29)
+`gp_predict_helical.py:158` previously returned `False` on `OSError` /
+`ValueError` while reading `report.tsv` (e.g. truncated file mid-write,
+encoding error, missing `LikelyGeomOverlap` column header). That
+re-opened the same silent-pass hole the 2026-05-26 missing-report fix
+had closed: a malformed report behaved like a clean one. Fix: return
+`True` (broken-unknown), matching the missing-report branch at line 140.
+Symmetric and conservative — any report we can't trust to read is treated
+the same as no report at all.
 
 ## Cross-links
 - Related: [[tessellated-solid-facet-orientation]], [[tsda-disc-helical-sibling-overlap]],

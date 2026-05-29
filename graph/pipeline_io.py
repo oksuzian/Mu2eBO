@@ -95,6 +95,9 @@ def propose_one(mode_name: str, config_name: str, alpha: float = DEFAULT_ALPHA,
                 opt.tell(list(x), penalty_y)
             except ValueError:
                 pass
+        else:
+            print(f"WARN: {MAX_RETRY} retries hit; submitting unbuildable "
+                  f"pick {list(x)} (preflight will reject)", file=sys.stderr)
     geom_path = mode.render_proposal(config_name, x)
     # Stage geom into pipeline.py's per-config work tree (mirror cmd_propose in
     # autoresearch_bo_michael.py:567-570; pipeline.py's submit checks for this

@@ -2,7 +2,7 @@
 
 **Type:** incident
 **Status:** resolved
-**Updated:** 2026-05-29
+**Updated:** 2026-05-29 (private-channel case added)
 
 ## Summary
 A freshly installed Slack bot (the mu2e-workspace bot at user
@@ -50,6 +50,14 @@ claudeai-proxy DM `D738B2DRV`). The user sees the bot upload in a
   channel_id is safe and cheap.
 - **Public channels are an alternative**: if the bot is `invite`d to a
   public channel, posting/sharing there works without conversations.open.
+- **Private channels also need `/invite`**: the same `channel_not_found`
+  surfaces on `files.completeUploadExternal` to a private channel the bot
+  isn't a member of (confirmed 2026-05-29 on `#mu2e-bo` / `C0B71NQNUM8`).
+  conversations.open does NOT help here — it only mints DM channels, not
+  private group memberships. Fix: the channel owner runs
+  `/invite @<bot-display-name>` (bot user `U0B6XLZH9DG` for this
+  project). User-MCP `slack_send_message` works without invite because
+  it acts as the user, not the bot.
 - **Workspace ownership matters**: the bot installed by the user's own
   Slack app belongs to the human team admin, so DMs go user→bot
   directly. No multi-hop relay needed.
