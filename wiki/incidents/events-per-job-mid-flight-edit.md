@@ -2,7 +2,7 @@
 
 **Type:** incident
 **Status:** resolved (stamping fix landed 2026-05-21 in `pipeline.py`)
-**Updated:** 2026-05-21
+**Updated:** 2026-05-29 (SHA check extended from harvest-only to also fire at poll + list-outputs)
 
 ## Summary
 `pipeline.py` reads its `STAGES` dict at **both** submit time (to bake

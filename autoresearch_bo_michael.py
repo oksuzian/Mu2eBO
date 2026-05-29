@@ -692,8 +692,11 @@ class FoilsMode(BOMode):
         else:
             extra_hT = 0.05
 
+        # holeRadius is only emitted when n_extras > 0; when absent, the v02
+        # include's BASE_HOLE_RADIUS_MM survives, so that's what was actually
+        # built (round-trip must report the same value _geom_text produced).
         mr = self._HOLE_RX.search(text)
-        extra_rIn = float(mr.group(1)) if mr else 0.0
+        extra_rIn = float(mr.group(1)) if mr else self.BASE_HOLE_RADIUS_MM
 
         return [n_up, n_down, extra_rOut, extra_hT, extra_rIn]
 
@@ -881,8 +884,12 @@ def cmd_evaluate(args):
         print(f"Failed to parse {mode.name} params from {geom}", file=sys.stderr)
         return 1
     p = Point(cfg=args.config_name, x=x, sob=float(sob), calo=float(calo))
-    mode.append_history(p, args.alpha)
+    # Clear pending BEFORE appending leaderboard so a crash between leaves
+    # the failure mode "missing leaderboard row" (loud, re-runnable) instead
+    # of "phantom pending row" (silent; trips propose_one collision guard
+    # and renames the next iteration — see wiki graph-runner resume gotcha).
     removed = mode.remove_pending(args.config_name)
+    mode.append_history(p, args.alpha)
     pend_tag = "  (cleared from pending)" if removed else ""
     print(f"[{mode.name}] recorded {p.cfg}: sob={p.sob:.3f} calo={p.calo:.3e} "
           f"obj={p.obj(args.alpha):+.3f}  →  {mode.leaderboard}{pend_tag}")

@@ -511,7 +511,8 @@ def _dry_run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", default=DEFAULT_MODE)
+    ap.add_argument("--mode", default=DEFAULT_MODE,
+                    choices=["helical", "michael", "foils"])
     ap.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
     ap.add_argument("--q", type=int, default=CLOSED_LOOP_Q)
     ap.add_argument("--max-rounds", type=int, default=CLOSED_LOOP_MAX_ROUNDS)

@@ -184,8 +184,10 @@ def node_decide_next(state: BOIterationState) -> dict:
         return {
             "iter": next_iter,
             "config_name": None,
+            "x_point": None,
             "attempts": {},
             "preflight": "pending",
+            "scan_logs_broken": False,
             "metrics": None,
             "objective": None,
         }

@@ -194,8 +194,8 @@ def _stamp_stage_config_sha(stage: str) -> None:
 def _check_stage_config_sha(stage: str) -> None:
     """Warn (do not fail) if STAGES[stage] changed between submit and read.
 
-    Called from cmd_harvest. Silent if no stamp file (legacy chains
-    submitted before this guard existed).
+    Called from cmd_poll, cmd_list_outputs, and cmd_harvest. Silent if no
+    stamp file (legacy chains submitted before this guard existed).
     """
     stamp_path = STATE / f"{stage}_config_sha.txt"
     if not stamp_path.exists():
@@ -204,9 +204,10 @@ def _check_stage_config_sha(stage: str) -> None:
     current = _stage_config_sha(stage)
     if stamped != current:
         print(
-            f"[harvest] WARN: STAGES[{stage!r}] changed since submit "
+            f"[pipeline] WARN: STAGES[{stage!r}] changed since submit "
             f"(stamp={stamped[:12]}, current={current[:12]}). "
-            f"Harvest may compute biased metrics; see "
+            f"Downstream poll/list-outputs/harvest may use mismatched "
+            f"events_per_job or quorum; see "
             f"wiki/incidents/events-per-job-mid-flight-edit.md.",
             file=sys.stderr, flush=True,
         )
@@ -581,12 +582,14 @@ def cmd_submit(args):
 
 
 def cmd_poll(args):
+    _check_stage_config_sha(args.stage)
     cluster_file = STATE / f"{args.stage}_cluster.txt"
     cluster = int(cluster_file.read_text().strip())
     poll_cluster(args.stage, cluster, quorum=args.quorum, cap_hours=args.cap_hours)
 
 
 def cmd_list_outputs(args):
+    _check_stage_config_sha(args.stage)
     # Idempotency guard: if outputs were already listed and every basename
     # still resolves on /pnfs, skip the re-glob. --force overrides.
     outputs_file = STATE / f"{args.stage}_outputs.txt"

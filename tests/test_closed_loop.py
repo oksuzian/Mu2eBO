@@ -179,7 +179,7 @@ class TestRenewToken(unittest.TestCase):
 
 class TestPredictPicks(unittest.TestCase):
     def test_under_q_logs_error(self):
-        state = {"q": 5, "round_idx": 0, "errors": []}
+        state = {"q": 5, "round_idx": 0, "errors": [], "mode": "helical"}
         fake_gp = mock.Mock()
         fake_gp.compute_explore_picks.return_value = [
             (1, 2, 3, 4), (5, 6, 7, 8),
@@ -190,7 +190,7 @@ class TestPredictPicks(unittest.TestCase):
         self.assertEqual(len(out["children"]), 2)
 
     def test_full_q_no_error(self):
-        state = {"q": 2, "round_idx": 0, "errors": []}
+        state = {"q": 2, "round_idx": 0, "errors": [], "mode": "helical"}
         fake_gp = mock.Mock()
         fake_gp.compute_explore_picks.return_value = [
             (1, 2, 3, 4), (5, 6, 7, 8),

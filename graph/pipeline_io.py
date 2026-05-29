@@ -79,7 +79,22 @@ def propose_one(mode_name: str, config_name: str, alpha: float = DEFAULT_ALPHA,
                     opt.tell(px, fake_y)
                 except ValueError:
                     continue
-        x = opt.ask()
+        # is_buildable retry loop — mirror cmd_propose's N_crit guard at
+        # autoresearch_bo_michael.py:803-827. Without this, q parallel
+        # graph children each ask once and any unbuildable pick gets
+        # submitted blind (preflight catches it, but a grid-burning lap is
+        # wasted). x_override bypasses the guard since the caller has
+        # already chosen the point intentionally.
+        MAX_RETRY = 20
+        penalty_y = max(real_ys) + 1.0 if real_ys else 1e6
+        for _ in range(MAX_RETRY):
+            x = opt.ask()
+            if mode.is_buildable(x):
+                break
+            try:
+                opt.tell(list(x), penalty_y)
+            except ValueError:
+                pass
     geom_path = mode.render_proposal(config_name, x)
     # Stage geom into pipeline.py's per-config work tree (mirror cmd_propose in
     # autoresearch_bo_michael.py:567-570; pipeline.py's submit checks for this
