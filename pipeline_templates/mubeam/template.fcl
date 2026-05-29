@@ -1,6 +1,11 @@
 #include "Production/JobConfig/pileup/MuBeamResampler.fcl"
 #include "Production/JobConfig/pileup/epilog_1b.fcl"
 
+# FTFP_BERT physics list: -20% CPU on mubeam vs ShieldingM (n=200/200), with
+# sob/calo deltas inside the ShieldingM-self noise floor on helicalQR00_02
+# (graph027 A/B 2026-05-23). See wiki concepts/g4-speed-knobs.md.
+physics.producers.g4run.physics.physicsListName: "FTFP_BERT"
+
 physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations: -1
 physics.filters.beamResampler.mu2e.MaxEventsToSkip: 319542
 

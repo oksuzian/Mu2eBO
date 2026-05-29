@@ -8,7 +8,7 @@ type: project
 
 **Type:** project
 **Status:** active (**helical045 GLOBAL BEST obj=2.533 on 2026-05-18** — but top-5 are likely G4 sibling-overlap artifacts; see [[tsda-disc-helical-sibling-overlap]]. Refactor in flight: drop `tsda.helical.z0` from search space (Option A), couple `tsda.rin` to plug bounding radius, widen dy/halflen, add source throw + preflight overlap-check.)
-**Updated:** 2026-05-18 (Option A coupling + preflight surface-check landed end-to-end on smoke geom)
+**Updated:** 2026-05-28 (4D Pareto front saturated: HV +1.6% over last 76 evals, hit rate 62%→38% — next wins are from dimensionality lifts, not more 4D evals)
 
 ## Summary
 Second BO mode in `autoresearch_bo_michael.py` (select with `--mode helical`).
@@ -19,17 +19,30 @@ provides calo rejection by absorbing low-energy beam particles before they
 reach the calorimeter, complementing the foil-stack approach.
 
 ## Key facts
-- **Search space (5D, all Real):**
-  - `tsda.helical.dx` ∈ [0.5, 5.0] mm — mmackenz priors use {1, 2}
-  - `tsda.helical.dy` ∈ [40, 110] mm — priors use {65, 85, 95}
-  - `tsda.helical.halflength` ∈ [25, 300] mm — priors use {30, 75, 125, 150, 250}
-  - `tsda.helical.z0` ∈ [4250, 4500] mm — priors use {4270, 4345, 4470}
-  - `tsda.helical.angle` ∈ [60, 540] deg — priors use {90, 180, 360}
-  - Bounds widened ~30% beyond prior set so GP can extrapolate slightly.
+- **Search space (live 4D Option A, all Real):** (z0 and rin derived; see Option A coupling)
+  - `tsda.helical.dx` ∈ [0.01, 5.0] mm
+  - `tsda.helical.dy` ∈ [40, 400] mm
+  - `tsda.helical.halflength` ∈ [25, 500] mm
+  - `tsda.helical.angle` ∈ [60, 720] deg — widened from 540 on 2026-05-21 because 15/47 v2 rows
+    were rail-running at ≥525° (2 exactly at 540); best obj (QR00_02=2.64) is interior at 361°,
+    so corners are exploration-driven, not optimum-driven, but the GP should be allowed to
+    explore further before declaring 540 the ceiling.
+  - Source of truth: `autoresearch_bo_michael.py:HelicalMode.build_space` +
+    `gp_predict_helical.py:BOUNDS`. Keep these two in sync.
 - **Pinned constants (v111-exact):**
   - TSdA core: `hasTSdA=true, r4=600, rin=80, halfLength4=12.5, z0=4195,
     materialName=StoppingTarget_Al`
-  - Helical fixed: `nsteps=100, material=StoppingTarget_Al`
+  - Helical fixed: `nsteps=2000, material=StoppingTarget_Al,
+    useTwistedBox=true` (default; pinned per-config in emitted geom.txt so
+    grep recovers the solid-impl branch). Set `HelicalMode.HELICAL_USE_TWISTED_BOX
+    = False` to A/B against the legacy tessellated impl — see
+    [[tessellated-solid-facet-orientation]]. **One-off A/B override** (no
+    source flip): `USE_TWISTED_BOX=0 graph.run …` reads
+    `autoresearch_bo_michael.py:374` env-var, takes effect at module-import
+    time, propagates to subprocesses via inherited env (`os.getenv("USE_TWISTED_BOX",
+    "1") != "0"`). Source: `constructTSdA.cc`
+    `makeHelicalPlug` dispatcher landed 2026-05-26 (source-only;
+    grid tarball repackage still pending).
   - Foils: `holeRadius=0`, `radii = {125 × 38}` (bigger foils to block calo stops)
   - Degrader: `build=false, rotation=180`
   - COL5: `material1Name=COL5Poly`
@@ -42,6 +55,126 @@ reach the calorimeter, complementing the foil-stack approach.
   in G4. See [[geom-run1a-vs-run1b]].
 - **Best-known prior (v111):** `dx=2, dy=85, halflen=150, z0=4345, angle=360`
   → sob=2.12, calo=1.62e-6, **obj=1.958**.
+- **Leaderboard knob-correlation snapshot (2026-05-25, n=152, 24 feasible)**:
+  Pearson on feasible-only for sob, all-rows for calo —
+  `corr(dx, sob)=−0.35`, `corr(dy, calo)=+0.43`, `corr(angle, calo)=−0.37`,
+  `corr(halflen, sob)=+0.19`. Translation: **thinner ribbon wins sob,
+  wider ribbon costs calo, more total twist buys calo headroom, longer
+  plug helps weakly**.
+- **Dominant infeasible failure mode**: `dy > 120 mm AND halflen < 50 mm`
+  (wide-and-stubby — blade sweeps full beam envelope but too short to
+  provide momentum-selective filtering, just dumps multi-scatter into
+  calo). 128/152 rows infeasible, this region is most of them.
+- **Empirical best-feasible basin (with correct G4TwistedBox semantics —
+  dx=half-thickness, dy=half-height, halflen=z-half-extent, angle=total
+  twist; ribbon centered on beam axis at x=y=0)**:
+  - `dx ≈ 0.2–1.3 mm` (full ribbon thickness 0.4–2.6 mm; ≪ Al X₀=89 mm,
+    so minimal multi-Coulomb scattering — every winner has dx<1.3 mm)
+  - `dy ≈ 75–110 mm` (full width 150–220 mm; matches post-TS muon
+    envelope ~100 mm; going wider intercepts peripheral bg that
+    scatters into calo)
+  - `halflen ≈ 150–250 mm` (full length 300–500 mm)
+  - `angle ≈ 500–700°` (1.4–2 full turns over the plug)
+  - **Design parameter: twist rate `angle/halflen ≈ 2–4 deg/mm`** sets
+    the spatial pitch of the rotating slab. Larmor-pitch-matched charged
+    particles see ≈constant material the whole way; mismatched particles
+    integrate ~50% on average. This is the actual helical-filter physics
+    (NOT a hollow tube — the ribbon-vs-tube distinction matters because
+    a beam-axis particle is INSIDE the absorber for half the rotation,
+    not always outside it).
+  - **Current objective-leader (2026-05-26): `helicalL02` sob=3.33,
+    calo=2.46e-6, obj=3.08** at `dx=0.01, dy=108.6, halflen=249.0,
+    angle=471.8`. Top 3 by obj (α=1e5): L02 (3.08) > graph023
+    (sob=3.28, calo=3.08e-6, obj=2.97) > helical050a (sob=3.21,
+    calo=2.54e-6, obj=2.96). All three cluster in same basin
+    (dy~100-110, hl~200-260, ang~460-480, near-zero dx); all three
+    sit just above 2e-6 calo cap (1.2-1.5× cap).
+  - **NG02 sob-champion NOT obj-leader** (2026-05-26 correction): NG02
+    (sob=3.61 at ang=720) is the raw-sob max but obj=2.53 because
+    calo=1.08e-5 burns ~1.08 of obj via α=1e5 penalty (α·calo=1.08).
+    Wiki briefly called NG02 "champion"; corrected here. The
+    rail-extension RA01-04 sweep shows angle saturates near 720-760
+    (RA01 sob=3.59 ≈ NG02) — confirms NG02 IS the sob basin max,
+    just not where the BO objective points.
+  - Prior champion: `helical051a` (sob=2.76, calo=1.71e-6) at
+    `dx=0.23, dy=109.5, halflen=132.5, angle=538` — basin center, just
+    slightly short. NG02 confirms the natural next-probe direction
+    (longer halflen + more twist).
+  - **Angle rail saturates near 720–760 (2026-05-25)** — RA rail-extension
+    sweep at (dx=0.23, dy=110, hl=200) probed ang∈{760,800,830,860}
+    past NG02's 720. RA01 (ang=760) sob=3.59 calo=9.64e-6 obj=2.63 ≈ NG02
+    in noise; RA02 (ang=800) sob=3.58 obj=2.58 — flat. Conclusion:
+    further angle widening past 720 does NOT pay off on this ridge;
+    treat 720 as the effective upper. RA03/RA04 (ang=830, 860) still
+    in flight 2026-05-25 20:34 as confirmation.
+  - **4D BO is saturating (2026-05-26)** — GP-predicted sob ceiling moved
+    4.28 → 4.33 across the two refits after the silent-pass strict gate +
+    retro-scan recovered 5 clean QR00_* rows. Sub-noise gain. Clean top-5
+    (post-retro-scan-broken purge): helical050a obj=2.96, PC02R00_03 2.67,
+    RA04 2.65, QR00_02 2.64, RA03 2.64 — spread 5× in twist density, no
+    unified design rule (Larmor-band dy≈109 mm is the load-bearing
+    coincidence, not twist rate). **Next-leverage axes lie outside the
+    current 4D space:** (a) COL5 material as a joint knob (single-knob
+    {air,poly} in bo-michael, never joint-fit with helical — see
+    [[col5-shield]]); (b) TSdA4 disc thickness promoted to 5th dimension
+    (current top-5 exploit the 18 mm disc/plug overlap as a free 4%
+    absorber per [[tsda-disc-helical-sibling-overlap]]); (c) hybrid
+    offset-plug × helical class (mmackenz v48/v55-v68 scraped but never
+    BO'd). Multi-agent synthesis 2026-05-26 (Explore agents on champions,
+    non-helical classes, first-principles physics) explicitly recommends
+    against more rounds of pure 4D refinement. Tasks #146/#147/#148.
+  - **Cross-model saturation confirmation (2026-05-26)** — BoTorch qNEHVI
+    refit (`botorch_predict_helical.py`, .venv-botorch) on 122 clean pts
+    gives max-predicted sob=4.06, vs sklearn GP's 4.33 on 163 pts. Both
+    plateau around 4 → saturation is model-independent, not a sklearn
+    artifact. qNEHVI picks rail-run (5/8 pin a bound: hl=25 ×3, angle=720,
+    dy=400, dx=5.0) — also a saturation signal: acquisition can't find
+    interior gain so chases corners. Only pick 6 (dx=3.55, dy=73,
+    angle=130, calo=1.29e-6) lands in a genuinely fresh feasible region.
+    Implementation gotcha: `botorch_predict_helical.py:73-78` applies
+    `_ncrit` unconditionally; missing the `_use_twisted_box` gate that
+    `gp_predict_helical.py:84-113` added 2026-05-26. Result: BoTorch
+    over-filters twisted-box configs (122 vs 163 training rows). Apples-
+    to-apples comparison requires porting the twisted-box gate.
+    **Post-cleanup re-confirmation (2026-05-27, n=175 v2 main TSV)**:
+    sklearn trains on 165 v2 (drops 7 silent-pass + 3 disk-broken-flag);
+    botorch trained on 117 v2 (drops 5 "unverified rows" + ~43 more via
+    N_crit gate) — 48-row delta. qNEHVI picks 3/8 failed N_crit≤2000.
+    **Fix landed 2026-05-27** at `botorch_predict_helical.py:63`:
+    `DEFAULT_NSTEPS = bo.HelicalMode.HELICAL_NSTEPS` (was hardcoded 100).
+    Post-fix: 165 v2 (matches sklearn), Pareto 348, predicted sob_max
+    4.01 → **4.22**, N_crit-failing picks 3/8 → 1/8, pick #0 shifted
+    from `dx=5.0, sob=1.4` to `dx=0.041, sob=3.1` (acquisition now
+    exploring the right corner). botorch `_is_clean` keys on
+    `report.json` while sklearn keys on `report.tsv` — different files,
+    coincidentally same 7-row drop at n=175.
+  - **qNEHVI picks land inside the predicted cloud, not on the Pareto
+    edge — by design, not by bug**. The cloud
+    (`botorch_predict_helical.py:199-203`) is a 2D density of posterior
+    **means** over ~1M Sobol points. qNEHVI maximizes expected HV
+    improvement over posterior **samples** (`SobolQMCNormalSampler(
+    sample_shape=128, seed=42)` at `botorch_predict_helical.py:240`),
+    not means. A candidate with mediocre mean but large posterior std
+    has sample-tails that punch past the current Pareto front in
+    (sob, -log10 calo) — so its expected HV gain is high even though
+    its mean lands interior to the cloud. Amplifiers: loose ref-point
+    `(REF_SOB=-0.5, REF_NEG_LOGCALO=-8.0)` widens the HV envelope so
+    modest tails register as improvement; `prune_baseline=True` shrinks
+    the baseline to the non-dominated subset (more candidates qualify);
+    joint q=8 batch optimization diversifies picks across X to maximize
+    *joint* HV rather than clustering at one edge spike. Reading a
+    cyan-diamond at (sob~2.5, calo~3e-6): "posterior uncertain enough
+    here that the upside tail is worth sampling" — canonical
+    exploration-vs-exploitation signature. Want picks that hug the
+    predicted Pareto edge instead? Switch to posterior-mean-greedy or
+    UCB with small β; qNEHVI is doing the opposite job intentionally.
+  - **Calo-feasible region exists at small-dy / long-hl (2026-05-25)** —
+    CB rail (small-dy/sub-node) explored: CB01 (dx=0.8, dy=60, hl=300,
+    ang=520) sob=1.31 **calo=1.38e-6** is the first strictly feasible
+    row (under 2e-6 cap) outside the prior basin. CB02 ang=540 borderline
+    (calo=2.26e-6); CB03/CB04 over cap. CB sweep traces a clean
+    sob/calo trade-front: dx 0.4→0.8 buys feasibility at cost of sob.
+    Useful Pareto-front anchor at low-sob feasible end.
 - **Priors loaded:** 10 (v100, v101, v102, v103, v104, v106, v107, v108, v109,
   v111). v110 missing sob; v105 in the v100s range but has no helical plug.
 - **Prior parsing:** TSV scraper only captures `tsda_helical_build` (boolean),
@@ -479,12 +612,513 @@ support frame in practice.
 **Two-script overlay pattern** (sklearn + ROOT envs are incompatible):
 - `gp_predict_helical.py` runs in `/usr/bin/python3` (has sklearn/scipy,
   no ROOT). Fits GPs, samples Sobol, computes Pareto mask, writes
-  `gp_predictions_helical.tsv` + `gp_observed_helical.tsv`.
-- `overlay_gp_predictions_helical.py` runs in the muse SimJob env
-  (`muse setup SimJob` → ROOT 6.32.06, no sklearn). Reads the TSVs,
-  overlays on mmackenz's `plot_table_configs` background scatter,
-  emits `gp_predicted_helical_cloud.png`.
+  `gp_predictions_helical.tsv` + `gp_observed_helical.tsv` +
+  `gp_explore_picks.tsv`.
+- `overlay_gp_predictions_helical.py` / `..._mpl.py` reads those TSVs
+  only — it does **not** touch the leaderboard. To regenerate the cloud
+  plot after new leaderboard rows land, **always run
+  `gp_predict_helical.py` first** to refresh the staging TSVs; otherwise
+  the overlay re-renders the previous frontier.
+- ROOT variant runs in the muse SimJob env (`muse setup SimJob` → ROOT
+  6.32.06, no sklearn). `_mpl.py` variant runs in `/usr/bin/python3`
+  with matplotlib only.
 - Lives in `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/`.
+
+## closed-loop-runner round 0 (helicalQR00_00..04, 2026-05-21)
+First multi-round batch driven by [[closed-loop-runner]] instead of the
+operator-paced loop. q=5 picks from `compute_explore_picks` against the
+post-helicalP01-P03 GP fit (after the events-per-job re-harvest).
+
+| cfg | dx | dy | halflen | z0 | angle | sob | calo | obj |
+|---|---|---|---|---|---|---|---|---|
+| QR00_00 | 0.38 | 108.3 |  34.7 | 4242 | 359 | 3.57 | 1.06e-05 | 2.508 |
+| QR00_01 | 0.27 | 119.2 | 454.7 | 4662 | 427 | 3.24 | 8.96e-06 | 2.344 |
+| **QR00_02** | 0.13 | 117.2 | 351.2 | 4559 | 361 | **3.70** | 1.06e-05 | **2.642** |
+| QR00_03 | 0.36 | 119.4 |  40.7 | 4248 | 318 | 3.72 | 1.28e-05 | 2.438 |
+| QR00_04 | 0.91 | 123.2 |  91.3 | 4299 | 297 | 3.11 | 1.01e-05 | 2.101 |
+
+- **helicalQR00_02 → new global best for v2 leaderboard** (obj=2.642 vs
+  prior helicalP01_n5000=3.73 sob with similar calo). All five rows
+  cluster near (sob 3.1-3.7, calo ~1e-05) — the post-N_crit-gate regime
+  has moved the optimization onto a different region of the Pareto
+  frontier than the earlier sob<3 v1-era runs.
+- All 5 chains were recovered from a krb5-mid-run expiry at concat
+  stage; see [[kerberos-mid-run-expiry]] — motivating the new
+  `renew_token` node in [[closed-loop-runner]].
+- **GP refit after these 5**: 37 observed (22 legacy + 15 v2), Pareto
+  frontier grew 470 → 1027 points. sob max in the predicted-cloud
+  collapsed from prior batches to ~2.83 — the 5 new rows substantially
+  shifted the surrogate.
+
+## GP under-predicts v2 highs — kernel collapses halflen/angle (2026-05-21)
+After QR00 landed, the predicted-cloud in `gp_predicted_helical_cloud_mpl.png`
+visibly fails to cover the 5 highest-sob v2 magenta stars (observed sob
+3.1-3.65). Diagnosis: the fitted production kernel is
+
+`0.79² * Matern(length_scale=[0.332, 0.258, 1e+03, 1e+03], nu=2.5) + WhiteKernel(noise_level=0.561)`
+
+Length scales **1000 (upper bound) on dimensions 2 and 3** (halflength and
+angle) mean the GP has declared those two knobs signal-free — it fits only
+on (dx, dy) and dumps the remaining variance into noise (std ≈ 0.75). At
+the v2 high-sob points the GP predicts sob 2.30-2.80; residuals of +0.5 to
++1.1 are all within ~1.5σ of its noise model, so it sees them as "lucky
+scatter around the (dx,dy) mean." Cloud sob_max = 2.83 is exactly the
+(dx,dy)-only mean at the most favorable corner.
+
+**Disproved hypothesis**: it is NOT a legacy-pollution effect. Refit on
+v2+priors only (25 points) made things worse — kernel collapsed to bounds
+on 3 of 4 dimensions and the calo GP degenerated to a constant. 25 pts is
+too sparse for 4D.
+
+**Real fix candidates** (in order of cheapness):
+1. Cap `length_scale_bounds` upper at ~2.0 in `gp_predict_helical.make_gp()`
+   so the optimizer can't declare halflen/angle flat.
+2. Cap WhiteKernel `noise_level_bounds` upper to force the GP to fit signal
+   instead of absorbing it as noise.
+3. More varied (halflen, angle) data — the in-flight SR00 round will widen
+   the training set; revisit after it lands.
+
+**Fix landed (2026-05-21)**: `make_gp()` now uses
+`WhiteKernel(noise_level=1e-3, noise_level_bounds=(1e-5, 1e-1))`. Three-agent
+review (empirical + skeptical + reframe) converged: (a) high-sob v2 points
+are reproducible (graph011/012/017 internal spread 0.03 ≪ 0.75 WhiteKernel
+σ), (b) conditional correlations in the dx<0.6, dy∈[105,125] cluster show
+pearson(halflen,sob)=+0.40, pearson(angle,sob)=−0.47 — data DOES carry
+halflen/angle signal, (c) physics requires it (helical028/029 vary calo
+15× by angle alone). Post-fix kernel:
+`1.21² * Matern(length_scale=[0.716, 0.1, 0.1, 0.1]) + WhiteKernel(0.009)`,
+cloud sob_max = 3.91 (was 2.83), Pareto frontier 370 pts (was 98), all 15
+v2 stars covered. Caveat: halflen/angle length-scales pinned to lower
+bound 0.1 — GP is near-interpolating, so out-of-sample σ ≈ 0.12 is
+overconfident; the 1e-1 noise cap (vs the 1e-2 cap empirical fix B tested)
+is the middle ground. `compute_explore_picks()` (called by
+[[closed-loop-runner]]) inherits the fix automatically.
+
+Probe artifacts: `/tmp/gp_probe_v2.py`, `/tmp/gp_diag_nolegacy.py`,
+diagnostic plots at
+`/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predicted_helical_cloud_nolegacy.png`
+and `gp_predicted_helical_cloud_fixC.png` (legacy diagnostic +
+empirical fix-B plot, retained for reference).
+
+## Forward-LOO calibration update (2026-05-25, n=98 v2 rows)
+Re-ran the leave-one-out characterization at current data scale (priors +
+98 v2 rows, ~4× the 2026-05-18 25-pt snapshot). Methodology: for each v2
+row k in chronological order, refit `make_gp()` on priors + rows 1..k−1,
+predict at row k's X, residual = pred_mean − observed.
+
+**Headline:**
+- sob RMSE: **1.246 (early half) → 0.384 (late half)** — 3.2× improvement;
+  late-half residuals fit within the GP's predictive ±2σ band (well-
+  calibrated post-FTFP_BERT + Option A).
+- log-calo RMSE: 2.263 → 1.171 — only 1.9× improvement, still poor.
+- **sob bias = −0.30** (GP systematically under-predicts sob — loop keeps
+  finding better than the model expected).
+- **log-calo bias = −0.87** (GP under-predicts log-calo by ~0.9 nats =
+  observed calo is ~2.4× higher than predicted on average). This is the
+  load-bearing empirical evidence for why `pessimistic_calo` exists:
+  the **bias is in the GP itself, not in the picker**; pessimistic_calo
+  compensates the symptom (fallback-region attractiveness) but does not
+  fix the underlying under-prediction. A real fix would be a heavier-
+  tailed log-calo prior or a heteroscedastic noise model.
+- Early-iteration residuals are inflated mostly by the pre-Option-A and
+  pre-FTFP_BERT regimes (rows are partly out-of-distribution for the
+  unified GP); excluding those would shrink early RMSE further.
+
+Plot: `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_residuals_over_iter.png`.
+Script: `/tmp/residuals_over_iter.py` (one-off; uses `.venv-botorch`
+because `.venv-graph` lacks matplotlib — both venvs have sklearn).
+
+Operational read: **sob is converged enough that further exploration buys
+little**; the loop's remaining headroom is in calo modeling, not sob.
+Next high-leverage move is heteroscedastic log-calo (or stop and trust
+the 0.46-mm-blade champion).
+
+**Persistence check (2026-05-24, n=74):** kernel still fits at the
+envelope corners — sklearn warns `length_scale[1]` (dy) at lower bound
+0.1 AND `noise_level` at upper bound 0.1 (the cap). Both have been
+binding since the 2026-05-21 fix and have not relaxed across +30
+training points (n=44→74). Interpretation: the dy floor is at the edge
+of what the kernel can express (real dy structure at ~10% of [40,400] ≈
+36 mm), and the noise ceiling reflects the irreducible 100-job MC
+noise floor — neither is dangerous, but both are constraints to remember
+when reading σ. Touching the noise cap would re-introduce the
+collapse-to-flat failure mode; **the dy floor is NOT a safe relaxation
+either**: empirical test at n=86 (2026-05-24) lowering dy floor 0.1→0.03
+(others kept at 0.1, ls ceiling 1e5, noise floor 1e-10, noise cap kept
+at 0.1) collapsed calo p1–p99 spread **1126% → 55%** (20× narrower)
+while sob spread only widened 168%→196%. Pareto frontier shrank 50→23.
+dy is the dominant dim for calo; making its length-scale local kills
+calo variance and would under-explore low-calo regions. Both bounds
+stay. Side-by-side at `/tmp/gp_bounded_vs_relaxed_v9.png`.
+Cloud-replot output (refit on 74 pts) at
+`gp_predicted_helical_cloud_mpl.png`, 2026-05-24 12:08.
+
+**Unbounded re-test (2026-05-24, n=74):** ran `/tmp/gp_probe_unbounded.py`
+with `length_scale_bounds=(1e-5, 1e5)` and `noise_level_bounds=(1e-10,
+1e+1)` (sklearn-defaults-style). Unbounded fit drove dy length_scale to
+**1e-5** (interpolation-only) — the GP became dy-local, every observed
+dy treated as an isolated island. Result vs bounded: Pareto frontier
+**20 vs 39 pts**, cloud calo range collapsed from **[3e-8, 4e-4] to
+[1e-6, 1e-5]** (10× window), sob_p99 dropped **3.16 → 2.10**. The
+"more data may relax the bounds" hope from 2026-05-21 is now
+DISPROVED at n=74 — unbounded is strictly worse (different failure mode
+from n=44, same conclusion). The cap and the dy floor both stay.
+Diagnostic only; production `make_gp()` unchanged.
+**n=81 re-confirmation (2026-05-24):** rerun via `/tmp/plot_unbounded_vs_bounded.py`.
+"Unbounded" has two distinct failure regimes depending on how wide you
+actually open the bounds:
+- **Sklearn-defaults-wide** `length_scale_bounds=(1e-5, 1e5)`,
+  `noise_level_bounds=(1e-10, 1e+1)`: cloud is tight but non-degenerate.
+  99.99% of 1,048,576 Sobol samples lie within p1–p99 spread of
+  **sob 7.4%, calo 8.4%** around `(sob≈2.13, calo≈3.78e-6)`; only
+  **58 of 1M** lie outside the joint p1–p99 box.
+- **Truly unbounded** `(1e-30, 1e30)` on Matern length-scale, WhiteKernel
+  noise, AND ConstantKernel value (n=83): cloud collapses to a SINGLE
+  point — `sob∈[2.16, 2.16]`, `calo∈[3.85e-6, 3.85e-6]`, Pareto frontier
+  = 1 element. The 1M predictions are bit-identical. The GP becomes a
+  constant predictor.
+Bounded fit at same n: tail ~19,849 points, p1–p99 spread sob 39%, calo
+~1130%. Side-by-side at `/tmp/gp_bounded_vs_unbounded_v8.png`
+(truly-unbounded) and `_v7.png` (sklearn-defaults-wide). The takeaway:
+sklearn's default wide bounds give a deceptively-narrow cloud that hides
+how degenerate the unbounded optimization actually is; pushing the
+bounds wider until the optimizer is truly free reveals total collapse
+to a constant.
+
+**Bounded GP is highly sensitive to small data additions (2026-05-24, n=86→87):**
+While diagnosing why `/tmp/gp_bounded_vs_relaxed_v11.png` (left/bounded panel)
+looked very different from canonical
+`/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predicted_helical_cloud_mpl.png`,
+discovered the bounded production GP collapses dramatically with single-row
+data additions:
+- At n=86 (this morning, ~12:07): calo cloud spanned **~4 decades**
+  `[3e-8, 4e-4]`, p1–p99 ≈ **1126%** relative spread. This is what the
+  canonical PNG/TSV captures (`gp_predictions_helical.tsv`, 8,388,609
+  Sobol rows, mtime 12:07).
+- At n=87 (this afternoon, ~16:00, after one new FT06 row): calo cloud
+  spanned **~2 decades** `[4.2e-7, 4.5e-5]`, p1–p99 ≈ **121%** — **~10×
+  collapse from one new point**. Verified by running canonical
+  `gp_predict_helical._fit_and_sample(sobol_m=23)` fresh against current
+  leaderboard — identical to my `_v11.png` left panel.
+- **The ridge is NOT exploration-starvation; the picker is.** (2026-05-24,
+  n=87, three-agent investigation.) Concern raised: if the GP is
+  over-confident (small `logc_std`) in ridge regions, the BO won't
+  explore there. Empirical diagnostic
+  (`/tmp/gp_overconfidence_diagnostic.py`) DISPROVED over-confidence:
+  - Near-training samples (distance < 0.143 in normalized 4D):
+    median `logc_std` = **1.62** (p5=1.04, p95=1.75)
+  - Ridge samples (|log(calo_pred) − log(3.82e-6)| < 0.1):
+    median `logc_std` = **1.85** (p5=1.84, p95=1.85) — *15% LARGER*
+  - `sob_std` similarly grows from 0.33 near training to ~1.18 far
+    (asymptote plateau, honest GP behavior).
+  The GP IS honestly uncertain in ridge regions. The actual starvation
+  cause is that `compute_explore_picks` (`gp_predict_helical.py:218`)
+  does **Pareto-of-mean** — never reads `logc_std`/`sob_std`. The
+  honest uncertainty sits in the returned tuple, unused. Fix: switch
+  picker to UCB/LCB of (sob, log_calo):
+  `lcb_calo = mu_c − κ·sd_c; ucb_sob = mu_s + κ·sd_s; Pareto of
+  (−ucb_sob, lcb_calo)`. One-file change, leaderboard-preserving.
+  Skopt default κ=2.0 (bump to 3–5 if clustering persists). Pessimistic
+  constant prior mean is a band-aid adjunct only; input warping is the
+  long-term right answer if specific dims are over-bunched. BoTorch
+  qNEHVI (`botorch_predict_helical.py`) would also fix it principled-ly
+  but requires venv refactor + signature-match for `compute_explore_picks`.
+- **κ-tuning of UCB/LCB has a structural ceiling against the ridge.**
+  At logc_std≈1.85 in fallback regions, even κ=1 leaves the ridge
+  `calo_lcb = exp(log(3.82e-6) − κ·1.85) ≈ 6e-7` — STILL below the
+  calo_cap=2e-6 gate. So κ alone cannot push picks off the ridge; the
+  fallback's σ is larger than any reasonable κ can scale. Concretely:
+  to push ridge calo_lcb above 2e-6 needs `κ > log(2e-6/3.82e-6)/1.85
+  = log(0.524)/1.85 = −0.35` — κ would have to be *negative* (LCB
+  becomes UCB on calo) to defeat the ridge, which defeats the whole
+  uncertainty-aware reasoning. Implication: if κ-sweep doesn't reach
+  acceptable ridge-fraction by κ=0.5, **the right next step is the
+  pessimistic constant prior or qNEHVI — not lower κ**.
+- **BoTorch qNEHVI migration recipe** (Agent A, 4-agent team review
+  2026-05-24, in case the sklearn band-aids fail): preserve
+  `compute_explore_picks(q, nsteps_budget, min_spacing)` signature by
+  shelling out — `subprocess.run(.venv-botorch/bin/python
+  botorch_predict_helical.py --emit-picks-json …)` and parse the JSON
+  back. Avoids merging torch into `.venv-graph` (~600 MB, sklearn/numpy
+  ABI risk on the /data-mounted venv per
+  [[venv-relocated-to-data-volume]]). Three load-bearing guardrails
+  the current `botorch_predict_helical.py` doesn't have: (a)
+  per-round ref-point = `nadir(feasible front) × 1.1` not hardcoded
+  `REF_SOB=-0.5, REF_NEG_LOGCALO=-8.0` (loose ref → q clusters on
+  fallback; tight ref → q clusters on narrow slice); (b) MC seed =
+  `42 ^ round_idx` not fixed-42 (fixed seed reuses the same Sobol
+  draw every round → subtle diversity bias); (c) `num_restarts=16`
+  not 8 for q=8 in 4D. Also: botorch path uses `-log10(calo)` while
+  sklearn uses `log(calo)` — predicted-calo TSVs from the two paths
+  are NOT directly comparable. Backup if qNEHVI's ref-point
+  sensitivity bites: **qParEGO** (Knowles 2006 / Daulton 2020) —
+  random Tchebycheff weights per pick give automatic batch diversity
+  *without* needing a ref point; for our asymmetric front (sob more
+  important than marginally lower calo), reweight `Dirichlet(2,1)`
+  toward sob.
+- **Picker A/B measurement protocol** (Agent D, 4-agent team review
+  2026-05-24): cannot replay history; per-round HV noise is 10–20%
+  from grid stochasticity. **Primary metric** = constrained
+  reference-set HV gain ΔHV_ref over feasible rows (`calo<2e-6`),
+  with ref pinned at PRE-ROUND nadir (not post-round — drift hides
+  exploration cost). **Secondary diagnostic** = min-pairwise-distance
+  MPD in unit-normalized 4D box from picks alone (no grid spend):
+  production picker A's collapsed cluster has MPD≈0.05; healthy
+  explorer ≥0.20. **Decision rule:** ship if ΔHV_ref ≥ 1.25×
+  recent-4-round baseline AND MPD ≥ 0.15 AND feasible-frac ≥ 5/8;
+  revert if <0.75× OR feasible-frac <3/8; else need a 2nd round.
+  **Pre-flight (zero compute):** refit GP once on current n; run
+  candidate pickers against the FROZEN posterior; compare MPD,
+  bbox-coverage, ridge-fraction (picks with logc_std>1.5). Sub-25%
+  effects need ≥4 rounds to clear noise — we're explicitly accepting
+  low statistical power for shipping speed.
+  **Smoke A/B (2026-05-24, n=87, q=8, calo_cap=2e-6, min_spacing=0.02,
+  `/tmp/picker_smoke_ab.py`)**: A picks all cluster in dx∈[1.90,2.41],
+  dy∈[81,110], spread `[0.51, 29, 348, 186]` for `[dx, dy, hl, ang]`;
+  all 8 with calo_mu < geomean and logc_std<0.9. B (κ=2) picks dx∈
+  [0.23,4.73], dy∈[107,365], spread `[4.5, 259, 351, 375]` — ~9× wider
+  on dx/dy. **7/8 of B's picks land on the fallback ridge** (calo_mu≈
+  3.82e-6, logc_std≈1.85) and 3/8 have sob_std>1.2 → blind shots.
+  Implication: **κ=2 may be too aggressive for a single round** (would
+  mostly teach the GP, not improve the leaderboard); consider κ ∈
+  {0.5, 1} sweep or hedge with split-q (4 mean-Pareto + 4 UCB/LCB)
+  before landing the swap. Plot: `/tmp/picker_smoke_ab.png`.
+- **Fallback ridge will NOT disappear with more leaderboard rows.** At
+  n=87 ~87% of the 1M Sobol cloud sits in the GP fallback regime (per
+  the 3-agent ridge diagnostic above). 4D + stationary Matern means
+  halving that volume needs ~16× more data (curse of dimensionality);
+  even doubling n→170 leaves the ridge clearly visible in the canonical
+  PNG. **Higher stats is not a fix.** The cure is structural — a
+  pessimistic constant prior mean (shift fallback to `log(max(y_calo))`
+  ≈ −10.6 instead of geomean −12.78 → ridge moves to ~2.4e-5, above the
+  calo_cap=2e-6 gate, picker stops finding it attractive), BoTorch
+  qNEHVI with first-class `mean_module`, or input warping. sklearn's
+  `GaussianProcessRegressor(normalize_y=True)` makes option 1 awkward
+  (must disable normalize_y and shift y manually pre/post fit).
+- **Horizontal density ridge in canonical PNG ≈ GP fallback to training
+  geometric mean of calo** (not physics): `gp_predict_helical.py:135`
+  fits the calo GP on `np.log(y_calo)`, with `normalize_y=True`. In
+  regions of Sobol space far from any observation the posterior collapses
+  to the prior mean in log-space; `np.exp()` of that is the geometric
+  mean. At n=87 that's `exp(mean(log(calo))) =` **3.82e-6**
+  (log10 ≈ −5.42) — shows as a horizontal band of high pcolormesh
+  density just below 4e-6 in canonical PNG. NOT the arithmetic mean
+  5.3e-6 (a common mis-identification — easy to make if you forget the
+  `np.log(y_calo)` transform on line 135). The line walks as new rows
+  land; same mechanism that drives the calo cloud span sensitivity
+  (preceding block). Sob GP is fit directly (no log), so its fallback
+  ridge sits at arithmetic `mean(training sob) ≈ 2.0`. Only the Pareto
+  frontier (white line) is the physically-meaningful part of the cloud.
+- **Canonical PNG rendering quirks (not data, but easy to misread):**
+  `overlay_gp_predictions_helical_mpl.py` uses pcolormesh 2D density with
+  **fixed `range=[[0,1.15], [-8,-4]]`** — y-axis always spans 4 decades of
+  calo regardless of actual GP fit (empty bins just don't render). Direct
+  scatter of the same TSV with autoscaled y will collapse to 2 decades on
+  a tighter fit; this is a rendering difference, not a fit difference.
+  x-axis is also normalized: `sob / x_scale` where `x_scale = nominal Run
+  1A sob ≈ 3.3` (read from `table.org`), so canonical x range is [0, 1.15],
+  not raw sob. The PNG also overlays mmackenz `table.org` configs (8
+  marker/color classes) on top of the GP cloud. Side-by-side comparisons
+  must reproduce all three (pcolormesh + x_scale normalization + fixed
+  log y-range), not just scatter the prediction tuples.
+- **Operational consequence:** `gp_predicted_helical_cloud_mpl.png` and
+  `gp_predictions_helical.tsv` are **stale after every closed-loop round**.
+  Regenerating both takes ~minutes (sobol_m=23 → 8.4M predictions); do
+  it as part of post-round housekeeping before reading the visualization
+  to make decisions. Reading the stale PNG and reasoning about Pareto
+  shape will mislead.
+- **`pessimistic_calo` gate landed (2026-05-24)** — `_fit_and_sample` +
+  `compute_explore_picks` in `gp_predict_helical.py` accept
+  `pessimistic_calo: bool = False`; default-off so non-flagged callers
+  are bit-identical. Implementation: build a fresh
+  `GaussianProcessRegressor(kernel=<same as make_gp()>, normalize_y=False)`,
+  fit on `np.log(y_calo[pos]) - log_shift` where
+  `log_shift = float(np.log(np.max(y_calo[pos])))`, then add `log_shift`
+  back to `logc_pred` post-predict (`logc_std` unchanged). `normalize_y`
+  must be False or sklearn double-centers; this is the load-bearing
+  detail. At n=87, `log_shift = -11.128` (slightly higher than the
+  prior estimate of −10.6 — actual `max(y_calo)` in v2 is 1.47e-05).
+  CLI exposed via `graph/closed_loop.py --pessimistic-calo`
+  (stored in RoundState as `pessimistic_calo`, plumbed to both
+  `node_predict_picks` and `node_refit_and_check`). Pre-flight A/B
+  (`/tmp/preflight_pessimistic_picker.py`): MPD 0.032 → 0.143 (4.5×),
+  dx span [1.9, 2.4] → [0.094, 4.834] (full range), feasible 8/8, ridge
+  0/8, bbox-coverage 3×. Reuse note: `closed_loop.py --dry-run
+  --pessimistic-calo` (line 475) was already capable of printing the q
+  picks; running it twice (with/without the flag) gives the same picks
+  side-by-side — the throwaway preflight script only adds auto-MPD /
+  feasible / ridge metrics and a pass/fail gate. First grid validation
+  is `helicalPC01R00_00..07` launched 2026-05-24 (thread_id helicalPC01,
+  q=8, max_rounds=1, ~8 h harvest); assessment plan in
+  `/nashome/o/oksuzian/.claude/plans/zazzy-booping-ladybug.md`.
+- **PC01 first-round outcome (2026-05-24, harvested in ~40 min — much
+  faster than the plan's ~8 h estimate, possibly because all 8 children
+  ran on currently-empty queue):** realized MPD=0.121 (baseline median
+  ~0.075), realized dx span [0.094, 4.835] (full 5-unit box; baseline
+  ~2.0), best obj=2.589 (highest of any round; FT03=2.561, FT06=2.506),
+  but only 1/8 feasible (calo<2e-6) tied with baseline median, AND the
+  one feasible point lands at sob=0.718 vs baseline sob~1.29. Soft
+  signals confirm the prior IS diversifying as intended, but
+  pred-vs-realized calo calibration is the next gap to diagnose. The
+  plan's strict ΔHV_ref gate is unusable here — see next bullet.
+- **ΔHV_ref metric is degenerate at the 2e-6 calo cap**
+  (`/tmp/assess_pc01.py`, 2026-05-24): per-round constrained HV gain is
+  **identically 0.0** for every round (FT03..FT06 AND PC01), regardless
+  of whether the reference is the PRE-round nadir or the GLOBAL
+  worst-feasible nadir. The cap is so tight (only 19 historical feasible
+  points across hundreds of grid evals) that the historical Pareto front
+  already dominates every new point on the feasible side; new picks fall
+  below the front in (sob, −calo) and don't widen the HV box. **Plans
+  proposing "use per-round ΔHV_ref as the keep/revert gate" cannot
+  discriminate here.** Use soft signals (MPD, dx span, best obj,
+  feasibility) instead, OR loosen the calo cap to a less brutal
+  threshold (e.g. 5e-6) where the per-round feasible Pareto front can
+  actually shift. Do NOT rerun ΔHV_ref expecting non-zero values
+  without first relaxing the cap.
+- The collapse is the bounded fit doing its job (one new point disambiguates
+  a previously-flat ridge in the posterior), not pathology. But it does
+  mean the GP's exploration signal has just halved its calo dynamic range,
+  which directly shrinks the Pareto picks' calo spread in the next round
+  — relevant for closed-loop `min_spacing` clustering behavior.
+
+## N_crit margin too loose at 5000 — empirical (SR00_00, 2026-05-21)
+The N_crit ≤ `HELICAL_NSTEPS=5000` guard ([[tessellated-solid-facet-orientation]])
+was set on the prior assumption that the patched facet-orientation
+fix would keep geometry valid up to that buildable ceiling. **SR00_00
+empirically refutes that.** Geometry `dx=0.011, dy=125, halflen=251,
+angle=167` → N_crit ≈ 4144 (well below 5000) reproduced the same
+GeomSolids1001 + stuck-track flood the guard was supposed to prevent:
+
+| stage | n_jobs flagged | n_jobs total | G4Exceptions | stuck tracks |
+|---|---|---|---|---|
+| mubeam        | 186 | 200 | 1.74 M | 0.58 M |
+| run1b_mubeam  | 195 | 200 | 45 k   | 15 k   |
+| mustops_ce    |  90 | 100 | 6.66 M | 2.22 M |
+
+scan_logs gating ([[closed-loop-bo-design]] revision #5, landed in graph
+node) **worked as designed**: `state/broken.txt` written, leaderboard
+append suppressed. `summary.json` reported sob=3.88, calo=1.42e-5 — both
+inflated by the stuck-track count saturation; NOT in the v2 leaderboard.
+
+The 3-4 h per-job CPU wall on these geometries is **not slow-but-correct
+geometry**; it is the same G4 stuck-track inflation. There is no
+"throughput gate" distinct from the brokenness gate — at the bad-corner
+of the search space, the per-job cost IS the brokenness. (Earlier draft
+of this section, since revised, framed the 3-4 h walls as a separate
+throughput concern with a tabular dx-vs-wall comparison — that framing
+turned out to be a misread of the same N_crit-margin failure.)
+
+VmPeak ≈ 2.75 GB on these jobs is a real but **secondary** finding:
+when the guard tightens enough to exclude broken-corner picks, the
+VmPeak distribution is expected to drop with it. Memory bump to 3.0 GB
+landed defensively but should not be needed once N_crit picks are sane.
+
+**Action items applied 2026-05-21:**
+- `HelicalMode.HELICAL_NSTEPS` lowered 5000 → 2000 in
+  `autoresearch_bo_michael.py`. This is the predicate the propose-loop's
+  `is_buildable` consults; tightens the bare-propose path identically to
+  the picks path.
+- `closed_loop` should be invoked with `--nsteps-budget 2000` (matches
+  `compute_explore_picks` Sobol filter). The two constants are now
+  co-equal — drift would re-open the same hole this incident exposed.
+- Still TBD: revisit whether 2000 is empirically sufficient. SR00_00 is
+  one data point; the boundary between "buildable & correct" and
+  "buildable but stuck-track-flooded" needs a deliberate sweep, not just
+  guesswork. If SR01 produces another broken row at N_crit ≤ 2000,
+  tighten further (1000?) and consider a runtime stuck-track ratio gate
+  in scan_logs that fires earlier (during poll, not after harvest)
+  so the closed loop doesn't burn 4 h of CPU on geometry that was
+  doomed at submit time. See [[closed-loop-bo-design]]
+"Throughput gate" note.
+
+**Update 2026-05-27:** the FCL nsteps and the BO N_crit budget are now
+**intentionally decoupled**, reversing the prior "must move together"
+rule above:
+- `autoresearch_bo_michael.py` `HELICAL_NSTEPS = 10000` — FCL geometry
+  mesh resolution (`tsda.helical.nsteps`). Higher = finer-faceted built
+  helical solid, more memory/CPU per G4 init, but no BO-search effect.
+- `gp_predict_helical.py` `DEFAULT_NSTEPS_BUDGET = 2000` — sklearn N_crit
+  Sobol gate. The BO refuses to *propose* configs needing >2000
+  winding-self-intersection steps; configs that *do* get proposed are
+  built at nsteps=10000 (well above what their geometry actually needs).
+- `botorch_predict_helical.py` `NSTEPS_BUDGET = 2000` — same role for
+  qNEHVI's Sobol pool + intra-point feasibility constraint.
+- Rationale: 10000 facets is cheap for resolution but high N_crit
+  regions (extreme aspect ratios) still produce ambiguous geometry under
+  twisted-box; keep the search-space gate at the empirically-validated
+  2000 threshold even as we render at finer resolution.
+
+First post-decoupling q=3 picks (sklearn Pareto-spaced):
+dx=0.012 sob=4.08 calo=1.3e-5 / dx=2.16 sob=1.47 calo=1.4e-6 / dx=4.80
+sob=0.45 calo=2.7e-7. BoTorch qNEHVI piled all 3 picks at small-dx
+high-sob corner (qNEHVI is hypervolume-greedy), 1/3 failed the
+N_crit≤2000 gate — qNEHVI sees the gate as a *soft* intra-point
+constraint, not a hard reject. Pre-submission inspection is mandatory.
+
+## Pareto saturation in 4D (2026-05-28)
+Hypervolume-vs-evals diagnostic on the 176-row v2 leaderboard shows the
+4D BO has effectively saturated — running more 4D evaluations buys
+near-zero front improvement:
+
+| Metric | First 50 evals | Eval 100 | Final (176) |
+|---|---|---|---|
+| Dominated HV (sob × calo, ref=worst+2%) | 4.84e-5 | 4.99e-5 | 5.07e-5 |
+| Pareto-hit rate (W=20 rolling) | 62% | — | 38% |
+
+HV gain decomposition: +3.0% (50→100, 50 evals) then **+1.6% (100→176, 76 evals)** —
+5× drop in HV-per-eval. Pareto-hit rate (fraction of new evals that expand
+the front) decayed from 62% early → 38% late.
+
+Plot: `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/pareto_saturation.png`
+(generator `/tmp/pareto_saturation.py`).
+
+**Implication for next-step planning:**
+- Continuing pure 4D closed-loops (e.g. another FT0x round) will keep
+  shaving ~0.02% HV/round — not worth the grid hours.
+- The actually-load-bearing follow-ups are the dimensionality lifts that
+  have been queued but not run: **promote COL5 material** (#146) and
+  **TSdA4 disc thickness** (#147) to BO knobs, and the **targeted
+  small-dy / long-hl / mid-angle corner** explore batch (#148) the GP
+  cloud rendering already flagged as under-sampled.
+- Saturation diagnostic should be re-run after every dimensionality lift
+  to recheck whether the new dim opened HV worth chasing.
+
+## Post-cleanup champion shift (2026-05-27)
+After the [[scan-broken-codes-too-narrow]] full-census purge moved 38 v2
+rows + 3 legacy rows to `.broken.tsv` sidecars (see [[leaderboards]]),
+GP refit on the cleaned leaderboard:
+- Training set: 196 → **175 v2 rows** (10 priors + 165 helical, 0 legacy
+  after legacy file dropped from gp_predict_helical loader gate)
+- Still-filtered: **7 silent-pass configs** (graph001-005, graphsmoke001/002)
+  — no `state/` dir on disk, retro-scan SKIPped them, gate treats as
+  broken-unknown.
+- Pareto frontier: 469 → **772 points**.
+- GP top pick: `dx=0.012, dy=132, halflen=362, angle=424` →
+  `sob=4.075, calo=1.33e-5`. **dx sits at BO lower bound 0.01** (sub-mil
+  ribbon) — extreme-corner pick, likely unphysical / unmanufacturable;
+  treat as exploration-only.
+
+**New observed champions (post-sidecar):**
+| metric | config | dx | dy | hl | ang | sob | calo | obj |
+|---|---|---|---|---|---|---|---|---|
+| top obj | **helicalQR00_02** | 0.13 | 117.2 | 351.2 | 361 | 3.70 | 1.06e-5 | **2.642** |
+| top sob | helicalFT08R00_00 | 0.013 | 147 | 44 | 706 | 3.83 | 1.77e-5 | 2.064 |
+| top low-calo (sub-2e-6) | helicalNG04 | 0.8 | 70 | 250 | 560 | 1.67 | 1.94e-6 | 1.476 |
+
+**Champion regime shifted significantly.** Prior top-3 obj champions
+(helicalL02 obj=3.084, graph023 obj=2.972, helical041a obj=2.833) are
+all now in `leaderboard_bo_helical_v2.broken.tsv` — their metrics were
+artifacts of broken tessellated geometry (see [[tessellated-solid-facet-orientation]]
+A/B grid test for helical041a). The new top-obj champion
+(helicalQR00_02 at 2.642) is **a 14% drop from the prior tainted
+champion** but is geometrically validated (no LikelyGeomOverlap in
+its scan_logs report).
+
+QR00_02 also sat at #4 in the pre-cleanup top-5 (see "Cross-model
+saturation confirmation" block); the cleanup demotes the three above it
+and promotes #4 to #1. Validates the "4D BO is saturating" reading: the
+true ceiling is closer to obj≈2.6-2.7, not the 3.0+ region the tainted
+rows had been suggesting.
 
 ## Chain-script evaluate bug (recurrent, 2026-05-18)
 `/tmp/helical_full.sh:59-60` has a line-continuation in the `run evaluate`
@@ -495,6 +1129,62 @@ evaluate runs**, so manual recovery is one-line:
 Hit by helical043, helical045, helical046 in succession (all three dx-probe
 configs that completed). Fix the chain-script line continuation when
 touching it next.
+
+## Loader N_crit-gate silently drops most v2 rows from GP training (2026-05-23)
+`gp_predict_helical.py:_load_lb` (lines 81-102) per-row checks
+`_ncrit(dx, dy, angle) > KNOWN_NSTEPS.get(config, DEFAULT_NSTEPS=100)`.
+`KNOWN_NSTEPS` only lists `helical050a_n5000=5000` — every other config
+falls back to **`DEFAULT_NSTEPS=100`** (historical pre-2026-05-21
+default), even though the *current production* `HelicalMode.HELICAL_NSTEPS=2000`
+(`autoresearch_bo_michael.py:367`). On the 2026-05-23 refit, this
+dropped **36/71 v2 rows** (51%) — including `graph027` (N_crit≈690 from
+the helicalQR00_02 baseline) and most high-angle SR/QR/F01 configs.
+The 35 retained are not biased per se (the dropped rows would have
+fired GeomSolids1001 at nsteps=100 IF run at that nsteps; they were
+actually run at nsteps=2000 and produced valid data) — but the
+training set is half the leaderboard, **silently**, and the function
+prints nothing when N_crit-dropping a row (only `_is_broken` drops
+print). Fix when touching that block: replace `DEFAULT_NSTEPS=100` with
+`HelicalMode.HELICAL_NSTEPS` (or stamp per-row nsteps into the
+leaderboard at evaluate-time and read it back here).
+Cross-check before declaring a GP refit incorporates new rows:
+`grep -E "^helicalF01|^graph027" leaderboard_bo_helical_v2.tsv` then
+compare "trained on N points" against expected count.
+
+## GP under-predicts at low-calo extrapolation tail — F01 evidence (2026-05-23)
+The closed-loop F01 batch (q=8, picks predicted at calo<2e-6) landed
+its 8 observations in calo∈[3.7e-6, 9.6e-6] — **5× to 56× higher than
+predicted**, with the ratio growing monotonically with distance from
+the training support:
+
+| pick | pred sob/calo | obs sob/calo | calo ratio | sob ratio |
+|---|---|---|---|---|
+| F01_00 | 2.59 / 1.92e-6 | 3.31 / 9.64e-6 | 5.0× | 1.28× |
+| F01_03 | 1.77 / 3.40e-7 | 3.05 / 8.12e-6 | 24× | 1.72× |
+| F01_07 | 0.15 / 6.59e-8 | 2.16 / 3.68e-6 | **56×** | **14×** |
+
+Both metrics under-predict; the worse the prediction, the larger the
+gap. Mechanism: log-calo GP has very few training points with calo<2e-6
+(the leaderboard is dominated by calo∈[1e-5, 5e-5] from earlier
+batches), so picks deep into the predicted low-calo tail are pure
+extrapolation — the log-calo GP regresses toward bulk mean as posterior
+variance grows. The sob GP shows the same pattern in reverse: low-sob
+picks land at much higher sob than predicted, because none of the
+training rows have sob<1.5.
+
+**Implication for closed-loop strategy**: GP-driven picks into
+unexplored regions of (sob, calo)-space are NOT trustworthy as
+*objective predictions*; they are exploration moves whose value is
+seeding the GP with observations in new regions, not landing on the
+predicted Pareto front. The F01 batch successfully expanded the
+training support into the low-sob tail (sob∈[2.16, 3.31] is the lowest
+8-pack so far) — but the actual Pareto frontier from F01 sits *above*
+the GP's prior Pareto cloud, not below it.
+
+Open question: does tightening `make_gp()` length_scale upper bound
+(currently ~2.0 per fix landed 2026-05-21) help, or hurt? It would
+shorten extrapolation reach but also reduce the GP's ability to
+share information across the 4D space's coarse structure.
 
 ## Open questions / TODO
 - helical001 (`dx=2.32, dy=84, halflen=263, z0=4500, angle=452`) PASSED

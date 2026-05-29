@@ -15,7 +15,7 @@ Two modes (select with --mode):
     tsda.helical.dx          Real [0.01, 5.0]    mm   (ribbon half-width)
     tsda.helical.dy          Real [40,   400]    mm   (ribbon half-height)
     tsda.helical.halflength  Real [25,   500]    mm   (z half-length)
-    tsda.helical.angle       Real [60,   540]    deg  (total twist)
+    tsda.helical.angle       Real [60,   720]    deg  (total twist; widened from 540 on 2026-05-21 — 15/47 v2 rows were rail-running ≥525°)
     Derived (coupled in render_geom; eliminates silent G4 sibling overlaps):
       tsda.helical.z0 = tsda.z0 + halfLength4 + halflen
                       → plug upstream face touches disc downstream face
@@ -41,6 +41,7 @@ import argparse
 import csv
 import fcntl
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -145,6 +146,12 @@ class BOMode(ABC):
 
     @abstractmethod
     def print_top(self, pts, alpha, top): ...
+
+    # Constraint hook: override to reject infeasible regions of search space.
+    # propose() calls this on every ask() output and tells the GP a penalty
+    # for unbuildable picks before re-asking. Default = no constraint.
+    def is_buildable(self, x) -> bool:
+        return True
 
     # --- concrete: shared ---
     def render_proposal(self, name: str, x) -> Path:
@@ -348,10 +355,28 @@ class HelicalMode(BOMode):
     TSDA_HL4 = 12.5
     TSDA_Z0 = 4195.0
     TSDA_MATERIAL = "StoppingTarget_Al"
-    HELICAL_NSTEPS = 5000
+    # HELICAL_NSTEPS = FCL geometry-mesh resolution emitted as
+    # tsda.helical.nsteps; raised 5000 → 10000 with twisted-box default so the
+    # analytic solid renders at fine resolution. NOT the BO search-space gate —
+    # see N_CRIT_BUDGET below.
+    HELICAL_NSTEPS = 10000
+    # N_CRIT_BUDGET = bare-propose-path N_crit Sobol gate; kept at the
+    # empirically-validated 2000 (matches gp_predict_helical.DEFAULT_NSTEPS_BUDGET
+    # and botorch_predict_helical.NSTEPS_BUDGET). Decoupled from HELICAL_NSTEPS
+    # 2026-05-27 — render resolution and search-space gate moved independently.
+    # See wiki/projects/bo-helical.md "Update 2026-05-27".
+    N_CRIT_BUDGET = 2000
     HELICAL_MATERIAL = "StoppingTarget_Al"
+    # Selects helical-plug solid impl in constructTSdA.cc dispatcher.
+    # True  → makeHelicalPlugTwistedBox (analytic G4TwistedBox, deployed default)
+    # False → makeHelicalPlugTessellated (legacy chord approx; for reproducing
+    #         pre-2026-05-21 leaderboard entries or A/B testing solids).
+    # Pinned in emitted FCL so geom.txt grep recovers the branch per-config.
+    # Env-var override for one-off A/B without source flip:
+    # USE_TWISTED_BOX=0 → tessellated; unset/=1 → twisted-box (default).
+    HELICAL_USE_TWISTED_BOX = os.getenv("USE_TWISTED_BOX", "1") != "0"
     FOIL_RADIUS = 125.0
-    FOIL_COUNT = 38
+    FOIL_COUNT = 37
     HOLE_RADIUS = 0.0
     RIN_CLEARANCE_MM = 2.0  # extra radial gap between plug bounding circle and disc hole
 
@@ -425,8 +450,19 @@ class HelicalMode(BOMode):
             Real(0.01, 5.0,    name="tsda_helical_dx"),
             Real(40.0, 400.0,  name="tsda_helical_dy"),
             Real(25.0, 500.0,  name="tsda_helical_halflength"),
-            Real(60.0, 540.0,  name="tsda_helical_angle"),
+            Real(60.0, 720.0,  name="tsda_helical_angle"),
         ]
+
+    def is_buildable(self, x) -> bool:
+        # N_crit gate: dy·rad(angle)/(8·dx) ≤ N_CRIT_BUDGET (2000) — same
+        # predicate as gp_predict_helical._ncrit (the GP-pick path); applied
+        # here on the bare propose path so skopt can't slip an unbuildable
+        # point past us. Gated against N_CRIT_BUDGET (BO search-space gate),
+        # NOT HELICAL_NSTEPS (FCL render resolution).
+        # See [[tessellated-solid-facet-orientation]].
+        import math
+        dx, dy, _, angle = x
+        return (dy * math.radians(angle) / (8.0 * dx)) <= self.N_CRIT_BUDGET
 
     def _geom_text(self, x) -> str:
         dx, dy, hl, angle = x
@@ -452,7 +488,9 @@ class HelicalMode(BOMode):
             f'double tsda.helical.angle      = {angle:.4f};\n'
             f'int    tsda.helical.nsteps     = {self.HELICAL_NSTEPS};\n'
             f'string tsda.helical.material   = "{self.HELICAL_MATERIAL}";\n'
-            '\n// Foil stack (matches v111: 38 × r=125 to block calo stops)\n'
+            f'bool   tsda.helical.useTwistedBox = '
+            f'{"true" if self.HELICAL_USE_TWISTED_BOX else "false"};\n'
+            '\n// Foil stack (matches v111: 37 × r=125 to block calo stops)\n'
             f'double stoppingTarget.holeRadius = {self.HOLE_RADIUS:.4f};\n'
             f'vector<double> stoppingTarget.radii = {{ {foils} }};\n'
             '\n// TT_MidInner→DS2Vacuum fix (manually patched, mirrors v111)\n'
@@ -507,9 +545,188 @@ class HelicalMode(BOMode):
                   f"  {p.sob:6.3f}  {p.calo:10.3e}  {p.obj(alpha):7.3f}")
 
 
+# ============================================================================
+# FoilsMode: 5D extras-only stopping-target foil-stack search
+# ============================================================================
+
+class FoilsMode(BOMode):
+    """BO over n_up + n_down extra foils added around the base 37-foil stack.
+
+    Base 37 foils pinned at the stoppingTargetHoles_v02.txt deployed spec
+    (rOut=75, halfThickness=0.0528, holeRadius=21.5). All extras share a single
+    (rOut, halfThickness) triple — 5D rather than 12 × 3-D — and a single
+    holeRadius scalar applies globally because StoppingTargetMaker.cc:41 reads
+    `stoppingTarget.holeRadius` via getDouble, not getVectorDouble.
+
+    No helical plug in this mode (tsda.helical.build = false, hasTSdA = false),
+    keeping results orthogonal to [[bo-helical]].
+    """
+    name = "foils"
+    leaderboard = ROOT / "leaderboard_bo_foils_v1.tsv"
+    proposal_dir = ROOT / "bo_foils_proposals"
+    preflight_dir = ROOT / "bo_foils_preflight"
+
+    # Base 37-foil DOE-2017 spec (stoppingTargetHoles_DOE_review_2017.txt +
+    # stoppingTargetHoles_v02.txt halfThickness override).
+    BASE_N_FOILS = 37
+    BASE_ROUT_MM = 75.0
+    BASE_HALFTHICK_MM = 0.0528
+    BASE_HOLE_RADIUS_MM = 21.5
+
+    def load_priors(self):
+        # mmackenz's v22-v50 foil-stack runs are 7D over different knobs
+        # (rIn / halfLength4 / holeRadius / col5) and don't project onto this
+        # 5D extras-only search.
+        return []
+
+    def build_space(self):
+        from skopt.space import Integer, Real
+        return [
+            Integer(0, 6, name="n_up"),
+            Integer(0, 6, name="n_down"),
+            Real(50.0, 250.0, name="extra_rOut"),
+            Real(0.05, 1.0,   name="extra_halfThickness"),
+            Real(0.0,  50.0,  name="extra_rIn"),
+        ]
+
+    def is_buildable(self, x) -> bool:
+        _, _, rOut, _, rIn = x
+        # extra_rIn applies globally to the base 75-mm foils too via the
+        # holeRadius scalar; rIn ≥ base rOut would erase the base annulus.
+        if rIn >= self.BASE_ROUT_MM:
+            return False
+        if rIn >= rOut:
+            return False
+        return True
+
+    def _geom_text(self, x) -> str:
+        n_up, n_down, rOut, hT, rIn = x
+        n_up = int(n_up)
+        n_down = int(n_down)
+        n_extras = n_up + n_down
+        # Per-foil vectors REPLACE the v02 include's vectors (FHiCL last-write
+        # wins for vectors; see geom_run1_b_v06.txt:29-31 pattern).
+        radii = ([rOut] * n_up
+                 + [self.BASE_ROUT_MM] * self.BASE_N_FOILS
+                 + [rOut] * n_down)
+        halfth = ([hT] * n_up
+                  + [self.BASE_HALFTHICK_MM] * self.BASE_N_FOILS
+                  + [hT] * n_down)
+        radii_csv = ", ".join(f"{r:.4f}" for r in radii)
+        halfth_csv = ", ".join(f"{h:.6f}" for h in halfth)
+
+        # holeRadius is a SINGLE SCALAR (StoppingTargetMaker.cc:41 getDouble).
+        # Emit only when extras present so the v02 baseline (21.5 mm) survives
+        # the n_up=n_down=0 corner.
+        hole_line = (f'double stoppingTarget.holeRadius = {rIn:.4f};\n'
+                     if n_extras > 0 else '')
+
+        return (
+            '#include "Offline/Mu2eG4/geom/geom_run1_a.txt"\n'
+            '\n// === autoresearch_bo_michael (foils mode) proposal ===\n'
+            f'// 37 base foils (DOE-2017, rOut=75, hT=0.0528) + {n_up}↑ + {n_down}↓ extras\n'
+            '// Extras share a single (extra_rOut, extra_halfThickness) per BO eval.\n'
+            '// Note: extra_rIn applies GLOBALLY (holeRadius is scalar, not vector).\n'
+            'bool hasTSdA = false;\n'
+            'bool tsda.helical.build = false;\n'
+            f'vector<double> stoppingTarget.radii          = {{ {radii_csv} }};\n'
+            f'vector<double> stoppingTarget.halfThicknesses = {{ {halfth_csv} }};\n'
+            + hole_line
+            + '\n// Degrader parked at 120° (mmackenz hardware detent)\n'
+              'bool degrader.build = false;\n'
+              'double degrader.rotation = 120.0;\n'
+              'string ts.coll5.material1Name = "COL5Poly";\n'
+              '\n// TT_MidInner→DS2Vacuum fix (manually patched, mirrors v111)\n'
+              'bool tracker.inDS2Vacuum = true;\n'
+              'double ds2.halfLength = 3825;\n'
+              'bool ds.hasServicePipes = false;\n'
+              '\n// Overlap-suppression (mirrors HelicalMode lines 507-509)\n'
+              'bool stoppingTarget.foilTarget_supportStructure = false;\n'
+              'double ds.lengthRail2 = 0.1;\n'
+              'double ds.lengthRail3 = 0.1;\n'
+        )
+
+    _RADII_RX = re.compile(
+        r"vector<double>\s+stoppingTarget\.radii\s*=\s*\{([^}]*)\}")
+    _HALFTH_RX = re.compile(
+        r"vector<double>\s+stoppingTarget\.halfThicknesses\s*=\s*\{([^}]*)\}")
+    _HOLE_RX = re.compile(
+        r"stoppingTarget\.holeRadius\s*=\s*([\d.eE+-]+)")
+
+    def parse_geom(self, text: str):
+        m = self._RADII_RX.search(text)
+        if not m:
+            return None
+        radii = [float(v) for v in m.group(1).split(",")]
+        if len(radii) < self.BASE_N_FOILS:
+            return None
+        # Count leading + trailing entries that differ from BASE_ROUT_MM.
+        n_up = 0
+        for r in radii:
+            if abs(r - self.BASE_ROUT_MM) < 1e-6:
+                break
+            n_up += 1
+        n_down = 0
+        for r in reversed(radii):
+            if abs(r - self.BASE_ROUT_MM) < 1e-6:
+                break
+            n_down += 1
+        # Pull extra (rOut, halfThickness) from first leading-extra entry
+        # (or first trailing if n_up=0); halfThickness vector parses the same.
+        if n_up > 0:
+            extra_rOut = radii[0]
+        elif n_down > 0:
+            extra_rOut = radii[-1]
+        else:
+            extra_rOut = 80.0  # arbitrary inside-range default
+
+        mh = self._HALFTH_RX.search(text)
+        if mh:
+            halfth = [float(v) for v in mh.group(1).split(",")]
+            if n_up > 0 and len(halfth) >= 1:
+                extra_hT = halfth[0]
+            elif n_down > 0 and len(halfth) >= 1:
+                extra_hT = halfth[-1]
+            else:
+                extra_hT = 0.05
+        else:
+            extra_hT = 0.05
+
+        mr = self._HOLE_RX.search(text)
+        extra_rIn = float(mr.group(1)) if mr else 0.0
+
+        return [n_up, n_down, extra_rOut, extra_hT, extra_rIn]
+
+    def format_row(self, p: Point, alpha: float) -> tuple[str, str]:
+        header = ("config\tn_up\tn_down\textra_rOut\textra_halfThickness\textra_rIn"
+                  "\tsob\tcalo\talpha\tobj\n")
+        n_up, n_down, rOut, hT, rIn = p.x
+        line = (f"{p.cfg}\t{int(n_up)}\t{int(n_down)}\t{rOut:.4f}\t{hT:.6f}\t{rIn:.4f}"
+                f"\t{p.sob:.5f}\t{p.calo:.5e}\t{alpha:.3f}\t{p.obj(alpha):.5f}\n")
+        return header, line
+
+    def load_history_row(self, row: dict) -> Point:
+        return Point(cfg=row["config"],
+                     x=[int(row["n_up"]), int(row["n_down"]),
+                        float(row["extra_rOut"]),
+                        float(row["extra_halfThickness"]),
+                        float(row["extra_rIn"])],
+                     sob=float(row["sob"]), calo=float(row["calo"]))
+
+    def print_top(self, pts, alpha, top):
+        print(f"{'cfg':>10}  {'n_up':>4}  {'n_dn':>4}  {'rOut':>6}  {'hT':>6}  {'rIn':>6}"
+              f"  {'sob':>6}  {'calo':>10}  {'obj':>7}")
+        for p in pts[:top]:
+            n_up, n_down, rOut, hT, rIn = p.x
+            print(f"{p.cfg:>10}  {int(n_up):4d}  {int(n_down):4d}"
+                  f"  {rOut:6.2f}  {hT:6.4f}  {rIn:6.2f}"
+                  f"  {p.sob:6.3f}  {p.calo:10.3e}  {p.obj(alpha):7.3f}")
+
+
 MODES: dict[str, BOMode] = {
     "michael": MichaelMode(),
     "helical": HelicalMode(),
+    "foils":   FoilsMode(),
 }
 
 
@@ -580,10 +797,34 @@ def _cmd_propose_locked(args, mode, names):
         print(f"  CL-suppressed {suppressed}/{len(pending)} pending points "
               f"(fake y = {fake_y:+.3f})")
 
-    if q == 1:
-        xs = [opt.ask()]
+    # Ask + N_crit guard: if any returned pick fails is_buildable, tell the
+    # optimizer a large penalty for it (same magnitude as worst real y so it
+    # dominates) and re-ask. Bounded retries because pathological constraint
+    # geometries could in principle loop forever; in practice the helical
+    # constraint shaves a thin slice of (small-dx, large-dy·angle) corner
+    # and converges in <5 retries.
+    MAX_RETRY = 20
+    penalty_y = max(real_ys) + 1.0 if real_ys else 1e6
+    n_rejected = 0
+    for _ in range(MAX_RETRY):
+        if q == 1:
+            xs = [opt.ask()]
+        else:
+            xs = opt.ask(n_points=q, strategy=args.strategy)
+        bad = [x for x in xs if not mode.is_buildable(x)]
+        if not bad:
+            break
+        n_rejected += len(bad)
+        for x in bad:
+            try: opt.tell(list(x), penalty_y)
+            except ValueError: pass
     else:
-        xs = opt.ask(n_points=q, strategy=args.strategy)
+        print(f"WARN: {MAX_RETRY} retries hit; returning batch with "
+              f"{sum(1 for x in xs if not mode.is_buildable(x))} unbuildable picks",
+              file=sys.stderr)
+    if n_rejected:
+        print(f"  N_crit guard: rejected {n_rejected} unbuildable proposal(s), "
+              f"told GP penalty y={penalty_y:+.3f}")
     print(f"\nProposed batch of {q} (strategy={args.strategy if q > 1 else 'sequential'}):")
 
     for name, x in zip(names, xs):
@@ -705,7 +946,7 @@ services.GeometryService.inputFile : "{geom_basename}"
 # VirtualDetector_EMC_0_Front with StoppingTargetMother). Whitelisting by
 # volume name keeps those out of our failure signal.
 SURFACE_OVERLAP_RX = re.compile(r"Overlap is detected for volume\s+(\S+)")
-SURFACE_OVERLAP_MANAGED = re.compile(r"^(TSdA|AbsorberPV|AbsorberS)")
+SURFACE_OVERLAP_MANAGED = re.compile(r"^(TSdA|AbsorberPV|AbsorberS|StoppingTargetFoil_)")
 
 
 def cmd_preflight(args):
@@ -726,7 +967,7 @@ def cmd_preflight(args):
     # as preflight.fcl — the prior two-pass design (init, then surface-check)
     # paid for G4 geometry construction twice. Non-helical modes use the
     # lighter preflight.fcl since they don't need overlap diagnostics.
-    if mode.name == "helical":
+    if mode.name in ("helical", "foils"):
         overlay_basename = f"autoresearch_{name}_surfacecheck_geom.txt"
         (workdir / overlay_basename).write_text(
             SURFACE_CHECK_GEOM_OVERLAY.format(base_geom_basename=geom_basename))
@@ -779,7 +1020,7 @@ def cmd_preflight(args):
     # WWWW warnings on every baseline overlap (~117 hits in stock geometry).
     # These are advisory, not init failures, so the geom_fail regex must only
     # be consulted when geometry construction actually aborted (past_init=False).
-    if mode.name == "helical":
+    if mode.name in ("helical", "foils"):
         all_hits = SURFACE_OVERLAP_RX.findall(out)
         unique_all = sorted(set(all_hits))
         managed_hits = [v for v in all_hits if SURFACE_OVERLAP_MANAGED.match(v)]
@@ -813,7 +1054,7 @@ def cmd_preflight(args):
     if timed_out or rc == 0 or past_init:
         print(f"[preflight/{mode.name}] PASS  init=True; "
               f"no geom-fail signature"
-              f"{' and no managed-volume overlap' if mode.name == 'helical' else ''}.")
+              f"{' and no managed-volume overlap' if mode.name in ('helical', 'foils') else ''}.")
         return 0
 
     print(f"[preflight/{mode.name}] AMBIGUOUS  rc={rc}, no geom-fail signature. See {log}")

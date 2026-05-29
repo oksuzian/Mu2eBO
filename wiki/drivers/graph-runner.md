@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-20 (scan_logs end-of-workflow node added)
+**Updated:** 2026-05-25 (`--x-point` bypasses is_buildable + BOUNDS — hand-check N_crit and angle nodes before forced launches)
 
 ## Summary
 LangGraph runner that replaces the manual `propose → preflight → submit → poll
@@ -41,7 +41,7 @@ mock-grid branch; helical mode only.
 - **State**: `BOIterationState` TypedDict at `graph/state.py`. `stages: Dict[str, StageStatus]`
   is the per-iteration scoreboard; each `StageStatus` has `cluster_id`, `status`,
   `n_done`, `n_failed`, `last_poll_ts`. `STAGE_TARGETS` in `graph/config.py`
-  (`mubeam=200, run1b_mubeam=200, concat=1, mustops_ce=100`) drives the
+  (`mubeam=200, run1b_mubeam=200, concat=1, mustops_ce=200`) drives the
   `n_failed = max(0, target - n_done)` inference in `read_stage_status`.
 - **Conditional retry edge** `render_preflight → propose` on `fail_managed` (max 3 attempts).
 - **Resume gotcha — same-config_name does NOT recover a stalled chain.** Launching
@@ -59,6 +59,39 @@ mock-grid branch; helical mode only.
   `<stage>_cluster.txt` and only re-do the missing tail). Or: delete the
   pending row for `<stalled_cfg>` from the BO mode's pending TSV so propose
   doesn't see a collision (untested 2026-05-20).
+- **The collision-silent-rename also fires when you pass `--config-name
+  <existing>` from the CLI**, not just on resume (2026-05-23). Passed
+  `--config-name helicalQR00_02_ftfp` to relaunch the FTFP_BERT A/B chain
+  for the same name as a prior pending row; propose_one raised ValueError,
+  the except branch swallowed it, and the iteration silently became
+  `graph027`. Same root cause as the resume gotcha above. **Always clear
+  the pending TSV row for `<name>` before reusing the name from the CLI
+  (or accept that `--config-name` is best-effort, not authoritative).**
+- **`--x-point` bypasses `is_buildable` and BOUNDS** (2026-05-25).
+  `propose_one` with `x_override` (`graph/pipeline_io.py:61-62`) skips the
+  BO `opt.ask()` path, so the N_crit / BOUNDS-rail guards at
+  `autoresearch_bo_michael.py:623` (which only fire on BO-asked picks)
+  never run. Hand-curated x-points outside `BOUNDS` (e.g. angle > 720°)
+  are accepted silently; only G4-build-time pathologies (broken-plug
+  scan_logs gate, preflight fail) catch unbuildable picks. **Operator
+  consequence**: when forcing x-points outside production BOUNDS, hand-
+  check `N_crit = dy·angle_rad/(8·dx) ≤ N_crit budget (2000)` AND
+  avoid angle nodes (sin=0 at 180/360/540/720/900) BEFORE launching;
+  framework will not save you.
+  graph027 == helicalQR00_02 baseline x_point (dx=0.134, dy=117.2,
+  halflen=351.2, angle=361) with FTFP_BERT physics list — keep this mapping
+  in mind reading the leaderboard.
+- **`--config-name` works clean for genuinely-new names** (2026-05-23).
+  Counter-example to the silent-rename footgun: launched
+  `--config-name helicalQR00_02_noise` (no prior pending row, no leaderboard
+  row) and propose_one accepted it without rename. The footgun ONLY fires on
+  pre-existing collisions — `--config-name` is safe for fresh names.
+- **`.venv-graph` has sklearn/scipy but NO matplotlib AND no pip**
+  (`No module named pip` on `python -m pip`). For any plot-generation script
+  (`overlay_gp_predictions_helical_mpl.py`, GP cloud regen, etc.) use
+  `.venv-botorch/bin/python` — matplotlib 3.9.4 + sklearn 1.6.1 both live
+  there. Default mental model "use .venv-graph for everything graph-adjacent"
+  is wrong for plotting.
 - **Python version**: 3.11+ required for `langgraph dev` (the in-mem server hard-fails on 3.9).
   Venv built with `uv venv --python 3.11 .venv-graph`.
 - **uv cache**: `/exp/mu2e/app/users/oksuzian/uv_cache` — `/nashome` quota is too tight

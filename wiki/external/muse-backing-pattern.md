@@ -2,7 +2,7 @@
 
 **Type:** external
 **Status:** active
-**Updated:** 2026-05-20
+**Updated:** 2026-05-26
 
 ## Summary
 
@@ -38,7 +38,11 @@ mgit add Mu2eG4
 patch -p1 -d Offline < /path/to/helical-plug.patch
 
 # 6. Enter Muse env. CRITICAL: do not pipe (subshell discards MUSE_*).
-muse setup -q p094 >/tmp/setup.log 2>&1
+#    Let muse setup derive the qualifier from the backing chain — that's
+#    the mu2ewiki-documented convention. Only pass `-q p094` explicitly
+#    if the local `.muse` advertises a newer envset than the backing was
+#    built against (see Key facts below).
+muse setup >/tmp/setup.log 2>&1
 echo $MUSE_WORK_DIR                            # expect: this dir
 
 # 7. Build. -j 8 finishes in ~10-15 min on mu2egpvm.
@@ -64,7 +68,7 @@ mkdir -p $WORK/Offline_helical && cd $WORK/Offline_helical
 rsync -a /cvmfs/mu2e.opensciencegrid.org/Musings/Offline/v13_12_10/Offline/ Offline/
 patch -p1 -d Offline < helical-plug.patch
 muse backing SimJob Run1Bak
-muse setup -q p094 >/tmp/setup.log 2>&1
+muse setup >/tmp/setup.log 2>&1
 muse build -j 8 >/tmp/build.log 2>&1
 ```
 
@@ -83,13 +87,20 @@ muse build -j 8 >/tmp/build.log 2>&1
   2>&1`) and read it after.
 - **Envset must match Run1Bak's:** `p094` is what Run1Bak built against; using
   a different qualifier produces a lib the workers can't dlopen cleanly.
-- **`-q p094` is required, NOT optional.** Tested 2026-05-17: `muse setup` with
-  no `-q` picks `p095` from the local `Offline/.muse` recommendation (because
-  `mgit add` pulled main HEAD, whose top-level `.muse` advertises a newer
-  envset than what the backing was built against). Result: `ERROR - backing
-  build area missing required build (al9-prof-e29-p095)`. The `git checkout
-  v13_12_10 -- Mu2eG4/` overlay only covers the added subdir; the top-level
-  `.muse` is still from main. Always pass `-q p094` explicitly to override.
+- **`muse setup` derives the qualifier from the backing chain.** In the
+  `autoresearch_muse/` rsync layout used today, plain `muse setup` (no `-q`)
+  picks `p094` correctly because the top-level `.muse` came from
+  `Musings/Offline/v13_12_10`. This matches the mu2ewiki-documented
+  workflow — no explicit `-q` needed.
+- **`-q p094` override is only needed in the mgit-add scenario.** Tested
+  2026-05-17 with `mgit init` + `mgit add Mu2eG4`: `muse setup` with no
+  `-q` picked `p095` because `mgit add` pulled main HEAD whose top-level
+  `.muse` advertises a newer envset than the backing. Result: `ERROR -
+  backing build area missing required build (al9-prof-e29-p095)`. The
+  `git checkout v13_12_10 -- Mu2eG4/` overlay covers only the added subdir;
+  top-level `.muse` is still from main. In *that* layout only, pass
+  `-q p094` to override. The rsync recipe doesn't hit this because it
+  overlays the whole v13_12_10 tree including the top-level `.muse`.
 - **Full Offline source is required.** A partial overlay
   (`.muse` + one `.cc`) makes `scons` say "up to date" and produces nothing —
   the SConscript chain needs the whole tree.

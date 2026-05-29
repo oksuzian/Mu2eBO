@@ -146,22 +146,27 @@ STAGES = {
         # 100 jobs per A/B noise test on helical001 (2026-05-16): half-vs-half
         # ce_seen agreed to 0.4% at 97 jobs each — well below GP noise floor.
         "njobs": STAGE_TARGETS["mustops_ce"],
-        # 5000 events/job. Briefly cut to 2500 (2026-05-21 AM) to chase a
-        # historical 24–147 min long-pole tail, but that tail was driven by
-        # broken-plug stuck-track floods (see [[tessellated-solid-facet-orientation]]);
-        # post N_crit-gate the real 5000-event tail is 25–43 min (helicalP01/P03),
-        # not a meaningful bottleneck. Reverted same day: ~15 min/round saved
-        # wasn't worth the σ(sob) hit 0.10→0.14. Stamping fix protects future
-        # mid-flight edits (see [[events-per-job-mid-flight-edit]]).
-        "events_per_job": 5000,
+        # njobs=200 driven by STAGE_TARGETS["mustops_ce"] in graph/config.py.
+        # 2500 events/job paired with njobs=200 (set in graph/config.py
+        # STAGE_TARGETS) preserves total CE statistics at 500k events but
+        # halves per-job wall-time and doubles per-cluster parallelism.
+        # 2026-05-21 PM: SR00_00 long-tail (dx=0.011 → N_crit≈4144 → 3-4h
+        # CPU/job, 5× normal) showed the implicit throughput gate; halving
+        # events_per_job halves the per-job CPU cost at constant total
+        # statistics. The earlier 2026-05-21 AM reversion to 5000 was made
+        # WITHOUT compensating with njobs, which halved stats and hurt
+        # σ(sob) 0.10→0.14; this configuration restores σ(sob).
+        # Stamped at submit (see [[events-per-job-mid-flight-edit]]).
+        "events_per_job": 2500,
         "run_number": 1801,
         "ships_geom": True,
         "default_loc": "disk",
         "output_glob": "dts.*.CeEndpoint.*.art",
-        # Default 2000 MB OOMs ~3% of CE jobs (cluster 28166301 had 5/200 held).
-        # 2500 MB is the Mu2e community norm — covers the OOM tail without
-        # hurting slot matching the way 4000 MB would.
-        "memory_mb": 2500,
+        # 3000 MB (was 2500). SR00_00 worker logs showed VmPeak=2.75 GB on
+        # N_crit≈4144 jobs, exceeding the 2.2 GB allocation request and
+        # creating eviction risk. 3000 MB gives the high-N_crit tail
+        # comfortable headroom without burning slot-matchability.
+        "memory_mb": 3000,
     },
 }
 
@@ -463,15 +468,40 @@ def poll_cluster(stage: str, cluster: int, *, quorum: float = 0.9, cap_hours: fl
                        if re.match(rf"^{cluster}\.\d+@", line))
         finished_q = cfg["njobs"] - in_queue
         if base.exists():
+            # settled = bare-form (`00000`) only. jobsub_lite stages into
+            # hash form (`00000.6d475c59`), then renames to bare ONCE THE
+            # JOB EXITS ZERO. A perma-hash dir is either rename-in-flight
+            # or a FAILED job that wrote only the log — counting it as
+            # settled risks declaring success on a cluster where every job
+            # crashed. See wiki/incidents/stage-out-rename-race.md and
+            # concat-xrootd-fileopen-postendjob.md.
             settled = sum(1 for d in base.iterdir() if d.name.isdigit())
+            # all_dirs = bare + hash-suffix. If queue is drained AND every
+            # job has produced *some* dir (bare or hash), stage-out is done
+            # one way or another; let list_outputs sort it out (it drains
+            # the genuine rename-in-flight tail and warns on the rest).
+            all_dirs = sum(1 for d in base.iterdir()
+                           if d.name.split(".", 1)[0].isdigit())
         else:
             settled = 0
+            all_dirs = 0
         ts = dt.datetime.now().strftime("%H:%M:%S")
         print(f"[{ts}] [{stage} cluster={cluster}] "
               f"queue:{finished_q}/{cfg['njobs']} settled:{settled}/{cfg['njobs']} "
               f"(target={target})", flush=True)
         if finished_q >= target and settled >= target:
             print(f"[{stage}] converged (queue={finished_q}, settled={settled})")
+            return
+        # Failure-aware exit: queue fully drained AND every job left some
+        # outstage dir (bare or hash). Bare-count <target means jobs failed;
+        # break loudly so list_outputs + harvest surface the failure rather
+        # than hang forever waiting for a rename that will never happen.
+        if in_queue == 0 and all_dirs >= cfg["njobs"] and settled < target:
+            print(f"[{stage}] WARN: queue drained, all {cfg['njobs']} dirs "
+                  f"present but only {settled}/{target} settled (bare-form). "
+                  f"{all_dirs - settled} dir(s) stuck in hash form — likely "
+                  f"failed jobs (e.g. xrootd PostEndJob). Proceeding so "
+                  f"list_outputs + harvest fail loudly.")
             return
         time.sleep(120)
     print(f"[{stage}] WARN: 24h cap hit, proceeding with whatever landed")

@@ -29,7 +29,7 @@ STAGE_TARGETS = {
     "mubeam":       200,
     "run1b_mubeam": 200,
     "concat":         1,
-    "mustops_ce":   100,
+    "mustops_ce":   200,
 }
 
 # Phase 1: helical only. michael wiring follows in Phase 2.
@@ -69,9 +69,13 @@ CLOSED_LOOP_BARRIER_POLL_SEC = 300
 # Wall-clock cap on a single round; tripping this returns control to
 # decide_next which will normally end the loop.
 CLOSED_LOOP_BARRIER_TIMEOUT_MIN = 240
-# Budget knob passed to gp_predict_helical.compute_explore_picks. Larger =
-# more Sobol samples in the acquisition search; 5000 matches today's CLI.
-NSTEPS_BUDGET = 5000
+# Budget knob passed to gp_predict_helical.compute_explore_picks — the
+# N_crit Sobol gate for the GP-pick acquisition search. 2000 matches the
+# empirically-validated value used by gp_predict_helical.DEFAULT_NSTEPS_BUDGET
+# and botorch_predict_helical.NSTEPS_BUDGET; decoupled from HELICAL_NSTEPS
+# (FCL render resolution) 2026-05-27 — see wiki/projects/bo-helical.md
+# "Update 2026-05-27".
+NSTEPS_BUDGET = 2000
 # Operator stop file. `touch graph_data/STOP_CLOSED_LOOP` and the next
 # barrier-poll iteration or decide_next will exit cleanly without affecting
 # in-flight children.

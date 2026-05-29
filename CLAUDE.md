@@ -25,5 +25,8 @@ not the wiki. Do not duplicate code into wiki pages — link to it.
 
 ## Linting
 
-Run `python3 wiki/lint.py` to check for orphan pages, dangling `[[wiki-links]]`,
-and stale `Updated:` dates (>90 days old).
+Run `/wiki-lint` to audit the wiki (dangling `[[wiki-links]]`, orphans, stale
+`Updated:` dates, schema conformance, missing backlinks, and semantic checks
+for contradictions and decaying claims). The check is pure-LLM — no helper
+script — to match the dominant Karpathy-wiki convention. Pass `--quick` to
+skip the semantic pass.

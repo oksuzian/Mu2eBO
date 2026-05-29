@@ -5,6 +5,12 @@
 # physics.filters.TargetStopResampler.fileNames is filled by mu2ejobdef
 # --auxinput=1:physics.filters.TargetStopResampler.fileNames:LIST.
 
+# FTFP_BERT physics list - extending the mubeam A/B result to the Ce signal
+# stage. This affects the sob numerator directly, so monitor the first
+# round's sob values vs the leaderboard history for divergence.
+# See wiki concepts/g4-speed-knobs.md.
+physics.producers.g4run.physics.physicsListName: "FTFP_BERT"
+
 services.SeedService.baseSeed: 1
 
 outputs.PrimaryOutput.fileName: "dts.owner.CeEndpoint.version.sequencer.art"

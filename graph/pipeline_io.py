@@ -129,33 +129,43 @@ _HELICAL_KNOB_RANGES = {
     "dx":         (0.01, 5.0),
     "dy":         (40.0, 400.0),
     "halflength": (25.0, 500.0),
-    "angle":      (60.0, 540.0),
+    "angle":      (60.0, 720.0),
+}
+
+# Matches FoilsMode.build_space in autoresearch_bo_michael.py.
+_FOILS_KNOB_RANGES = {
+    "n_up":                (0.0, 6.0),
+    "n_down":              (0.0, 6.0),
+    "extra_rOut":          (50.0, 250.0),
+    "extra_halfThickness": (0.05, 1.0),
+    "extra_rIn":           (0.0, 50.0),
 }
 
 
 def mock_metrics(x_point: list[float]) -> dict:
     """Synthesize a (s_over_sqrt_b, calo_per_pot) pair from x via a smooth surface.
 
-    The intent is just to give the BO loop *some* gradient so end-to-end Phase 1
-    iterations are not trivially flat. Peak sob lives near the mid-range of
-    each knob; calo grows mildly with halflength × angle (the "more material"
-    direction).
+    Mode-agnostic: 4D = helical (dx, dy, halflen, angle), 5D = foils
+    (n_up, n_down, extra_rOut, extra_halfThickness, extra_rIn). Peak sob at
+    mid-range of each knob; calo grows with the last two normalized knobs
+    (helical: halflength·angle = "more plug"; foils: halfThickness·rIn-ish =
+    "more downstream material" — same intent).
     """
-    if len(x_point) != 4:
-        raise ValueError(f"expected 4D helical x, got {len(x_point)}")
-    dx, dy, hl, angle = x_point
-    keys = ("dx", "dy", "halflength", "angle")
-    # Normalize each knob to [0, 1].
-    u = []
-    for k, v in zip(keys, x_point):
-        lo, hi = _HELICAL_KNOB_RANGES[k]
-        u.append((v - lo) / (hi - lo))
+    if len(x_point) == 4:
+        keys = ("dx", "dy", "halflength", "angle")
+        ranges = _HELICAL_KNOB_RANGES
+    elif len(x_point) == 5:
+        keys = ("n_up", "n_down", "extra_rOut", "extra_halfThickness", "extra_rIn")
+        ranges = _FOILS_KNOB_RANGES
+    else:
+        raise ValueError(f"mock_metrics: expected 4D helical or 5D foils x, got {len(x_point)}")
+    u = [(v - ranges[k][0]) / (ranges[k][1] - ranges[k][0]) for k, v in zip(keys, x_point)]
     # sob: gaussian bump centered at 0.5 in each dim.
     import math
     r2 = sum((ui - 0.5) ** 2 for ui in u)
     sob = 0.9 * math.exp(-2.5 * r2) + 0.05
-    # calo: grows with halflength × angle (the "denser/longer plug" direction).
-    calo = 1e-7 + 6e-7 * u[2] * u[3]
+    # calo: grows with the last two normalized knobs (mode-agnostic "more material" dir).
+    calo = 1e-7 + 6e-7 * u[-2] * u[-1]
     return {
         "config": "mock",
         "s_over_sqrt_b": round(sob, 6),

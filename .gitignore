@@ -2,7 +2,8 @@
 # Runtime state (LangGraph, Python, build, etc.)
 # =============================================================================
 graph_data/
-.venv-graph/
+.venv-graph
+.venv-botorch
 .langgraph_api/
 .claude/
 build/
@@ -17,6 +18,8 @@ bo_helical_preflight/
 bo_helical_proposals/
 bo_michael_preflight/
 bo_michael_proposals/
+bo_foils_preflight/
+bo_foils_proposals/
 
 # =============================================================================
 # Driver runtime logs and scratch
@@ -38,6 +41,7 @@ gdml_dumps/
 # =============================================================================
 *.bak
 *.bak_*
+*.bak.*
 *.broken.tsv
 
 # =============================================================================

@@ -80,6 +80,20 @@ already paid to learn.
   Pareto frontier is short. Mitigation: enforce a minimum L2 distance
   between picks in normalized space, OR migrate to skopt-native CL-min.
 
+- **N_crit margin at HELICAL_NSTEPS=5000 was empirically too loose.**
+  SR00_00 (`dx=0.011, dy=125, halflen=251, angle=167`, N_crit≈4144)
+  reproduced the GeomSolids1001 + stuck-track flood the gate was
+  supposed to prevent (90/100 mustops_ce jobs flagged; see
+  [[bo-helical]] "N_crit margin too loose"). scan_logs gating worked
+  end-to-end — broken.txt written, leaderboard append suppressed —
+  but the closed loop wasted 6 h of grid CPU on a doomed pick because
+  the propose-time guard accepted it. Lowered to **2000** in
+  `HelicalMode.HELICAL_NSTEPS`; closed_loop must be invoked with
+  matching `--nsteps-budget 2000` (the two are co-equal, drift re-opens
+  the hole). Earlier framing of this incident as a separate "throughput
+  gate" was a misread — at the broken corner, the per-job cost IS the
+  brokenness, not a slow-but-correct simulation.
+
 ## Cross-links
 - Related: [[batch-bo]], [[events-per-job-mid-flight-edit]],
   [[tessellated-solid-facet-orientation]],

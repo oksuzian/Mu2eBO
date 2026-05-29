@@ -5,6 +5,11 @@
 # stream straight downstream and we get a real calo_stop/POT measurement.
 # Same MuBeamCat input as the Run1A mubeam stage; same per-iter BO geom overlay.
 
+# FTFP_BERT physics list - same rationale as the run1a mubeam stage.
+# A/B was scoped to mubeam only; extending here on the assumption that the
+# CPU/noise tradeoff is similar. See wiki concepts/g4-speed-knobs.md.
+physics.producers.g4run.physics.physicsListName: "FTFP_BERT"
+
 physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations: -1
 physics.filters.beamResampler.mu2e.MaxEventsToSkip: 319542
 

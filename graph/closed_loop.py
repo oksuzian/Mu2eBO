@@ -1,6 +1,9 @@
 """Multi-round closed-loop batch BO runner.
 
 Each round:
+  0. renew_token — `kinit -R` + sourced `setupmu2e-art.sh && getToken` to refresh krb5 +
+                   bearer before launching children. Best-effort (errors
+                   logged, not fatal). See wiki/incidents/kerberos-mid-run-expiry.
   1. predict_picks — refit GP on current leaderboard, return q Pareto picks.
   2. assign_names  — derive {prefix}R{NN}_{j} names; skip names already done.
   3. launch_children — Popen `graph.run --config-name … --x-point …` per pick,
@@ -98,18 +101,29 @@ class RoundState(TypedDict, total=False):
     barrier_poll_sec: int
     barrier_timeout_min: int
     min_spacing: float
+    pessimistic_calo: bool
 
 
 # ============================================================================
 # Helpers
 # ============================================================================
 
-def _import_gp():
-    """Import gp_predict_helical from the sub-repo (path-injected)."""
+def _import_gp(mode: str = "helical"):
+    """Import the mode-specific GP picker from the sub-repo (path-injected).
+
+    Both pickers expose compute_explore_picks(q, nsteps_budget, min_spacing,
+    pessimistic_calo); foils ignores nsteps_budget/min_spacing/pessimistic_calo
+    (skopt-EI shim, 5D Integer+Real space).
+    """
     if str(GP_SCRIPT_DIR) not in sys.path:
         sys.path.insert(0, str(GP_SCRIPT_DIR))
-    import gp_predict_helical  # noqa: WPS433
-    return gp_predict_helical
+    if mode == "helical":
+        import gp_predict_helical as gp  # noqa: WPS433
+    elif mode == "foils":
+        import gp_predict_foils as gp  # noqa: WPS433
+    else:
+        raise ValueError(f"_import_gp: no GP picker registered for mode={mode!r}")
+    return gp
 
 
 def _stop_requested() -> bool:
@@ -143,23 +157,38 @@ def _child_in_leaderboard(name: str, mode: str) -> bool:
     return any(p.cfg == name for p in m.load_history())
 
 
-def _child_terminal_via_checkpoint(name: str, saver: SqliteSaver) -> bool:
-    """True if SqliteSaver shows the child's graph has no remaining work.
+def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
+    """True if the child's compiled graph reports no remaining work.
 
-    LangGraph stores `next` (tuple of next node names) in checkpoint metadata.
-    When the latest tuple has empty `next`, the run has terminated — either
-    via END or because all branches resolved.
+    `CheckpointTuple` does not expose `next`; only `StateSnapshot` (returned
+    by `compiled_graph.get_state(cfg)`) does. We compile the inner graph
+    once in `node_barrier` against the shared SqliteSaver and pass it in.
+
+    Empty `snap.next` is ambiguous: it means the graph is terminal OR the
+    thread has no checkpoint at all (freshly-spawned subprocess that
+    hasn't flushed its first state yet). Round-N children are launched
+    in parallel and the barrier polls within seconds; without
+    disambiguation, every fresh child is mis-resolved on the first
+    barrier tick — closed-loop declares premature convergence and exits.
+    See wiki/incidents/barrier-false-positive-round1.md.
+
+    Disambiguation: a real terminal state has both populated `values` AND
+    `metadata.step >= 1` (at least one super-step executed). Fresh threads
+    return empty `values` and `step == -1` from LangGraph's SqliteSaver.
     """
     cfg = {"configurable": {"thread_id": name}}
     try:
-        snapshot = saver.get_tuple(cfg)
+        snap = child_graph.get_state(cfg)
     except Exception:
         return False
-    if snapshot is None:
+    if snap is None or snap.next:
         return False
-    nxt = snapshot.metadata.get("writes") if snapshot.metadata else None
-    # The cleanest signal: snapshot.next is empty.
-    return not snapshot.next
+    if not snap.values:
+        return False
+    meta = getattr(snap, "metadata", None) or {}
+    if meta.get("step", -1) < 1:
+        return False
+    return True
 
 
 def _pareto_hash(picks: List[Tuple[float, ...]]) -> str:
@@ -184,15 +213,65 @@ def _pareto_hash(picks: List[Tuple[float, ...]]) -> str:
 # Nodes
 # ============================================================================
 
+def node_renew_token(state: RoundState) -> dict:
+    """Refresh krb5 ticket + bearer token at top of each round.
+
+    Closed-loop rounds run 6-8 h wall; default krb5 lifetime is ~25 h, so
+    one or two rounds easily outlive the ticket. First post-expiry
+    subprocess.run raises Errno 127 (ENOKEY) and the inner graph
+    terminates before harvest. See wiki/incidents/kerberos-mid-run-expiry.md.
+
+    Hard gate: if `getToken` fails (proxy for "can we actually submit?"),
+    `sys.exit(2)` with an actionable message. Continuing past expiry just
+    guarantees every child dies later with the same Errno 127, leaving
+    orphan grid clusters and no leaderboard rows. The outer graph is
+    checkpointed — operator runs `kinit` then re-invokes with the same
+    `--thread-id` to resume from this node.
+
+    `kinit -R` is best-effort (it's normal for it to fail if the ticket
+    is past its renewable lifetime); the load-bearing check is `getToken`.
+    """
+    errors = list(state.get("errors", []))
+    try:
+        r = subprocess.run(["kinit", "-R"], capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            errors.append(f"renew_token[r{state['round_idx']}]: kinit -R rc={r.returncode}: "
+                          f"{r.stderr.strip()[:200]}")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"renew_token[r{state['round_idx']}]: kinit -R failed: {exc}")
+    cmd = "source /cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh && getToken"
+    try:
+        r = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True, timeout=120)
+    except Exception as exc:  # noqa: BLE001
+        msg = (f"[closed_loop] FATAL renew_token[r{state['round_idx']}]: "
+               f"getToken raised: {exc}. "
+               f"Run `kinit` then re-invoke with same --thread-id to resume.")
+        print(msg, flush=True)
+        sys.exit(2)
+    if r.returncode != 0:
+        msg = (f"[closed_loop] FATAL renew_token[r{state['round_idx']}]: "
+               f"getToken rc={r.returncode}: {r.stderr.strip()[:400]}. "
+               f"Run `kinit` (krb5 likely past renewable lifetime) then "
+               f"re-invoke with same --thread-id to resume.")
+        print(msg, flush=True)
+        sys.exit(2)
+    print(f"[closed_loop] renew_token[r{state['round_idx']}]: krb5 + bearer refreshed", flush=True)
+    return {"errors": errors}
+
+
 def node_predict_picks(state: RoundState) -> dict:
-    """Refit GP in-process, return q (dx,dy,hl,angle) tuples."""
+    """Refit GP in-process, return q picks (helical 4D or foils 5D, mode-keyed)."""
     q = state["q"]
-    gp = _import_gp()
+    gp = _import_gp(state["mode"])
     picks = gp.compute_explore_picks(
         q=q,
         nsteps_budget=state.get("nsteps_budget", NSTEPS_BUDGET),
         min_spacing=state.get("min_spacing", CLOSED_LOOP_MIN_PICK_SPACING),
+        pessimistic_calo=state.get("pessimistic_calo", False),
     )
+    print(f"[closed_loop] predict_picks[r{state['round_idx']}]: "
+          f"pessimistic_calo={state.get('pessimistic_calo', False)} q={q} "
+          f"got={len(picks)}", flush=True)
     errors = list(state.get("errors", []))
     if len(picks) < q:
         errors.append(
@@ -239,7 +318,21 @@ def node_launch_children(state: RoundState) -> dict:
     alpha = state["alpha"]
     children = dict(state["children"])
     errors = list(state.get("errors", []))
-    pending = [(n, rec) for n, rec in children.items() if not rec.get("pid")]
+    # Idempotency: skip names whose inner graph has already started a stage
+    # (per-stage cluster.txt exists) OR landed in the leaderboard OR have
+    # broken.txt. A crashed parent re-entering launch_children must not
+    # re-Popen `graph.run` for a config whose grid submission is in flight,
+    # otherwise we double-submit (and pollute pending TSV / cluster files).
+    def _already_running(name: str) -> bool:
+        state_dir = _child_state_dir(name)
+        if any(state_dir.glob("*_cluster.txt")):
+            return True
+        return _child_in_leaderboard(name, mode) or _child_is_broken(name)
+
+    pending = [
+        (n, rec) for n, rec in children.items()
+        if not rec.get("pid") and not _already_running(n)
+    ]
     (GRAPH_DATA / "closed_loop_logs").mkdir(parents=True, exist_ok=True)
     for idx, (name, rec) in enumerate(pending):
         x = rec["x_point"]
@@ -288,13 +381,20 @@ def node_barrier(state: RoundState) -> dict:
     errors = list(state.get("errors", []))
     conn = _open_saver_conn()
     saver = SqliteSaver(conn)
+    # Compile the inner child graph once so we can call get_state(cfg).next
+    # against each child's thread_id. CheckpointTuple has no .next field;
+    # only StateSnapshot does, and StateSnapshot only comes from a compiled
+    # graph attached to the saver.
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from graph.build import _build_graph  # noqa: WPS433
+    child_graph = _build_graph().compile(checkpointer=saver)
     try:
         while True:
             pending = [n for n in children if n not in completed]
             for name in list(pending):
                 if _child_in_leaderboard(name, mode) or _child_is_broken(name):
                     completed.add(name)
-                elif _child_terminal_via_checkpoint(name, saver):
+                elif _child_terminal_via_checkpoint(name, child_graph):
                     # Terminal checkpoint but no leaderboard row + no broken.txt
                     # → graph ended via preflight-fail / stage-fail. Count as done.
                     completed.add(name)
@@ -302,7 +402,7 @@ def node_barrier(state: RoundState) -> dict:
                         f"barrier[{name}]: terminal checkpoint but no leaderboard "
                         f"row (likely preflight/stage failure)"
                     )
-            if len(completed) >= len(children):
+            if all(n in completed for n in children):
                 print(f"[closed_loop] barrier: all {len(children)} children resolved", flush=True)
                 break
             if _stop_requested():
@@ -323,11 +423,12 @@ def node_barrier(state: RoundState) -> dict:
 
 def node_refit_and_check(state: RoundState) -> dict:
     """Refit GP, hash Pareto frontier, mark converged if last K hashes match."""
-    gp = _import_gp()
+    gp = _import_gp(state["mode"])
     picks = gp.compute_explore_picks(
         q=state["q"],
         nsteps_budget=state.get("nsteps_budget", NSTEPS_BUDGET),
         min_spacing=state.get("min_spacing", CLOSED_LOOP_MIN_PICK_SPACING),
+        pessimistic_calo=state.get("pessimistic_calo", False),
     )
     h = _pareto_hash(picks)
     hashes = list(state.get("pareto_hashes", [])) + [h]
@@ -354,7 +455,7 @@ def route_after_decide(state: RoundState):
         return END
     if _stop_requested():
         return END
-    return "predict_picks"
+    return "renew_token"
 
 
 # ============================================================================
@@ -363,6 +464,7 @@ def route_after_decide(state: RoundState):
 
 def _build_outer_graph():
     g = StateGraph(RoundState)
+    g.add_node("renew_token", node_renew_token)
     g.add_node("predict_picks", node_predict_picks)
     g.add_node("assign_names", node_assign_names)
     g.add_node("launch_children", node_launch_children)
@@ -370,14 +472,15 @@ def _build_outer_graph():
     g.add_node("refit_and_check", node_refit_and_check)
     g.add_node("decide_next", node_decide_next)
 
-    g.set_entry_point("predict_picks")
+    g.set_entry_point("renew_token")
+    g.add_edge("renew_token", "predict_picks")
     g.add_edge("predict_picks", "assign_names")
     g.add_edge("assign_names", "launch_children")
     g.add_edge("launch_children", "barrier")
     g.add_edge("barrier", "refit_and_check")
     g.add_edge("refit_and_check", "decide_next")
     g.add_conditional_edges("decide_next", route_after_decide,
-                            {"predict_picks": "predict_picks", END: END})
+                            {"renew_token": "renew_token", END: END})
     return g
 
 
@@ -385,15 +488,24 @@ def _build_outer_graph():
 # CLI
 # ============================================================================
 
+_DRY_RUN_KNOB_LABELS = {
+    "helical": ("dx", "dy", "halflen", "angle"),
+    "foils":   ("n_up", "n_down", "extra_rOut", "extra_halfThickness", "extra_rIn"),
+}
+
+
 def _dry_run(args: argparse.Namespace) -> int:
-    gp = _import_gp()
+    gp = _import_gp(args.mode)
     picks = gp.compute_explore_picks(
         q=args.q, nsteps_budget=args.nsteps_budget, min_spacing=args.min_spacing,
+        pessimistic_calo=args.pessimistic_calo,
     )
-    print(f"[dry-run] round 0: {len(picks)} picks")
+    print(f"[dry-run] round 0: {len(picks)} picks (mode={args.mode})")
+    labels = _DRY_RUN_KNOB_LABELS.get(args.mode, tuple(f"x{i}" for i in range(len(picks[0]) if picks else 0)))
     for j, p in enumerate(picks):
         name = f"{args.name_prefix}R00_{j:02d}"
-        print(f"  {name}: dx={p[0]:.3f} dy={p[1]:.2f} halflen={p[2]:.2f} angle={p[3]:.2f}")
+        kv = " ".join(f"{labels[i]}={p[i]:.4g}" for i in range(len(p)))
+        print(f"  {name}: {kv}")
     return 0
 
 
@@ -415,6 +527,10 @@ def main() -> int:
                     help="number of identical Pareto hashes in a row → converged")
     ap.add_argument("--min-spacing", type=float, default=CLOSED_LOOP_MIN_PICK_SPACING,
                     help="normalized-L2 minimum distance between picks")
+    ap.add_argument("--pessimistic-calo", action="store_true", default=False,
+                    help="shift log-calo GP fallback to log(max y_calo); "
+                         "biases picks away from ~3.82e-6 ridge regime "
+                         "(see wiki bo-helical pessimistic-prior bullet)")
     ap.add_argument("--thread-id", default=None,
                     help="if omitted, a fresh uuid is used; reuse to resume")
     ap.add_argument("--dry-run", action="store_true",
@@ -449,12 +565,23 @@ def main() -> int:
         "barrier_poll_sec": args.barrier_poll_sec,
         "barrier_timeout_min": args.barrier_timeout_min,
         "min_spacing": args.min_spacing,
+        "pessimistic_calo": args.pessimistic_calo,
     }
 
     print(f"[closed_loop] thread_id={thread_id} q={args.q} max_rounds={args.max_rounds} "
           f"prefix={args.name_prefix}", flush=True)
+    # Resume vs fresh: if a checkpoint exists for this thread_id, pass None
+    # so LangGraph picks up from the last node instead of re-seeding state
+    # (which would re-run predict_picks → assign_names → launch_children
+    # and spawn duplicate grid children for the same configs).
+    existing = graph.get_state(cfg) if thread_id else None
+    if existing and existing.values:
+        print(f"[closed_loop] resuming thread_id={thread_id} from next={existing.next}", flush=True)
+        stream_input = None
+    else:
+        stream_input = init
     final = None
-    for ev in graph.stream(init, cfg, stream_mode="values"):
+    for ev in graph.stream(stream_input, cfg, stream_mode="values"):
         final = ev
         snap = {
             "round_idx": ev.get("round_idx"),
