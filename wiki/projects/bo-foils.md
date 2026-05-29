@@ -8,7 +8,7 @@ type: project
 
 **Type:** project
 **Status:** active (Phase 0 preflight PASS on +12 extreme-corner envelope 2026-05-28; awaiting first closed-loop round)
-**Updated:** 2026-05-29 (parse_geom rIn round-trip fix when n_up=n_down=0)
+**Updated:** 2026-05-29 (GIF re-render determinism + slide-rebuild tooling)
 
 ## Summary
 Third BO mode in `autoresearch_bo_michael.py` (select with `--mode foils`).
@@ -164,6 +164,22 @@ in (sob, calo) is attributable to the +12 envelope alone.
   Renderer: `mmackenz_table_plots/gp_predict_foils_cloud.py` — must run
   under `.venv-botorch` (not `.venv-graph`; only botorch venv has
   matplotlib).
+- **GIF re-render is byte-identical when leaderboard hasn't grown** (2026-05-29):
+  `gp_predict_foils_cloud_anim.py` is deterministic given a fixed leaderboard.
+  Running it twice with no intervening rows produces an md5-identical
+  `gp_predicted_foils_cloud.gif` (frame contents AND ImageMagick stitch
+  output stable). Practical: on a "remake the plot" request, check
+  `wc -l leaderboard_bo_foils_v1.tsv` against last commit's row count
+  before re-rendering — if equal, the re-render is wasted.
+
+- **Marp slide rebuild is off-host** (2026-05-29): no `marp` CLI is
+  installed in `/exp/mu2e/app/users/oksuzian/node/.../node_modules/`
+  (only `@anthropic-ai`, `corepack`, `npm`, `@openai`). `docs/foils_talk.md`
+  → `.html`/`.pdf` rebuilds happen on a different host. The `.html`
+  references the GIF by filename (`<img src="gp_predicted_foils_cloud.gif">`
+  at foils_talk.html:299), so swapping the GIF on disk updates the
+  served page without re-running Marp; only the `.pdf` goes stale.
+
 - **Per-round GIF animation** (`gp_predict_foils_cloud_anim.py`,
   2026-05-29): renders one cumulative frame per `foils<X##>R##` cohort
   by regex-splitting leaderboard config names (leaderboard row order =

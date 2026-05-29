@@ -7,8 +7,8 @@ type: project
 # bo-helical — 5D helical-plug BO
 
 **Type:** project
-**Status:** active (**helical045 GLOBAL BEST obj=2.533 on 2026-05-18** — but top-5 are likely G4 sibling-overlap artifacts; see [[tsda-disc-helical-sibling-overlap]]. Refactor in flight: drop `tsda.helical.z0` from search space (Option A), couple `tsda.rin` to plug bounding radius, widen dy/halflen, add source throw + preflight overlap-check.)
-**Updated:** 2026-05-28 (4D Pareto front saturated: HV +1.6% over last 76 evals, hit rate 62%→38% — next wins are from dimensionality lifts, not more 4D evals)
+**Status:** dormant — retired from active runs 2026-05-29 after 4D Pareto saturation (HV +1.6% over last 76 evals, hit rate 62%→38%). Champion **helical045 obj=2.533 (2026-05-18)** stands but top-5 are likely G4 sibling-overlap artifacts (see [[tsda-disc-helical-sibling-overlap]]). HelicalMode class, `gp_predict_helical.py`, and `leaderboard_bo_helical*.tsv` preserved as frozen artifacts; the active BO line is now [[bo-foils]] (5D extras-only foil-stack).
+**Updated:** 2026-05-29 (retired — no further runs planned; superseded as active line by [[bo-foils]])
 
 ## Summary
 Second BO mode in `autoresearch_bo_michael.py` (select with `--mode helical`).

@@ -15,43 +15,16 @@ sys.path.insert(0, str(PROJECT_ROOT / "graph"))
 import closed_loop as cl  # noqa: E402
 
 
-class TestParetoHash(unittest.TestCase):
-    def test_identical_picks_same_hash(self):
-        a = [(1.234, 5.678), (9.0, 0.1)]
-        self.assertEqual(cl._pareto_hash(a), cl._pareto_hash(list(a)))
-
-    def test_jitter_within_2sigfig_same_hash(self):
-        # 1.234 and 1.236 both round to 1.2; 5.678 and 5.671 both round to 5.7
-        self.assertEqual(
-            cl._pareto_hash([(1.234, 5.678)]),
-            cl._pareto_hash([(1.236, 5.671)]),
-        )
-
-    def test_reorder_same_hash(self):
-        a = [(1.0, 2.0), (3.0, 4.0)]
-        b = [(3.0, 4.0), (1.0, 2.0)]
-        self.assertEqual(cl._pareto_hash(a), cl._pareto_hash(b))
-
-    def test_different_picks_different_hash(self):
-        self.assertNotEqual(
-            cl._pareto_hash([(1.0, 2.0)]),
-            cl._pareto_hash([(10.0, 20.0)]),
-        )
-
-    def test_empty_stable(self):
-        self.assertEqual(cl._pareto_hash([]), cl._pareto_hash([]))
-
-
 class TestRouteAfterDecide(unittest.TestCase):
     def _base(self, **overrides):
-        s = {"converged": False, "round_idx": 1, "max_rounds": 10}
+        s = {"zero_rows": False, "round_idx": 1, "max_rounds": 10}
         s.update(overrides)
         return s
 
-    def test_converged_ends(self):
+    def test_zero_rows_ends(self):
         with mock.patch.object(cl, "_stop_requested", return_value=False):
             self.assertEqual(
-                cl.route_after_decide(self._base(converged=True)), cl.END
+                cl.route_after_decide(self._base(zero_rows=True)), cl.END
             )
 
     def test_max_rounds_ends(self):
@@ -73,17 +46,46 @@ class TestRouteAfterDecide(unittest.TestCase):
 class TestDecideNext(unittest.TestCase):
     def test_bumps_round_and_clears_children_only(self):
         state = {
+            "mode": "helical",
             "round_idx": 2,
             "children": {"foo": {"pid": 1}},
             "completed_names": ["a", "b"],
-            "pareto_hashes": ["h1"],
+            "history_len_before": 10,
         }
-        out = cl.node_decide_next(state)
+        with mock.patch.object(cl, "_leaderboard_len", return_value=15):
+            out = cl.node_decide_next(state)
         self.assertEqual(out["round_idx"], 3)
         self.assertEqual(out["children"], {})
-        # completed_names + pareto_hashes intentionally persist across rounds
+        self.assertFalse(out["zero_rows"])
+        # completed_names intentionally persists across rounds
         self.assertNotIn("completed_names", out)
-        self.assertNotIn("pareto_hashes", out)
+
+    def test_zero_new_rows_sets_zero_rows_true(self):
+        state = {
+            "mode": "helical",
+            "round_idx": 1,
+            "children": {},
+            "completed_names": [],
+            "history_len_before": 42,
+        }
+        with mock.patch.object(cl, "_leaderboard_len", return_value=42):
+            out = cl.node_decide_next(state)
+        self.assertTrue(out["zero_rows"])
+        self.assertEqual(out["round_idx"], 2)
+
+    def test_negative_delta_sets_zero_rows_true(self):
+        # Defensive: leaderboard shouldn't shrink, but if it does, treat
+        # as zero-row (no progress) rather than continuing.
+        state = {
+            "mode": "helical",
+            "round_idx": 1,
+            "children": {},
+            "completed_names": [],
+            "history_len_before": 10,
+        }
+        with mock.patch.object(cl, "_leaderboard_len", return_value=8):
+            out = cl.node_decide_next(state)
+        self.assertTrue(out["zero_rows"])
 
 
 class TestAssignNames(unittest.TestCase):
@@ -184,10 +186,12 @@ class TestPredictPicks(unittest.TestCase):
         fake_gp.compute_explore_picks.return_value = [
             (1, 2, 3, 4), (5, 6, 7, 8),
         ]
-        with mock.patch.object(cl, "_import_gp", return_value=fake_gp):
+        with mock.patch.object(cl, "_import_gp", return_value=fake_gp), \
+             mock.patch.object(cl, "_leaderboard_len", return_value=42):
             out = cl.node_predict_picks(state)
         self.assertTrue(any("only got 2/5 picks" in e for e in out["errors"]))
         self.assertEqual(len(out["children"]), 2)
+        self.assertEqual(out["history_len_before"], 42)
 
     def test_full_q_no_error(self):
         state = {"q": 2, "round_idx": 0, "errors": [], "mode": "helical"}
@@ -195,10 +199,12 @@ class TestPredictPicks(unittest.TestCase):
         fake_gp.compute_explore_picks.return_value = [
             (1, 2, 3, 4), (5, 6, 7, 8),
         ]
-        with mock.patch.object(cl, "_import_gp", return_value=fake_gp):
+        with mock.patch.object(cl, "_import_gp", return_value=fake_gp), \
+             mock.patch.object(cl, "_leaderboard_len", return_value=10):
             out = cl.node_predict_picks(state)
         self.assertEqual(out["errors"], [])
         self.assertEqual(sorted(out["children"]), ["_pick_00", "_pick_01"])
+        self.assertEqual(out["history_len_before"], 10)
 
 
 class TestChildIsBroken(unittest.TestCase):
@@ -222,9 +228,14 @@ class TestBuildGraph(unittest.TestCase):
         g = cl._build_outer_graph()
         # All expected nodes present; renew_token is the start-of-round node.
         for n in ("renew_token", "predict_picks", "assign_names",
-                  "launch_children", "barrier", "refit_and_check",
-                  "decide_next"):
+                  "launch_children", "barrier", "decide_next"):
             self.assertIn(n, g.nodes, f"missing node {n}")
+
+    def test_refit_and_check_removed(self):
+        # Convergence-by-pareto-hash machinery was deleted 2026-05-29
+        # (foilsX04 false-positive incident, 0 true saves in 15 runs).
+        g = cl._build_outer_graph()
+        self.assertNotIn("refit_and_check", g.nodes)
 
 
 if __name__ == "__main__":

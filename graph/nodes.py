@@ -58,15 +58,26 @@ def node_propose(state: BOIterationState) -> dict:
 def node_render_preflight(state: BOIterationState) -> dict:
     """Run mu2e -n 1 + surface-check on the proposal.
 
-    Outcomes (managed-volume overlap → fail_managed → retry propose;
-    init failure or ambiguous → terminal error).
+    Outcomes:
+    - pass → real/mock grid chain
+    - fail_managed → retry propose (managed-volume overlap, BO-fixable)
+    - ambiguous (rc=3) → retry propose. rc=3 = subprocess died early
+      without a regex-matchable G4 init signature (OOM under concurrent
+      preflight load, transient FS, host load). Treated as retriable
+      2026-05-29 after foilsX04 incident where 20/20 children died here;
+      each propose retry draws a different `x` from skopt so a true geom
+      bug doesn't infinite-loop. Bounded by MAX_PROPOSE_RETRIES (graph/config.py).
+    - fail_init → terminal (real G4 init failure; geom is broken)
     """
     mode = state["mode"]
     name = state["config_name"]
     status, tail = pio.run_preflight(mode, name)
     errors = list(state.get("errors", []))
     if status not in ("pass",):
-        errors.append(f"preflight[{status}] {name}: {tail.splitlines()[-1] if tail else ''}")
+        # Keep last 8 lines for ambiguous/fail_init so the rc=3 retry loop
+        # accumulates useful context across attempts instead of one opaque line.
+        tail_msg = "\n".join(tail.splitlines()[-8:]) if tail else ""
+        errors.append(f"preflight[{status}] {name}: {tail_msg}")
     return {"preflight": status, "errors": errors}
 
 
@@ -198,12 +209,19 @@ def node_decide_next(state: BOIterationState) -> dict:
 
 
 def route_after_preflight(state: BOIterationState) -> Literal["real", "mock", "propose", "__end__"]:
-    """Branch after preflight."""
+    """Branch after preflight.
+
+    Both `fail_managed` (managed-overlap, BO-fixable) and `ambiguous`
+    (rc=3 — subprocess died early without a parseable G4 init signature;
+    typically OOM/transient under concurrent preflight load) re-propose
+    up to MAX_PROPOSE_RETRIES. `fail_init` is terminal (real geom bug).
+    Ambiguous-retriable added 2026-05-29 (foilsX04 incident).
+    """
     status = state.get("preflight", "pending")
     attempts = state.get("attempts", {}).get("propose", 0)
     if status == "pass":
         return "mock" if state.get("mock", True) else "real"
-    if status == "fail_managed" and attempts < MAX_PROPOSE_RETRIES:
+    if status in ("fail_managed", "ambiguous") and attempts < MAX_PROPOSE_RETRIES:
         return "propose"
     return END
 
