@@ -3,8 +3,7 @@ marp: true
 theme: default
 paginate: true
 size: 16:9
-header: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack"
-footer: "Y. Oksuzian · 2026-05-29"
+footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29"
 style: |
   section { font-size: 24px; }
   h1 { color: #003366; }
@@ -106,11 +105,21 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 
 ## GP cloud evolution (animated)
 
-![h:500](gp_predicted_foils_cloud.gif)
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+
+![w:100%](gp_predicted_foils_cloud.gif)
+
+</div>
+<div>
 
 **Frontier widened across X01 → X03:**
+
 - sob peak: **3.31 → 3.87** (+17 %)
 - calo floor: **5.6 × 10⁻⁶ → 8.3 × 10⁻⁷** (6.7× drop)
+
+</div>
+</div>
 
 ---
 
