@@ -12,9 +12,17 @@ Each round:
                        not propagate.
   4. barrier — poll each child's SqliteSaver checkpoint (NOT the leaderboard
                TSV, which is a derived end-of-harvest artifact) until terminal
-               or timeout; cross-check leaderboard for sanity.
-  5. refit_and_check — refit GP, hash the Pareto frontier, check convergence.
-  6. decide_next — loop unless max_rounds / converged / STOP_FLAG.
+               or timeout; cross-check leaderboard for sanity. If the round
+               produced 0 new leaderboard rows, set zero_rows=True so
+               decide_next can exit early (all children failed → continuing
+               just wastes more rounds re-proposing on the same fit).
+  5. decide_next — loop unless max_rounds / zero_rows / STOP_FLAG.
+
+Convergence-by-Pareto-hash was deleted 2026-05-29 after 15 production runs
+showed 0 true saves (FT05/FT06 r0→1 were both --max-rounds 2 and would have
+exited anyway) and 1 false positive (foilsX04 zero-row case). Saturation is
+now diagnosed post-hoc from the leaderboard. The zero-row break is the
+orthogonal safety check (catches all-children-failed rounds early).
 
 The outer graph is itself checkpointed in `checkpoints.sqlite`; killing this
 parent and re-invoking with the same --thread-id resumes the current round.
@@ -28,7 +36,6 @@ stamping, scan_logs gating, q-pick spacing).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sqlite3
@@ -81,6 +88,7 @@ class ChildRecord(TypedDict, total=False):
     log: str
     x_point: List[float]
     started_at: float
+    thread_id: str  # per-launch unique; differs from config_name to dodge collisions
 
 
 class RoundState(TypedDict, total=False):
@@ -93,10 +101,9 @@ class RoundState(TypedDict, total=False):
     name_prefix: str
     children: Dict[str, ChildRecord]
     completed_names: List[str]
-    pareto_hashes: List[str]
-    converged: bool
+    history_len_before: int
+    zero_rows: bool
     errors: List[str]
-    convergence_k: int
     stagger_sec: int
     barrier_poll_sec: int
     barrier_timeout_min: int
@@ -157,7 +164,7 @@ def _child_in_leaderboard(name: str, mode: str) -> bool:
     return any(p.cfg == name for p in m.load_history())
 
 
-def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
+def _child_terminal_via_checkpoint(name: str, child_graph, thread_id: Optional[str] = None) -> bool:
     """True if the child's compiled graph reports no remaining work.
 
     `CheckpointTuple` does not expose `next`; only `StateSnapshot` (returned
@@ -176,7 +183,10 @@ def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
     `metadata.step >= 1` (at least one super-step executed). Fresh threads
     return empty `values` and `step == -1` from LangGraph's SqliteSaver.
     """
-    cfg = {"configurable": {"thread_id": name}}
+    # Lookup key is the per-launch thread_id (now decoupled from config_name
+    # to dodge SqliteSaver collisions); fall back to `name` only for legacy
+    # children records that pre-date the decoupling.
+    cfg = {"configurable": {"thread_id": thread_id or name}}
     try:
         snap = child_graph.get_state(cfg)
     except Exception:
@@ -191,22 +201,11 @@ def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
     return True
 
 
-def _pareto_hash(picks: List[Tuple[float, ...]]) -> str:
-    """Round to 2 sig-figs then hash the sorted tuple set.
-
-    Mirrors revision #3 (closed-loop-bo-design.md): full-precision Pareto
-    coords jitter from re-fit randomness, so rounding is required to detect
-    "the GP keeps proposing the same frontier."
-    """
-    def _round(v):
-        if v == 0:
-            return 0.0
-        from math import floor, log10
-        exp = floor(log10(abs(v)))
-        mult = 10 ** (exp - 1)
-        return round(v / mult) * mult
-    rounded = sorted(tuple(_round(v) for v in p) for p in picks)
-    return hashlib.sha256(json.dumps(rounded).encode()).hexdigest()[:16]
+def _leaderboard_len(mode: str) -> int:
+    """Count leaderboard rows for the given mode (flock-aware via load_history)."""
+    sys.path.insert(0, str(PROJECT_ROOT))
+    import autoresearch_bo_michael as bo  # noqa: WPS433
+    return len(bo.MODES[mode].load_history())
 
 
 # ============================================================================
@@ -279,9 +278,15 @@ def node_predict_picks(state: RoundState) -> dict:
             f"picks (Pareto frontier too short or too clustered)"
         )
     # Store picks transiently in children dict keyed by *placeholder* name;
-    # real names land in assign_names.
+    # real names land in assign_names. Also snapshot leaderboard length so
+    # decide_next can detect "round produced 0 new rows" (all children
+    # failed → exit early instead of refitting on identical data).
     transient = {f"_pick_{j:02d}": {"x_point": list(p)} for j, p in enumerate(picks)}
-    return {"children": transient, "errors": errors}
+    return {
+        "children": transient,
+        "errors": errors,
+        "history_len_before": _leaderboard_len(state["mode"]),
+    }
 
 
 def node_assign_names(state: RoundState) -> dict:
@@ -339,9 +344,20 @@ def node_launch_children(state: RoundState) -> dict:
         log_path = Path(rec["log"])
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_fh = open(log_path, "w")
+        # Per-launch unique thread_id: prevents SqliteSaver checkpoint collision
+        # with prior `python -m graph.run --thread-id <name>` sessions sharing
+        # the same name (e.g. manual smokes named graph001). config_name stays
+        # the user-visible leaderboard key; thread_id is just the checkpoint
+        # row key. See [[closed-loop-thread-id-checkpoint-collision]].
+        # Reuse a thread_id from a prior crashed parent (resume path) when
+        # the record already carries one — otherwise the new launch would
+        # orphan the prior child's checkpoint AND the barrier's checkpoint
+        # lookup (which uses rec["thread_id"]) would never resolve.
+        thread_id = rec.get("thread_id") or f"{name}_{uuid.uuid4().hex[:8]}"
+        rec["thread_id"] = thread_id
         cmd = [
             sys.executable, "-m", "graph.run",
-            "--thread-id", name,
+            "--thread-id", thread_id,
             "--config-name", name,
             "--mode", mode,
             "--alpha", str(alpha),
@@ -394,7 +410,10 @@ def node_barrier(state: RoundState) -> dict:
             for name in list(pending):
                 if _child_in_leaderboard(name, mode) or _child_is_broken(name):
                     completed.add(name)
-                elif _child_terminal_via_checkpoint(name, child_graph):
+                elif _child_terminal_via_checkpoint(
+                    name, child_graph,
+                    thread_id=(children.get(name) or {}).get("thread_id"),
+                ):
                     # Terminal checkpoint but no leaderboard row + no broken.txt
                     # → graph ended via preflight-fail / stage-fail. Count as done.
                     completed.add(name)
@@ -421,35 +440,37 @@ def node_barrier(state: RoundState) -> dict:
     return {"completed_names": sorted(completed), "errors": errors}
 
 
-def node_refit_and_check(state: RoundState) -> dict:
-    """Refit GP, hash Pareto frontier, mark converged if last K hashes match."""
-    gp = _import_gp(state["mode"])
-    picks = gp.compute_explore_picks(
-        q=state["q"],
-        nsteps_budget=state.get("nsteps_budget", NSTEPS_BUDGET),
-        min_spacing=state.get("min_spacing", CLOSED_LOOP_MIN_PICK_SPACING),
-        pessimistic_calo=state.get("pessimistic_calo", False),
-    )
-    h = _pareto_hash(picks)
-    hashes = list(state.get("pareto_hashes", [])) + [h]
-    k = state.get("convergence_k", 2)
-    converged = len(hashes) >= k and len(set(hashes[-k:])) == 1
-    print(f"[closed_loop] refit: pareto_hash={h} (last {min(k,len(hashes))}: "
-          f"{hashes[-k:]}) converged={converged}", flush=True)
-    return {"pareto_hashes": hashes, "converged": converged}
-
-
 def node_decide_next(state: RoundState) -> dict:
-    """Bump round_idx; clear children for next round (or signal terminate)."""
+    """Bump round_idx; check zero-row safety break; clear children for next round.
+
+    Zero-row break: if the round's barrier added 0 new leaderboard rows
+    compared to predict_picks's snapshot, all children failed
+    (preflight-fail, scan_logs-broken, harvest crash). Continuing would
+    refit on identical data and re-propose the same picks (foilsX04
+    failure mode, 2026-05-29) — exit instead.
+    """
+    mode = state["mode"]
+    before = state.get("history_len_before", 0)
+    after = _leaderboard_len(mode)
+    new_rows = after - before
+    zero_rows = new_rows <= 0
+    if zero_rows:
+        print(f"[closed_loop] decide_next[r{state['round_idx']}]: "
+              f"0 new leaderboard rows this round (before={before} after={after}) "
+              f"— all children failed; exiting early", flush=True)
+    else:
+        print(f"[closed_loop] decide_next[r{state['round_idx']}]: "
+              f"+{new_rows} new rows (before={before} after={after})", flush=True)
     return {
         "round_idx": state["round_idx"] + 1,
+        "zero_rows": zero_rows,
         "children": {},
-        # completed_names and pareto_hashes intentionally persist across rounds.
+        # completed_names intentionally persists across rounds.
     }
 
 
 def route_after_decide(state: RoundState):
-    if state.get("converged"):
+    if state.get("zero_rows"):
         return END
     if state["round_idx"] >= state["max_rounds"]:
         return END
@@ -469,7 +490,6 @@ def _build_outer_graph():
     g.add_node("assign_names", node_assign_names)
     g.add_node("launch_children", node_launch_children)
     g.add_node("barrier", node_barrier)
-    g.add_node("refit_and_check", node_refit_and_check)
     g.add_node("decide_next", node_decide_next)
 
     g.set_entry_point("renew_token")
@@ -477,8 +497,7 @@ def _build_outer_graph():
     g.add_edge("predict_picks", "assign_names")
     g.add_edge("assign_names", "launch_children")
     g.add_edge("launch_children", "barrier")
-    g.add_edge("barrier", "refit_and_check")
-    g.add_edge("refit_and_check", "decide_next")
+    g.add_edge("barrier", "decide_next")
     g.add_conditional_edges("decide_next", route_after_decide,
                             {"renew_token": "renew_token", END: END})
     return g
@@ -524,8 +543,6 @@ def main() -> int:
                     help="seconds between successive child launches")
     ap.add_argument("--barrier-poll-sec", type=int, default=CLOSED_LOOP_BARRIER_POLL_SEC)
     ap.add_argument("--barrier-timeout-min", type=int, default=CLOSED_LOOP_BARRIER_TIMEOUT_MIN)
-    ap.add_argument("--convergence-k", type=int, default=2,
-                    help="number of identical Pareto hashes in a row → converged")
     ap.add_argument("--min-spacing", type=float, default=CLOSED_LOOP_MIN_PICK_SPACING,
                     help="normalized-L2 minimum distance between picks")
     ap.add_argument("--pessimistic-calo", action="store_true", default=False,
@@ -558,10 +575,7 @@ def main() -> int:
         "name_prefix": args.name_prefix,
         "children": {},
         "completed_names": [],
-        "pareto_hashes": [],
-        "converged": False,
         "errors": [],
-        "convergence_k": args.convergence_k,
         "stagger_sec": args.stagger,
         "barrier_poll_sec": args.barrier_poll_sec,
         "barrier_timeout_min": args.barrier_timeout_min,
@@ -587,8 +601,8 @@ def main() -> int:
         snap = {
             "round_idx": ev.get("round_idx"),
             "completed": len(ev.get("completed_names", [])),
-            "hashes": ev.get("pareto_hashes", []),
-            "converged": ev.get("converged"),
+            "history_len_before": ev.get("history_len_before"),
+            "zero_rows": ev.get("zero_rows"),
         }
         print(f"[closed_loop] {json.dumps(snap)}", flush=True)
     print(f"[closed_loop] done. final keys: {sorted((final or {}).keys())}")

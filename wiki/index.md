@@ -5,7 +5,7 @@ See [[CLAUDE]] for the schema and maintenance contract.
 
 ## Projects (active research lines)
 - [bo-michael](projects/bo-michael.md) — 4D BO maximizing `S/√B − α·calo/POT` over TSdA + holeRadius + COL5
-- [bo-helical](projects/bo-helical.md) — 4D BO over `tsda.helical.*` (Option A coupling); z0/rin derived from halflen/dx/dy; preflight surface-check enforces no managed-volume overlaps
+- [bo-helical](projects/bo-helical.md) — (dormant 2026-05-29) 4D BO over `tsda.helical.*` (Option A coupling); retired after Pareto saturation; superseded as active line by [[bo-foils]]
 - [bo-foil](projects/bo-foil.md) — original 7D BO over foil-stack geometry; superseded by bo-michael
 - [bo-foils](projects/bo-foils.md) — 5D extras-only BO over stopping-target +12 envelope (≤6 up + ≤6 down) on the pinned 37-foil v02 base; no helical plug; Phase 0 PASS 2026-05-28
 
@@ -60,6 +60,7 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [scan-broken-codes-too-narrow](incidents/scan-broken-codes-too-narrow.md) — SCAN_BROKEN_CODES=("GeomSolids1001",) only; 19 configs with LikelyGeomOverlap > 100 (up to 28.5M on helical050a) entered leaderboard; champion status of top-3 may be tainted
 - [slack-bot-dm-channel-not-found](incidents/slack-bot-dm-channel-not-found.md) — bot's `files.completeUploadExternal` → `channel_not_found` on user-MCP DM channels; call `conversations.open` first to mint the bot's own DM
 - [claude-bash-no-ssh-agent](incidents/claude-bash-no-ssh-agent.md) — Bash-tool subshells can't reach user's `ssh-agent`; `git push` to GitHub fails for Claude even when it works in user's interactive shell
+- [foilsx04-all-preflight-ambiguous](incidents/foilsx04-all-preflight-ambiguous.md) — foilsX04 silent total failure (2026-05-29): 20/20 children died at preflight=ambiguous rc=3, parent reported converged=True with zero new leaderboard rows; convergence check has no "new evals this round" gate
 
 ## External pointers
 - [mmackenz-workflow](external/mmackenz-workflow.md) — `/exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/`

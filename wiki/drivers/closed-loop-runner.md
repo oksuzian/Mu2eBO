@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-29 (min_spacing silently hardcoded — known bug, see Key facts)
+**Updated:** 2026-05-29 (convergence-by-pareto-hash deleted; replaced with zero-row safety break — see Convergence)
 
 ## Summary
 Multi-round closed-loop runner that wraps q parallel
@@ -17,8 +17,10 @@ in this phase.
   `RoundState` TypedDict (mode/alpha/q/round_idx/children/completed_names/
   pareto_hashes/converged/errors + knobs). Outer graph nodes:
   `renew_token → predict_picks → assign_names → launch_children → barrier →
-  refit_and_check → decide_next`; `decide_next` either loops back to
-  `renew_token` or ENDs. `renew_token` runs `kinit -R` + `source setupmu2e-art.sh && getToken`
+  decide_next`; `decide_next` either loops back to `renew_token` or ENDs.
+  (`refit_and_check` was deleted 2026-05-29 along with convergence-by-hash;
+  `predict_picks` snapshots `history_len_before` and `decide_next` checks
+  for zero new rows.) `renew_token` runs `kinit -R` + `source setupmu2e-art.sh && getToken`
   at the top of every round and **hard `sys.exit(2)` if `getToken` fails**
   (continuing past expiry just orphans clusters). Operator runs `kinit`,
   re-invokes with the same `--thread-id`; the outer checkpoint resumes
@@ -63,10 +65,63 @@ in this phase.
     as completed, so `launch_children` skips them.
   - **Force-restart a round**: delete the round's leaderboard rows and
     re-invoke with the same thread-id.
-- **Convergence**: hashes the rounded (2 sig-fig) `(sob, calo)` tuples of
-  the Pareto frontier each round; flags `converged=True` when the last
-  `convergence_k` hashes (default 2) are identical. Sensitive to numerical
-  jitter — rounding is required, see `_pareto_hash`.
+- **Convergence (deleted 2026-05-29)**: previously hashed the rounded
+  (2 sig-fig) `q` GP picks and called the run converged when the last
+  k hashes were identical. **Deleted entirely** after 15-run production
+  audit: 0 demonstrated true saves (FT05/FT06 r0→1 collisions were both
+  `--max-rounds 2` runs that would have exited at the same point), and
+  1 documented false-positive (foilsX04 zero-row case — identical data
+  → byte-identical fit → guaranteed collision). Replaced with a
+  zero-row safety break in `node_decide_next`: `predict_picks` snapshots
+  `len(load_history())` into state; `decide_next` compares against
+  post-barrier length and ENDs if `new_rows <= 0`. `--max-rounds` is the
+  budget cap; saturation is now diagnosed post-hoc from the leaderboard
+  (Pareto-front movement plots, not a runtime flag).
+  Historical notes on the old machinery (kept for context if it's ever
+  reconsidered):
+  - **2-sig vs 3-sig empirics (2026-05-29 agentic investigation)**: only
+    3 hash collisions exist across 15 production parent logs ever —
+    foilsX04 r0→1 (spurious, zero rows), helicalFT05 r0→1, helicalFT06
+    r0→1 (both real saturation with +8 rows). On real FoilsMode
+    progressions (X02/X03), 55–70% of q×D acquisition-argmax coords
+    jitter *beyond even the 2-sig bin* between consecutive rounds with
+    +6 to +10 new leaderboard rows; the 3rd-sig-fig coord-jitter rate
+    is nearly identical (99/160 vs 101/160). Picks come from a fixed
+    seed=42 Sobol pool of 2^20 points; the GP refit is the only
+    round-to-round mover, and one new row routinely shifts the
+    Pareto-knee argmax by several grid cells (cf. bo-helical n=86→87
+    10× calo-cloud collapse). **Switching to 3-sig-fig** (one-line
+    change at `closed_loop.py:206`: `mult = 10**(exp-1)` →
+    `10**(exp-2)`) **would convert FT05/FT06-style real saturations
+    into non-events** — organic 3-sig collision is ~10^(q·D)
+    suppressed vs 2-sig. Correct fix for the foilsX04 false-positive
+    is the orthogonal zero-new-rows gate in `node_refit_and_check`,
+    not tightening the bin.
+  - **Wide-range pathology** (the failure mode that *is* sig-fig
+    relevant): `_pareto_hash` rounding is scale-relative to the VALUE,
+    not to the search range — `rOut=184` has bin width 10 whether the
+    BO range is `[80, 250]` or `[180, 200]`. So a too-wide range
+    doesn't coarsen the hash at the optimum; instead it keeps the GP
+    exploring across the full envelope so consecutive-round picks
+    jitter in absolute terms big enough to cross 2-sig bins → hash
+    never collides → real local saturation looks "still moving."
+    Tightening sig-fig makes this worse. Principled fix is to replace
+    hash-equality with **per-knob normalized-L2 distance** between
+    consecutive pick-sets (e.g., all q picks within 5% of normalized
+    range), which decouples from both knob magnitude and search-range
+    width.
+  - **Mechanism may not be earning its keep at all (2026-05-29)**:
+    the 2 "legitimate" 2-sig convergence events (FT05, FT06) were both
+    `--max-rounds 2` runs that would have exited at the same point
+    regardless of the flag. **No production run has ever exited via
+    convergence at round ≥ 2.** So the demonstrated record is: 0 true
+    saves, 1 false positive (foilsX04), and no evidence the hash
+    correlates with real saturation vs. "GP happened to re-propose
+    adjacent Sobol cells." Strong case for either deleting the
+    convergence machinery and relying on `--max-rounds`, or replacing
+    with normalized-L2-distance gate. The foilsX04 zero-row fix is
+    still required either way — it's about not advancing a counter on
+    a degenerate round, independent of what the counter means.
 - **q-pick spacing** (`[[closed-loop-bo-design]]` revision #7): even-spaced
   ranks along a short Pareto frontier yield near-degenerate picks.
   `gp_predict_helical.compute_explore_picks` is *supposed* to enforce a

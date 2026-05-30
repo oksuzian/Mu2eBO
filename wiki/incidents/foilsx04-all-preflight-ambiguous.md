@@ -1,0 +1,225 @@
+---
+name: foilsx04-all-preflight-ambiguous
+description: foilsX04 ran 20 children across 2 rounds, all died at preflight=ambiguous (rc=3), parent reported converged=True with zero leaderboard rows
+type: incident
+---
+
+# foilsX04 — silent total failure with spurious convergence
+
+**Type:** incident
+**Status:** resolved 2026-05-29 (convergence-by-pareto-hash machinery deleted entirely; zero-row safety break in `node_decide_next`; rc=3 ambiguous now retriable in `route_after_preflight`)
+**Updated:** 2026-05-29
+
+## Summary
+Closed-loop parent `foilsX04` (q=10, max-rounds=10) launched 2026-05-29,
+spawned 20 children across rounds 0+1, every child's graph terminated at
+the **preflight node** with status `ambiguous`, and the parent reported
+`converged=True` after k=2 identical pareto-hashes — producing **zero
+new leaderboard rows** while looking superficially successful.
+
+Two distinct bugs collided to produce the silent failure:
+
+1. **Whatever made X04 picks uniformly fail preflight with rc=3** —
+   currently unknown; needs interactive re-run of
+   `.venv-graph/bin/python autoresearch_bo_michael.py --mode foils preflight foilsX04R00_00`
+   to read the surface-check stderr. X03 picks PASSed cleanly under the
+   same code; only X04 is affected.
+2. **Convergence check has no "new evals this round" floor** —
+   identical pareto-hashes across rounds resolve `converged=True` even
+   when 100% of children failed and the leaderboard didn't grow.
+
+## Key facts
+
+- **Symptoms (parent log `graph_data/closed_loop_logs/closed_foilsX04_r0.log`):**
+  ```
+  round 0: launched 10 children, barrier resolved, pareto_hash=6459d20d... converged=False
+  round 1: launched 10 children, barrier resolved, pareto_hash=6459d20d... converged=True
+  done. final keys: [...]  ← parent exits cleanly
+  ```
+  No errors, no traceback, no warning in the parent log.
+
+- **Per-child evidence (`foilsX04R00_00.log` is representative of all 20):**
+  ```
+  [run] {"config_name": "foilsX04R00_00", "preflight": "pending", "objective": null}
+  [run] {"config_name": "foilsX04R00_00", "preflight": "ambiguous", "objective": null}
+  [run] done. final keys: [...]
+  ```
+  The graph terminates immediately after preflight returns "ambiguous";
+  no submit, no harvest, no scan_logs, no evaluate.
+
+- **Grid-work-dir forensics** (`autoresearch_grid/foilsX04R00_00/`):
+  - `geom/autoresearch_foilsX04R00_00_geom.txt` — present (proposal
+    rendered)
+  - `state/` — empty (no `*_cluster.txt`, no `*_outputs.txt`)
+  - No grid jobs were ever submitted.
+
+- **Leaderboard delta**: 0 new rows. `wc -l leaderboard_bo_foils_v1.tsv`
+  unchanged at 74 (73 data) — same as end of X03.
+
+- **Status mapping (load-bearing, `graph/pipeline_io.py:140`):**
+  `{0: "pass", 1: "fail_managed", 2: "fail_init", 3: "ambiguous"}` —
+  `ambiguous` corresponds to `cmd_preflight` rc=3, which the driver
+  raises on **unhandled surface-check errors** (not managed-overlap,
+  not G4 init failure). Means surface-check started but blew up
+  before classifying.
+
+- **Why convergence fired falsely**: `node_refit_and_check` computes
+  `pareto_hash` from the LEADERBOARD, not the round's new evals. When
+  no new rows land, the hash is identical to the prior round's by
+  construction. Two identical hashes → k=2 repeat → converged. Same
+  failure mode as [[barrier-false-positive-round1]] but driven by
+  all-children-fail rather than saver miss. **Fix shape: gate
+  convergence on `len(history_after) > len(history_before)` for
+  the round before counting toward k.**
+
+- **Comparison with X03 (which worked):** X03 closed cleanly with
+  50 evals across 5 rounds (leaderboard at 73 data rows). Same code
+  tree, same FoilsMode class. The only environmental difference noted
+  in `wiki/log.md` between X03 close and X04 launch is the
+  `useTwistedBox` dispatcher work (tasks #134-136 in TaskList) —
+  candidate root cause but not yet confirmed. Tasks #149 + #137
+  ("Submit 3 A/B pairs tess vs twist", "Preflight both branches
+  locally") are both in_progress/pending.
+
+## Cross-links
+- Related: [[barrier-false-positive-round1]] (sibling failure mode —
+  same "looks converged" symptom, different mechanism),
+  [[scan-broken-codes-too-narrow]] (sibling silent-pass-broken
+  pattern in scan_logs),
+  [[bo-foils]] (the project line affected),
+  [[closed-loop-runner]] (where the convergence-on-no-new-evals fix
+  belongs)
+- Source files:
+  - `graph/pipeline_io.py:140` — `{3: "ambiguous"}` rc mapping
+  - `graph/closed_loop.py` — convergence-check site (needs gate)
+  - `autoresearch_bo_michael.py:cmd_preflight` — rc=3 emission
+  - `graph_data/closed_loop_logs/closed_foilsX04_r0.log`,
+    `foilsX04R00_00.log..R01_09.log` — evidence
+
+## 3-agent debug findings (2026-05-29)
+
+Three parallel agents investigated; the picture diverges from the
+initial single-bug hypothesis:
+
+### Finding 1 — convergence-gate bug **CONFIRMED**
+- Reproduced at `graph/closed_loop.py:424-439` in `node_refit_and_check`:
+  hash is derived from GP picks (re-tellable from leaderboard), so
+  identical leaderboards → identical hashes → k=2 → `converged=True`
+  even when zero rows landed.
+- Patch shape (~25 LOC): snapshot `len(bo.MODES[mode].load_history())`
+  in `node_barrier`, skip the hash append entirely when
+  `new_rows == 0`. Fail-fast or warn-and-continue is a follow-up call.
+- **`tests/test_closed_loop.py` has ZERO coverage of
+  `node_refit_and_check`** — that's the gap that let this ship.
+  Regression test must instantiate the node with a frozen leaderboard
+  + two round invocations and assert `converged=False`.
+
+### Finding 2 — rc=3 "ambiguous" is **NOT a code regression**
+- Agent reran `cmd_preflight` on three X04 configs interactively
+  (`foilsX04R00_00`, `R00_05`, `R01_03`): all **PASS rc=0**. Geom
+  files clean; no `useTwistedBox` / helical / TSdA leak into FoilsMode
+  emission (FoilsMode emits `hasTSdA = false`).
+- rc=3 emission conditions at `autoresearch_bo_michael.py:1067-1069`:
+  subprocess rc≠0 AND `past_init=False` AND no `G4_GEOM_FAIL_RX`
+  match AND no managed_hits AND no timeout. Anything that kills
+  `mu2e -n 1` early and silently (OOM, host load, transient
+  filesystem) lands here.
+- **Working hypothesis**: 10 concurrent local `mu2e` preflights from
+  one closed-loop round competed for cores/RAM on the parent host;
+  some got OOM-killed before G4 init produced a regex-matchable
+  signature. Reproducer: launch 10 simultaneous preflights from one
+  shell and watch resident memory.
+- Proposed mitigation at `graph/nodes.py:68`: treat `ambiguous` like
+  `fail_managed` (route back to propose with attempt-cap), instead of
+  terminal. Decouples the env-induced fail from the convergence path.
+
+### Finding 3 — relaunch artifact reframes the symptom
+- Parent log mtime `closed_foilsX04_r0.log` = 09:01; all 20 child
+  logs `foilsX04R00_*/R01_*.log` mtime range 07:37–08:56. The
+  visible parent log is a **relaunch** that reaped pre-existing
+  checkpoint state and instantly reported `barrier: all resolved`.
+  Same family as [[barrier-false-positive-round1]] (saver returns
+  stale state). NOT a fresh run from scratch.
+- `Code_helical_base.tar.bz2` mtime 2026-05-26 — predates X03 by
+  three days. The `useTwistedBox` dispatcher work (TaskList #134-136)
+  was completed in source but **never built/repackaged/shipped to
+  grid**. Preflight doesn't load the helical lib anyway. The
+  "X04 raced useTwistedBox" hypothesis in the original write-up is
+  **REJECTED**.
+
+## Patch design (post agentic review 2026-05-29)
+
+Load-bearing facts for whoever applies these:
+
+- **Infinite-loop risk of convergence-gate patch = NONE.**
+  `route_after_decide` at `graph/closed_loop.py:454` hard-exits when
+  `round_idx >= max_rounds`. Even if every round produces zero rows
+  under the patched logic, the loop terminates at `--max-rounds` with
+  `converged=False`. No new bound needed.
+- **Best snapshot site is `node_predict_picks`** (not `node_barrier`).
+  Barrier already owns sqlite+saver+polling — don't grow it. Add one
+  RoundState key `history_len_before: int` set in predict_picks,
+  compared in `node_refit_and_check`. (Doing it in barrier is
+  acceptable but couples two concerns.)
+- **`MAX_PROPOSE_RETRIES = 3`** at `graph/config.py:40` already
+  bounds the blast radius of the rc=3-retriable change. Counter
+  incremented in `node_propose:52`, reset to `{}` in
+  `node_decide_next:188`. Per-iteration cap → worst case 3 propose
+  attempts per BO iter. No separate `MAX_AMBIGUOUS_RETRIES` needed.
+- **rc=3 currently routes terminal** (`graph/nodes.py:200-208`): only
+  `pass` and `fail_managed` are non-terminal; `ambiguous`,
+  `fail_init`, `pending` all fall to END. Docstring at
+  `node_render_preflight:61` explicitly says "init failure or
+  ambiguous → terminal error" — that comment also needs updating.
+- **rc=3 stderr is captured but truncated to one line.**
+  `cmd_preflight` already dumps last 40 lines of `mu2e` stderr to
+  disk (`autoresearch_bo_michael.py:1068`); `nodes.py:69` currently
+  only pipes `.splitlines()[-1]` into state errors. Patch 2 must
+  also widen this — without it, repeated retries accumulate
+  identical opaque "preflight[ambiguous] foo: ..." lines.
+- **Stochastic retry is safe**: BO sampling means each propose
+  retry draws a *different* `x`, so a true geom bug in one config
+  doesn't infinite-loop on the same config.
+- **Only foilsX04 has rc=3** in `wiki/incidents/` — grep
+  `incidents/` for `ambiguous` / `rc=3` returns this file only
+  (plus log.md backrefs). No prior incident would have been masked
+  by retrying rc=3.
+
+## Resolution applied 2026-05-29
+
+Both findings addressed in `graph/closed_loop.py` + `graph/nodes.py`
+(see [[closed-loop-runner]] "Convergence" section for design rationale):
+
+1. **Convergence-by-pareto-hash deleted** rather than gated. 15-run
+   production audit showed 0 true saves; mechanism wasn't earning
+   its keep. `_pareto_hash`, `node_refit_and_check`, `pareto_hashes`/
+   `converged`/`convergence_k` state keys, and the `--convergence-k`
+   CLI arg all removed. Graph rewired `barrier → decide_next`
+   directly. Saturation is now diagnosed post-hoc from the leaderboard
+   (Pareto-front movement plots).
+2. **Zero-row safety break** added in `node_decide_next`:
+   `history_len_before` snapshot in `node_predict_picks`, compared
+   in `node_decide_next`; if `new_rows <= 0` set `zero_rows=True`
+   and `route_after_decide` ENDs. Catches "all children failed"
+   round generically, not just the spurious-convergence symptom.
+3. **rc=3 ambiguous now retriable** at `graph/nodes.py:route_after_preflight`
+   — same MAX_PROPOSE_RETRIES=3 cap as `fail_managed`. Each propose
+   retry draws a different `x` from skopt, so a true geom bug doesn't
+   infinite-loop. Stderr capture widened from `splitlines()[-1]` to
+   last 8 lines so repeated retries accumulate useful context.
+
+Regression coverage in `tests/test_closed_loop.py`:
+`TestDecideNext.test_zero_new_rows_sets_zero_rows_true`,
+`test_negative_delta_sets_zero_rows_true`,
+`TestRouteAfterDecide.test_zero_rows_ends`,
+`TestBuildGraph.test_refit_and_check_removed`.
+
+## Open questions / TODO
+- **Add a concurrent-preflight-stress test** that launches N=10
+  preflights from a single closed-loop round on the parent host and
+  measures peak RSS. If reproduces rc=3, also gate closed_loop on a
+  semaphore (`max-concurrent-preflights`) — but this is speculative
+  until the OOM/load hypothesis is confirmed. The rc=3-retriable
+  fix is a robustness layer, not a root-cause repair.
+- **Decide leaderboard hygiene for X04**: 20 grid-work dirs with only
+  `geom/` are wasted disk but harmless; safe to `rm -rf`.

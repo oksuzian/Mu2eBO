@@ -16,8 +16,41 @@ sys.path.insert(0, str(Path(__file__).parent))
 from langgraph.graph import END  # noqa: E402
 
 import pipeline_io as pio  # noqa: E402
-from config import DEFAULT_ALPHA, DEFAULT_MODE, MAX_PROPOSE_RETRIES  # noqa: E402
+from config import (  # noqa: E402
+    DEFAULT_ALPHA,
+    DEFAULT_MODE,
+    GRID_DATA_ROOT,
+    MAX_PROPOSE_RETRIES,
+)
 from state import BOIterationState  # noqa: E402
+
+
+def _record_zero_row(config_name: str, cause: str, tail: str) -> None:
+    """Append a row to <grid_root>/<config_name>/scan_logs/evaluate_zero_row.tsv.
+
+    Sidecar survives state-dir cleanup so post-mortem of silent zero-objective
+    closed-loop children doesn't depend on graph_data/state/<child>/. See #8.
+    """
+    out_dir = GRID_DATA_ROOT / config_name / "scan_logs"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / "evaluate_zero_row.tsv"
+        new_file = not path.exists()
+        tail_clean = (tail or "").replace("\t", " ").replace("\n", " ")[:500]
+        with path.open("a") as fh:
+            if new_file:
+                fh.write("config_name\tcause\ttail\n")
+            fh.write(f"{config_name}\t{cause}\t{tail_clean}\n")
+        print(
+            f"[graph] zero_row[{config_name}] cause={cause} → {path}",
+            flush=True,
+        )
+    except OSError as exc:
+        # Sidecar is best-effort — don't break the graph if disk is full.
+        print(
+            f"[graph] zero_row[{config_name}] sidecar write FAILED: {exc}",
+            flush=True,
+        )
 
 
 def node_propose(state: BOIterationState) -> dict:
@@ -58,15 +91,26 @@ def node_propose(state: BOIterationState) -> dict:
 def node_render_preflight(state: BOIterationState) -> dict:
     """Run mu2e -n 1 + surface-check on the proposal.
 
-    Outcomes (managed-volume overlap → fail_managed → retry propose;
-    init failure or ambiguous → terminal error).
+    Outcomes:
+    - pass → real/mock grid chain
+    - fail_managed → retry propose (managed-volume overlap, BO-fixable)
+    - ambiguous (rc=3) → retry propose. rc=3 = subprocess died early
+      without a regex-matchable G4 init signature (OOM under concurrent
+      preflight load, transient FS, host load). Treated as retriable
+      2026-05-29 after foilsX04 incident where 20/20 children died here;
+      each propose retry draws a different `x` from skopt so a true geom
+      bug doesn't infinite-loop. Bounded by MAX_PROPOSE_RETRIES (graph/config.py).
+    - fail_init → terminal (real G4 init failure; geom is broken)
     """
     mode = state["mode"]
     name = state["config_name"]
     status, tail = pio.run_preflight(mode, name)
     errors = list(state.get("errors", []))
     if status not in ("pass",):
-        errors.append(f"preflight[{status}] {name}: {tail.splitlines()[-1] if tail else ''}")
+        # Keep last 8 lines for ambiguous/fail_init so the rc=3 retry loop
+        # accumulates useful context across attempts instead of one opaque line.
+        tail_msg = "\n".join(tail.splitlines()[-8:]) if tail else ""
+        errors.append(f"preflight[{status}] {name}: {tail_msg}")
     return {"preflight": status, "errors": errors}
 
 
@@ -85,6 +129,7 @@ def make_stage_node(stage: str):
         try:
             stages[stage] = pio.run_stage(name, stage)
         except Exception as exc:  # noqa: BLE001
+            print(f"[graph] stage[{stage}/{name}] FAILED: {exc}", flush=True)
             errors.append(f"stage[{stage}/{name}]: {exc}")
             stages[stage] = {
                 "cluster_id": None, "status": "failed",
@@ -103,6 +148,7 @@ def node_harvest(state: BOIterationState) -> dict:
         metrics = pio.run_harvest(name)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"harvest[{name}]: {exc}")
+        _record_zero_row(name, "harvest_exception", str(exc))
         return {"metrics": None, "errors": errors}
     return {"metrics": metrics, "errors": errors}
 
@@ -159,13 +205,20 @@ def node_evaluate(state: BOIterationState) -> dict:
     errors = list(state.get("errors", []))
     if state.get("scan_logs_broken"):
         errors.append(f"evaluate[{name}]: skipped (scan_logs_broken=True)")
+        _record_zero_row(name, "scan_logs_broken",
+                         str(state.get("scan_report_path") or ""))
         return {"objective": None, "errors": errors}
     mode = state["mode"]
     alpha = state.get("alpha", DEFAULT_ALPHA)
     metrics = state["metrics"]
+    if metrics is None:
+        errors.append(f"evaluate[{name}]: metrics is None (harvest produced no row)")
+        _record_zero_row(name, "metrics_none", "")
+        return {"objective": None, "errors": errors}
     obj, tail = pio.run_evaluate(mode, name, metrics, alpha=alpha)
     if obj is None:
         errors.append(f"evaluate[{name}]: could not parse objective; tail={tail}")
+        _record_zero_row(name, "obj_unparseable", tail or "")
     return {"objective": obj, "errors": errors}
 
 
@@ -198,13 +251,26 @@ def node_decide_next(state: BOIterationState) -> dict:
 
 
 def route_after_preflight(state: BOIterationState) -> Literal["real", "mock", "propose", "__end__"]:
-    """Branch after preflight."""
+    """Branch after preflight.
+
+    Both `fail_managed` (managed-overlap, BO-fixable) and `ambiguous`
+    (rc=3 — subprocess died early without a parseable G4 init signature;
+    typically OOM/transient under concurrent preflight load) re-propose
+    up to MAX_PROPOSE_RETRIES. `fail_init` is terminal (real geom bug).
+    Ambiguous-retriable added 2026-05-29 (foilsX04 incident).
+    """
     status = state.get("preflight", "pending")
     attempts = state.get("attempts", {}).get("propose", 0)
     if status == "pass":
         return "mock" if state.get("mock", True) else "real"
-    if status == "fail_managed" and attempts < MAX_PROPOSE_RETRIES:
+    if status in ("fail_managed", "ambiguous") and attempts < MAX_PROPOSE_RETRIES:
         return "propose"
+    name = state.get("config_name", "?")
+    print(
+        f"[graph] terminating {name}: preflight={status} "
+        f"attempts={attempts}/{MAX_PROPOSE_RETRIES}",
+        flush=True,
+    )
     return END
 
 
@@ -215,7 +281,14 @@ def route_after_stage(state: BOIterationState) -> Literal["next", "__end__"]:
     terminates the iteration so evaluate doesn't run with partial metrics.
     """
     stages = state.get("stages", {}) or {}
-    if any((s or {}).get("status") == "failed" for s in stages.values()):
+    failed = [k for k, s in stages.items() if (s or {}).get("status") == "failed"]
+    if failed:
+        name = state.get("config_name", "?")
+        print(
+            f"[graph] terminating {name}: stage {failed[0]} failed "
+            f"(failed_stages={failed})",
+            flush=True,
+        )
         return END
     return "next"
 
