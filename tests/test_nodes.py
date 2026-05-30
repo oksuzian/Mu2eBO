@@ -6,6 +6,7 @@ Run from project root:
 import contextlib
 import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -110,6 +111,102 @@ class TestMakeStageNodeLogs(unittest.TestCase):
             out = node({"config_name": "fooR00_05", "stages": {}, "errors": []})
         self.assertEqual(out["stages"]["mubeam"]["status"], "succeeded")
         self.assertNotIn("FAILED", buf.getvalue())
+
+
+class TestEvaluateZeroRowClassifier(unittest.TestCase):
+    """Issue #8: evaluate/harvest zero-objective paths must classify the cause
+    AND persist it to a sidecar TSV that survives state-dir cleanup."""
+
+    def _read_sidecar(self, td: Path, name: str):
+        path = td / name / "scan_logs" / "evaluate_zero_row.tsv"
+        if not path.exists():
+            return None
+        return path.read_text().strip().splitlines()
+
+    def test_scan_logs_broken_records_cause(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with mock.patch.object(nd, "GRID_DATA_ROOT", tmp):
+                out = nd.node_evaluate({
+                    "config_name": "fooR00_00",
+                    "mode": "helical",
+                    "errors": [],
+                    "scan_logs_broken": True,
+                    "scan_report_path": "/some/report.tsv",
+                    "metrics": {"a": 1},
+                })
+            self.assertIsNone(out["objective"])
+            lines = self._read_sidecar(tmp, "fooR00_00")
+            self.assertIsNotNone(lines)
+            self.assertEqual(lines[0], "config_name\tcause\ttail")
+            self.assertIn("scan_logs_broken", lines[1])
+
+    def test_metrics_none_records_cause(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with mock.patch.object(nd, "GRID_DATA_ROOT", tmp):
+                out = nd.node_evaluate({
+                    "config_name": "fooR00_01",
+                    "mode": "helical",
+                    "errors": [],
+                    "scan_logs_broken": False,
+                    "metrics": None,
+                })
+            self.assertIsNone(out["objective"])
+            lines = self._read_sidecar(tmp, "fooR00_01")
+            self.assertIsNotNone(lines)
+            self.assertIn("metrics_none", lines[1])
+
+    def test_obj_unparseable_records_cause(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with mock.patch.object(nd, "GRID_DATA_ROOT", tmp), \
+                 mock.patch.object(nd.pio, "run_evaluate",
+                                    return_value=(None, "bad tail")):
+                out = nd.node_evaluate({
+                    "config_name": "fooR00_02",
+                    "mode": "helical",
+                    "errors": [],
+                    "scan_logs_broken": False,
+                    "metrics": {"a": 1},
+                })
+            self.assertIsNone(out["objective"])
+            lines = self._read_sidecar(tmp, "fooR00_02")
+            self.assertIsNotNone(lines)
+            self.assertIn("obj_unparseable", lines[1])
+            self.assertIn("bad tail", lines[1])
+
+    def test_harvest_exception_records_cause(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with mock.patch.object(nd, "GRID_DATA_ROOT", tmp), \
+                 mock.patch.object(nd.pio, "run_harvest",
+                                    side_effect=RuntimeError("disk full")):
+                out = nd.node_harvest({
+                    "config_name": "fooR00_03",
+                    "errors": [],
+                })
+            self.assertIsNone(out["metrics"])
+            lines = self._read_sidecar(tmp, "fooR00_03")
+            self.assertIsNotNone(lines)
+            self.assertIn("harvest_exception", lines[1])
+            self.assertIn("disk full", lines[1])
+
+    def test_happy_path_no_sidecar(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            with mock.patch.object(nd, "GRID_DATA_ROOT", tmp), \
+                 mock.patch.object(nd.pio, "run_evaluate",
+                                    return_value=(1.23, "")):
+                out = nd.node_evaluate({
+                    "config_name": "fooR00_04",
+                    "mode": "helical",
+                    "errors": [],
+                    "scan_logs_broken": False,
+                    "metrics": {"a": 1},
+                })
+            self.assertEqual(out["objective"], 1.23)
+            self.assertIsNone(self._read_sidecar(tmp, "fooR00_04"))
 
 
 if __name__ == "__main__":
