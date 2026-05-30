@@ -96,6 +96,7 @@ def make_stage_node(stage: str):
         try:
             stages[stage] = pio.run_stage(name, stage)
         except Exception as exc:  # noqa: BLE001
+            print(f"[graph] stage[{stage}/{name}] FAILED: {exc}", flush=True)
             errors.append(f"stage[{stage}/{name}]: {exc}")
             stages[stage] = {
                 "cluster_id": None, "status": "failed",
@@ -223,6 +224,12 @@ def route_after_preflight(state: BOIterationState) -> Literal["real", "mock", "p
         return "mock" if state.get("mock", True) else "real"
     if status in ("fail_managed", "ambiguous") and attempts < MAX_PROPOSE_RETRIES:
         return "propose"
+    name = state.get("config_name", "?")
+    print(
+        f"[graph] terminating {name}: preflight={status} "
+        f"attempts={attempts}/{MAX_PROPOSE_RETRIES}",
+        flush=True,
+    )
     return END
 
 
@@ -233,7 +240,14 @@ def route_after_stage(state: BOIterationState) -> Literal["next", "__end__"]:
     terminates the iteration so evaluate doesn't run with partial metrics.
     """
     stages = state.get("stages", {}) or {}
-    if any((s or {}).get("status") == "failed" for s in stages.values()):
+    failed = [k for k, s in stages.items() if (s or {}).get("status") == "failed"]
+    if failed:
+        name = state.get("config_name", "?")
+        print(
+            f"[graph] terminating {name}: stage {failed[0]} failed "
+            f"(failed_stages={failed})",
+            flush=True,
+        )
         return END
     return "next"
 
