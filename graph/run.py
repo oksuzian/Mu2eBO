@@ -80,9 +80,21 @@ def main() -> int:
         init["x_point"] = [float(v) for v in args.x_point.split(",")]
 
     print(f"[run] thread_id={thread_id}", flush=True)
+    expected_name = args.config_name
     final = None
     for ev in graph.stream(init, cfg, stream_mode="values"):
         final = ev
+        # Config-name swap guard: if a stale SqliteSaver checkpoint resumes
+        # a different thread's state mid-stream, abort loudly rather than
+        # silently writing the wrong row to the leaderboard.
+        # See [[closed-loop-thread-id-checkpoint-collision]].
+        if expected_name is not None:
+            got = ev.get("config_name")
+            if got is not None and got != expected_name:
+                raise RuntimeError(
+                    f"[run] FATAL config_name swapped: expected={expected_name!r} "
+                    f"got={got!r} thread_id={thread_id!r}"
+                )
         keys = [k for k in ("config_name", "preflight", "objective") if k in ev]
         snap = {k: ev[k] for k in keys}
         print(f"[run] {json.dumps(snap)}", flush=True)

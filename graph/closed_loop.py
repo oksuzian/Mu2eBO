@@ -88,6 +88,7 @@ class ChildRecord(TypedDict, total=False):
     log: str
     x_point: List[float]
     started_at: float
+    thread_id: str  # per-launch unique; differs from config_name to dodge collisions
 
 
 class RoundState(TypedDict, total=False):
@@ -163,7 +164,7 @@ def _child_in_leaderboard(name: str, mode: str) -> bool:
     return any(p.cfg == name for p in m.load_history())
 
 
-def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
+def _child_terminal_via_checkpoint(name: str, child_graph, thread_id: Optional[str] = None) -> bool:
     """True if the child's compiled graph reports no remaining work.
 
     `CheckpointTuple` does not expose `next`; only `StateSnapshot` (returned
@@ -182,7 +183,10 @@ def _child_terminal_via_checkpoint(name: str, child_graph) -> bool:
     `metadata.step >= 1` (at least one super-step executed). Fresh threads
     return empty `values` and `step == -1` from LangGraph's SqliteSaver.
     """
-    cfg = {"configurable": {"thread_id": name}}
+    # Lookup key is the per-launch thread_id (now decoupled from config_name
+    # to dodge SqliteSaver collisions); fall back to `name` only for legacy
+    # children records that pre-date the decoupling.
+    cfg = {"configurable": {"thread_id": thread_id or name}}
     try:
         snap = child_graph.get_state(cfg)
     except Exception:
@@ -340,9 +344,20 @@ def node_launch_children(state: RoundState) -> dict:
         log_path = Path(rec["log"])
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_fh = open(log_path, "w")
+        # Per-launch unique thread_id: prevents SqliteSaver checkpoint collision
+        # with prior `python -m graph.run --thread-id <name>` sessions sharing
+        # the same name (e.g. manual smokes named graph001). config_name stays
+        # the user-visible leaderboard key; thread_id is just the checkpoint
+        # row key. See [[closed-loop-thread-id-checkpoint-collision]].
+        # Reuse a thread_id from a prior crashed parent (resume path) when
+        # the record already carries one — otherwise the new launch would
+        # orphan the prior child's checkpoint AND the barrier's checkpoint
+        # lookup (which uses rec["thread_id"]) would never resolve.
+        thread_id = rec.get("thread_id") or f"{name}_{uuid.uuid4().hex[:8]}"
+        rec["thread_id"] = thread_id
         cmd = [
             sys.executable, "-m", "graph.run",
-            "--thread-id", name,
+            "--thread-id", thread_id,
             "--config-name", name,
             "--mode", mode,
             "--alpha", str(alpha),
@@ -395,7 +410,10 @@ def node_barrier(state: RoundState) -> dict:
             for name in list(pending):
                 if _child_in_leaderboard(name, mode) or _child_is_broken(name):
                     completed.add(name)
-                elif _child_terminal_via_checkpoint(name, child_graph):
+                elif _child_terminal_via_checkpoint(
+                    name, child_graph,
+                    thread_id=(children.get(name) or {}).get("thread_id"),
+                ):
                     # Terminal checkpoint but no leaderboard row + no broken.txt
                     # → graph ended via preflight-fail / stage-fail. Count as done.
                     completed.add(name)

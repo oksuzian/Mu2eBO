@@ -16,8 +16,41 @@ sys.path.insert(0, str(Path(__file__).parent))
 from langgraph.graph import END  # noqa: E402
 
 import pipeline_io as pio  # noqa: E402
-from config import DEFAULT_ALPHA, DEFAULT_MODE, MAX_PROPOSE_RETRIES  # noqa: E402
+from config import (  # noqa: E402
+    DEFAULT_ALPHA,
+    DEFAULT_MODE,
+    GRID_DATA_ROOT,
+    MAX_PROPOSE_RETRIES,
+)
 from state import BOIterationState  # noqa: E402
+
+
+def _record_zero_row(config_name: str, cause: str, tail: str) -> None:
+    """Append a row to <grid_root>/<config_name>/scan_logs/evaluate_zero_row.tsv.
+
+    Sidecar survives state-dir cleanup so post-mortem of silent zero-objective
+    closed-loop children doesn't depend on graph_data/state/<child>/. See #8.
+    """
+    out_dir = GRID_DATA_ROOT / config_name / "scan_logs"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / "evaluate_zero_row.tsv"
+        new_file = not path.exists()
+        tail_clean = (tail or "").replace("\t", " ").replace("\n", " ")[:500]
+        with path.open("a") as fh:
+            if new_file:
+                fh.write("config_name\tcause\ttail\n")
+            fh.write(f"{config_name}\t{cause}\t{tail_clean}\n")
+        print(
+            f"[graph] zero_row[{config_name}] cause={cause} → {path}",
+            flush=True,
+        )
+    except OSError as exc:
+        # Sidecar is best-effort — don't break the graph if disk is full.
+        print(
+            f"[graph] zero_row[{config_name}] sidecar write FAILED: {exc}",
+            flush=True,
+        )
 
 
 def node_propose(state: BOIterationState) -> dict:
@@ -96,6 +129,7 @@ def make_stage_node(stage: str):
         try:
             stages[stage] = pio.run_stage(name, stage)
         except Exception as exc:  # noqa: BLE001
+            print(f"[graph] stage[{stage}/{name}] FAILED: {exc}", flush=True)
             errors.append(f"stage[{stage}/{name}]: {exc}")
             stages[stage] = {
                 "cluster_id": None, "status": "failed",
@@ -114,6 +148,7 @@ def node_harvest(state: BOIterationState) -> dict:
         metrics = pio.run_harvest(name)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"harvest[{name}]: {exc}")
+        _record_zero_row(name, "harvest_exception", str(exc))
         return {"metrics": None, "errors": errors}
     return {"metrics": metrics, "errors": errors}
 
@@ -170,13 +205,20 @@ def node_evaluate(state: BOIterationState) -> dict:
     errors = list(state.get("errors", []))
     if state.get("scan_logs_broken"):
         errors.append(f"evaluate[{name}]: skipped (scan_logs_broken=True)")
+        _record_zero_row(name, "scan_logs_broken",
+                         str(state.get("scan_report_path") or ""))
         return {"objective": None, "errors": errors}
     mode = state["mode"]
     alpha = state.get("alpha", DEFAULT_ALPHA)
     metrics = state["metrics"]
+    if metrics is None:
+        errors.append(f"evaluate[{name}]: metrics is None (harvest produced no row)")
+        _record_zero_row(name, "metrics_none", "")
+        return {"objective": None, "errors": errors}
     obj, tail = pio.run_evaluate(mode, name, metrics, alpha=alpha)
     if obj is None:
         errors.append(f"evaluate[{name}]: could not parse objective; tail={tail}")
+        _record_zero_row(name, "obj_unparseable", tail or "")
     return {"objective": obj, "errors": errors}
 
 
@@ -223,6 +265,12 @@ def route_after_preflight(state: BOIterationState) -> Literal["real", "mock", "p
         return "mock" if state.get("mock", True) else "real"
     if status in ("fail_managed", "ambiguous") and attempts < MAX_PROPOSE_RETRIES:
         return "propose"
+    name = state.get("config_name", "?")
+    print(
+        f"[graph] terminating {name}: preflight={status} "
+        f"attempts={attempts}/{MAX_PROPOSE_RETRIES}",
+        flush=True,
+    )
     return END
 
 
@@ -233,7 +281,14 @@ def route_after_stage(state: BOIterationState) -> Literal["next", "__end__"]:
     terminates the iteration so evaluate doesn't run with partial metrics.
     """
     stages = state.get("stages", {}) or {}
-    if any((s or {}).get("status") == "failed" for s in stages.values()):
+    failed = [k for k, s in stages.items() if (s or {}).get("status") == "failed"]
+    if failed:
+        name = state.get("config_name", "?")
+        print(
+            f"[graph] terminating {name}: stage {failed[0]} failed "
+            f"(failed_stages={failed})",
+            flush=True,
+        )
         return END
     return "next"
 
