@@ -3,7 +3,7 @@ marp: true
 theme: default
 paginate: true
 size: 16:9
-footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29"
+footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)"
 style: |
   section { font-size: 24px; }
   h1 { color: #003366; }
@@ -97,9 +97,10 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 | X01     | 10 | 1      | 10    | Sobol bootstrap, all PASS preflight   |
 | X02     | 10 | 3      | 30    | clean, frontier still moving          |
 | X03     | 10 | 5      | 50    | frontier widening, non-converged      |
-| **X04** | 10 | 10     | 100   | **in progress**                       |
+| X04     | 10 | 10     | 0     | **silent fail** (all preflight rc=3)  |
+| **X05** | 10 | 3      | 9+    | **in progress** (R0 done, R1 on grid) |
 
-**End of X04:** ~190 evals total budget.
+**Leaderboard now: 82 evals** (X04 wiped — see ambiguous-preflight incident).
 
 ---
 
@@ -123,25 +124,79 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 
 ---
 
+## Saturation diagnostic (post-hoc FoM)
+
+<div style="display: grid; grid-template-columns: 62% 38%; gap: 12px; align-items: center; font-size: 18px;">
+<div>
+
+![w:100%](saturation_bo_foils_v1_slim.png)
+
+</div>
+<div>
+
+**Δbest = max(obj_round) − max(obj_all_prior)**
+SAT when Δbest ≤ ε·R1-gain for last *k*=2 rounds (ε=0.05).
+
+- Anchor (R1) = **0.096**
+- Δbest **+0.058 → +0.161** thru R04
+- Hit-rate **55→50 %** (healthy)
+- **not saturated** — keep going
+
+</div>
+</div>
+
+---
+
+## Frontier progress: HV + Pareto-front size
+
+<div style="display: grid; grid-template-columns: 50% 50%; gap: 12px; align-items: center; font-size: 17px;">
+<div>
+
+![w:100%](saturation_bo_foils_v1_hv.png)
+
+**Dominated hypervolume (sob, −calo)** — area swept by the
+Pareto frontier vs ref point. Monotone non-decreasing; a flattening
+curve is the strongest single-number "we have converged" signal.
+
+</div>
+<div>
+
+![w:100%](saturation_bo_foils_v1_pf.png)
+
+**Pareto-front size** — number of non-dominated points. Can DROP
+(new evals dominate old frontier members) → the GP is *moving*,
+not just *extending* the frontier. Healthy churn ≠ saturation.
+
+</div>
+</div>
+
+Both panels: x = evaluation index in leaderboard (harvest order).
+
+---
+
 ## Top configurations so far
 
 | config             | n_up | n_down | rOut  | hT    | rIn  | sob  | calo (×10⁻⁵) | obj  |
 |--------------------|------|--------|-------|-------|------|------|---------------|------|
 | `foilsX03R04_02`   | 5    | 6      | 184.4 | 0.121 | 0.0  | 3.43 | 1.29          | **2.14** |
+| `foilsX05R00_09`   | 5    | 6      | 186.3 | 0.146 | 7.8  | 3.28 | 1.19          | 2.09 |
+| `foilsX05R00_08`   | 4    | 6      | 189.4 | 0.150 | 8.6  | 3.29 | 1.20          | 2.09 |
 | `foilsX03R03_03`   | 5    | 6      | 203.4 | 0.080 | 0.0  | 3.51 | 1.42          | 2.09 |
-| `foilsX03R04_00`   | 5    | 6      | 174.1 | 0.125 | 0.0  | 3.47 | 1.40          | 2.07 |
-| `foilsX03R02_06`   | 5    | 6      | 225.4 | 0.080 | 0.0  | 3.41 | 1.45          | 1.96 |
-| `foilsX03R02_03`   | 6    | 6      | 198.5 | 0.050 | 0.0  | 3.63 | 1.73          | 1.90 |
+| `foilsX05R00_06`   | 5    | 6      | 184.1 | 0.149 | 7.9  | 3.27 | 1.18          | 2.09 |
 
-**Pattern (top-5):** **max-extras** dominates — `n_up ∈ {5,6}, n_down = 6, rIn = 0`.
-Optimum sits in the **thin-foils / large-radius** regime.
+**Pattern (top-5):** **max-extras** still dominates — `n_up ∈ {4,5}, n_down = 6`,
+`rOut ≈ 180-200 mm`, `hT ≈ 0.08-0.15 mm`. X05 R0 placed 3 fresh entries
+clustering tightly around the X03 champion, now probing **non-zero rIn (~8 mm)**
+— frontier tightening, not shifting.
 
 ---
 
 ## Open questions / next steps
 
-- **foilsX04** running now (100 evals, q = 10 × 10 rounds).
-- If `extra_rIn` remains under-trained after X04: **hand-seed** small-rIn /
-  large-rIn probes.
-- Consider promoting a **6th dimension** (e.g. base hole radius decoupled
+- **foilsX05** in flight (q=10 × 3 rounds; R0 harvested, R1 on grid).
+- X04 silent total-fail (20/20 children at `preflight=ambiguous rc=3`) —
+  convergence check needs a "new evals this round" gate. Tracked.
+- `extra_rIn` length-scale still rails to upper bound at n=82 — next:
+  **hand-seed** small-rIn / large-rIn probes if X05 doesn't sharpen it.
+- Consider promoting a **6th dimension** (base hole radius decoupled
   from extras) if 5D plateaus.
