@@ -20,7 +20,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h1 id="foilsmode">FoilsMode</h1>
 <h2 id="5d-bayesian-optimization-of-the-mu2e-stopping-target-foil-stack">5D Bayesian Optimization of the Mu2e Stopping-Target Foil Stack</h2>
 <p><strong>Y. Oksuzian</strong><br />
@@ -40,7 +40,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="motivation">Motivation</h2>
 <ul>
 <li>Does modifying the <strong>stopping-target foil stack</strong> buy CE efficiency?</li>
@@ -63,7 +63,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="the-physical-knob">The physical knob</h2>
 <p><strong>Base 37-foil stack (deployed v02, pinned):</strong></p>
 <ul>
@@ -90,7 +90,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="5d-search-space">5D search space</h2>
 <table>
 <thead>
@@ -143,7 +143,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="pipeline">Pipeline</h2>
 <pre is="marp-pre" data-auto-scaling="downscale-only"><code>propose → preflight (G4 surface check)
        → mubeam → run1b_mubeam → concat → mustops_ce
@@ -169,7 +169,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="phase-0-preflight-passes-the-extreme-corners">Phase 0: preflight passes the extreme corners</h2>
 <p>Three extreme-corner configs hand-built and run through G4 surface-check <strong>before any grid submit</strong>:</p>
 <table>
@@ -234,7 +234,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="run-timeline">Run timeline</h2>
 <table>
 <thead>
@@ -299,7 +299,7 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="gp-cloud-evolution-animated">GP cloud evolution (animated)</h2>
 <div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
 <div>
@@ -327,7 +327,34 @@ h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
+<h2 id="gp-cloud-static-snapshot">GP cloud (static snapshot)</h2>
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+<p><img src="gp_predicted_foils_cloud.png" alt="" /></p>
+</div>
+<div>
+<p><strong>Latest frame</strong>, x-axis extended to <strong>Relative S/√B = 1.4</strong> so the<br />
+GP-predicted Pareto frontier no longer rails the right edge. Pinned 37-foil<br />
+base sits near <code>x = 1.0</code>; +12 envelope picks land in the 1.05 – 1.35 band.<br />
+Calo-floor unchanged: best-known config sits at ~1.3 × 10⁻⁶.</p>
+</div>
+</div>
+<footer>FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)</footer>
+</section>
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
+h1 { color: #003366; }
+h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
+table { font-size: 18px; }
+code { font-size: 18px; }
+pre { font-size: 16px; }
+" lang="en-US" data-marpit-pagination="10" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
+h1 { color: #003366; }
+h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
+table { font-size: 18px; }
+code { font-size: 18px; }
+pre { font-size: 16px; }
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="saturation-diagnostic-post-hoc-fom">Saturation diagnostic (post-hoc FoM)</h2>
 <div style="display: grid; grid-template-columns: 62% 38%; gap: 12px; align-items: center; font-size: 18px;">
 <div>
@@ -346,19 +373,19 @@ SAT when Δbest ≤ ε·R1-gain for last <em>k</em>=2 rounds (ε=0.05).</p>
 </div>
 <footer>FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)</footer>
 </section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="10" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="11" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-" lang="en-US" data-marpit-pagination="10" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
+" lang="en-US" data-marpit-pagination="11" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="frontier-progress-hv--pareto-front-size">Frontier progress: HV + Pareto-front size</h2>
 <div style="display: grid; grid-template-columns: 50% 50%; gap: 12px; align-items: center; font-size: 17px;">
 <div>
@@ -377,19 +404,19 @@ not just <em>extending</em> the frontier. Healthy churn ≠ saturation.</p>
 <p>Both panels: x = evaluation index in leaderboard (harvest order).</p>
 <footer>FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)</footer>
 </section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="11" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="12" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-" lang="en-US" data-marpit-pagination="11" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
+" lang="en-US" data-marpit-pagination="12" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="top-configurations-so-far">Top configurations so far</h2>
 <table>
 <thead>
@@ -469,19 +496,19 @@ clustering tightly around the X03 champion, now probing <strong>non-zero rIn (~8
 — frontier tightening, not shifting.</p>
 <footer>FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)</footer>
 </section>
-</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="12" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
+</foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="13" data-paginate="true" data-footer="FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)" data-theme="default" data-style="section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-" lang="en-US" data-marpit-pagination="12" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
+" lang="en-US" data-marpit-pagination="13" style="--paginate:true;--footer:FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run);--theme:default;--style:section { font-size: 24px; }
 h1 { color: #003366; }
 h2 { color: #003366; border-bottom: 2px solid #003366; padding-bottom: 4px; }
 table { font-size: 18px; }
 code { font-size: 18px; }
 pre { font-size: 16px; }
-;" data-marpit-pagination-total="12" data-size="16:9">
+;" data-marpit-pagination-total="13" data-size="16:9">
 <h2 id="open-questions--next-steps">Open questions / next steps</h2>
 <ul>
 <li><strong>foilsX05</strong> in flight (q=10 × 3 rounds; R0 harvested, R1 on grid).</li>

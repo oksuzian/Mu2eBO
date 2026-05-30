@@ -124,6 +124,26 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 
 ---
 
+## GP cloud (static snapshot)
+
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+
+![w:100%](gp_predicted_foils_cloud.png)
+
+</div>
+<div>
+
+**Latest frame**, x-axis extended to **Relative S/√B = 1.4** so the
+GP-predicted Pareto frontier no longer rails the right edge. Pinned 37-foil
+base sits near `x = 1.0`; +12 envelope picks land in the 1.05 – 1.35 band.
+Calo-floor unchanged: best-known config sits at ~1.3 × 10⁻⁶.
+
+</div>
+</div>
+
+---
+
 ## Saturation diagnostic (post-hoc FoM)
 
 <div style="display: grid; grid-template-columns: 62% 38%; gap: 12px; align-items: center; font-size: 18px;">
