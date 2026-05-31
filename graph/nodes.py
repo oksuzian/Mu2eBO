@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from langgraph.graph import END  # noqa: E402
 
+import autoresearch_bo_michael as bo  # noqa: E402
 import pipeline_io as pio  # noqa: E402
 from config import (  # noqa: E402
     DEFAULT_ALPHA,
@@ -61,16 +62,32 @@ def node_propose(state: BOIterationState) -> dict:
     """
     mode = state.get("mode", DEFAULT_MODE)
     alpha = state.get("alpha", DEFAULT_ALPHA)
+    caller_pinned = bool(state.get("config_name"))
     name = state.get("config_name") or pio.next_config_name(mode)
     forced = state.get("x_point") or None
 
     try:
         x, geom = pio.propose_one(mode, name, alpha=alpha, x_override=forced)
-    except ValueError as exc:
-        # Name collision — pick a fresh one and retry once.
-        retry_name = pio.next_config_name(mode)
-        x, geom = pio.propose_one(mode, retry_name, alpha=alpha, x_override=forced)
-        name = retry_name
+    except ValueError:
+        if caller_pinned:
+            # Re-entry with the same caller-pinned name (preflight
+            # ambiguous/fail_managed → route_after_preflight loops to
+            # propose). The ValueError here can only be the pending-row
+            # collision from our own prior attempt: graph topology never
+            # lets a child reach leaderboard-append under a caller-pinned
+            # name before re-entering propose. Drop the stale pending row
+            # and retry under the SAME name — silent-renaming would break
+            # the closed-loop --name-prefix contract and trip the
+            # config_name swap guard in graph/run.py.
+            bo.MODES[mode].remove_pending(name)
+            x, geom = pio.propose_one(mode, name, alpha=alpha, x_override=forced)
+        else:
+            # Auto-named path (no --config-name on the CLI): a true name
+            # collision means a concurrent runner picked the same auto-name;
+            # fork to the next free name.
+            retry_name = pio.next_config_name(mode)
+            x, geom = pio.propose_one(mode, retry_name, alpha=alpha, x_override=forced)
+            name = retry_name
 
     return {
         "config_name": name,
