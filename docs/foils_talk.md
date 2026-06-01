@@ -3,7 +3,7 @@ marp: true
 theme: default
 paginate: true
 size: 16:9
-footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-05-29 (X05 mid-run)"
+footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-06-01 (n=251, latest=X08)"
 style: |
   section { font-size: 24px; }
   h1 { color: #003366; }
@@ -17,7 +17,7 @@ style: |
 ## 5D Bayesian Optimization of the Mu2e Stopping-Target Foil Stack
 
 **Y. Oksuzian**
-2026-05-29
+2026-05-31
 Mu2e — autoresearch / closed-loop BO
 
 ---
@@ -67,10 +67,49 @@ propose → preflight (G4 surface check)
        → harvest → scan_logs → leaderboard
 ```
 
-- LangGraph state machine, q parallel children per round.
-- GP refit between rounds (skopt EI, `cl_min` parallel strategy).
-- Stop criteria: `--max-rounds`, Pareto-hash convergence, or operator
-  `STOP_CLOSED_LOOP`.
+- LangGraph state machine; **q** (batch size) children per round.
+- **Gaussian Process (GP)** surrogate refit between rounds.
+- **Expected Improvement (EI)** acquisition: exploit (mean) vs explore (σ).
+- **Constant Liar — Min (`cl_min`)** for batch: feed in-flight picks
+  the worst observed `obj`, refit GP, re-pick. Spreads the batch; cheaper than qEI.
+- **Stop:** `--max-rounds`.
+
+---
+
+## Batch BO: qEI — the "proper" multi-point EI
+
+**Plain EI (`q=1`):** pick the single point that maximizes expected
+improvement over the current best `obj`.
+
+**qEI (`q>1`):** pick `q` points **jointly** so the **best of the q** is
+expected to improve the most. The question changes from
+*"what's the best next point?"* to *"what's the best batch of `q` points
+to try in parallel?"*
+
+**The math:** integrate over the GP's **joint posterior** at all `q`
+candidate locations at once. Points that are correlated (close together)
+contribute redundantly to the integral, so the optimizer **naturally
+spreads** them. No lies needed — the math handles it.
+
+---
+
+## Why we don't use qEI: cost
+
+**The joint integral has no closed form for `q > 1`:**
+
+- Monte Carlo over **thousands** of GP samples per candidate batch.
+- Acquisition optimizer searches over `q × d` dimensions
+  (here 5D × q=10 = **50D**) instead of just `d` (5D).
+- Each acquisition evaluation costs **~100–1000×** a single-point EI eval.
+
+**Constant Liar is the cheap proxy:**
+sequentially pick `q` points, lying about the in-flight ones. You get most
+of the spreading benefit at the cost of `q` single-point EI optimizations
+— **linear in `q`** instead of exponential.
+
+That's why we run `cl_min`, not qEI. BoTorch supports real
+qEI / qNEHVI (Monte Carlo); benchmarked on a sibling problem — skopt's
+`cl_min` was good enough at this scale.
 
 ---
 
@@ -92,15 +131,21 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 
 ## Run timeline
 
-| Run     | q  | Rounds | Evals | Status                                |
-|---------|----|--------|-------|---------------------------------------|
-| X01     | 10 | 1      | 10    | Sobol bootstrap, all PASS preflight   |
-| X02     | 10 | 3      | 30    | clean, frontier still moving          |
-| X03     | 10 | 5      | 50    | frontier widening, non-converged      |
-| X04     | 10 | 10     | 0     | **silent fail** (all preflight rc=3)  |
-| **X05** | 10 | 3      | 9+    | **in progress** (R0 done, R1 on grid) |
+| Run     | q  | Rounds | Evals | Status                                  |
+|---------|----|--------|-------|-----------------------------------------|
+| X01     | 10 | 1      | 10    | Sobol bootstrap, all PASS preflight     |
+| X02     | 10 | 3      | 30    | clean, frontier still moving            |
+| X03     | 10 | 5      | 50    | frontier widening                       |
+| X04     | 10 | 10     | 0     | **silent fail** (all preflight rc=3)    |
+| X05     | 10 | 3      | 30    | clean, frontier tightening              |
+| X06     | 10 | 3      | 28    | 2 children lost to name-fork bug (#172) |
+| X07     | 10 | 10     | 83    | **champion R01_03 obj=2.178**; SAT R02+ (17 zero-row sidecars) |
+| **X08*** | 10 | 5     | 8 / 50 | **qNEHVI picker (BoTorch)** — R00 done best obj=1.79; in-flight |
 
-**Leaderboard now: 82 evals** (X04 wiped — see ambiguous-preflight incident).
+<!-- run-timeline:start -->
+**Leaderboard now: 251 evals** (X01=10, X02=29, X03=34, X05=25, X06=22, X07=83, X08=47; X04 wiped — see ambiguous-preflight incident).
+<!-- run-timeline:end -->
+*X08 = first qNEHVI production run (`--picker qnehvi`, [[batch-bo]]); contrasts the LOCO finding that CL-min wins 4/5.*
 
 ---
 
@@ -114,10 +159,11 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 </div>
 <div>
 
-**Frontier widened across X01 → X03:**
+**Frontier widened across X01 → X07:**
 
-- sob peak: **3.31 → 3.87** (+17 %)
-- calo floor: **5.6 × 10⁻⁶ → 8.3 × 10⁻⁷** (6.7× drop)
+- sob peak: **3.31 → 3.62** (+9 %)
+- calo floor: **5.6 × 10⁻⁶ → 1.6 × 10⁻⁶** (3.5× drop)
+- Plateau in last 5 rounds — see saturation slide.
 
 </div>
 </div>
@@ -134,10 +180,52 @@ All three: `total_hits = 1, baseline = 1, managed = 0` — no overlap.
 </div>
 <div>
 
-**Latest frame**, x-axis extended to **Relative S/√B = 1.4** so the
-GP-predicted Pareto frontier no longer rails the right edge. Pinned 37-foil
-base sits near `x = 1.0`; +12 envelope picks land in the 1.05 – 1.35 band.
-Calo-floor unchanged: best-known config sits at ~1.3 × 10⁻⁶.
+<!-- highlights:start -->
+- **251 evals**, frontier saturated
+- Best **obj = 2.18** (sob 3.60, calo 1.42 × 10⁻⁵); calo floor **8.9e-07**
+- Winning region: `n_down = 6`, `rOut ≈ 164 mm`, thin `hT`
+<!-- highlights:end -->
+
+</div>
+</div>
+
+---
+
+## BoTorch cross-check (same data, different surrogate)
+
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+
+![w:100%](botorch_predicted_foils_cloud.png)
+
+</div>
+<div>
+
+<!-- botorch-cross-check:start -->
+- BoTorch `SingleTaskGP` re-fit on the same **n=251** rows
+- Observed extrema: **sob_max 3.93**; **calo_min 8.95e-07**
+- Cross-model agreement → foils saturation is **model-independent** (same conclusion as helical)
+<!-- botorch-cross-check:end -->
+
+</div>
+</div>
+
+---
+
+## Picker diversity: BoTorch qNEHVI vs skopt CL-min (q=10, n=164)
+
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+
+![w:100%](diversity_overlay_foils.png)
+
+</div>
+<div>
+
+- Intra-batch spread (normalized 5D L2): **BoTorch 0.83**, **CL-min 0.10**
+- Predicted Pareto dominance: **CL-min 10/10**, BoTorch 0/10
+- **Reversal vs n=128** (was BoTorch 10/10): champion ridge sharpened → CL-min collapses *onto* it; qNEHVI scatters into worse corners
+- Operational: keep **both pickers in rotation**, don't crown one
 
 </div>
 </div>
@@ -157,10 +245,10 @@ Calo-floor unchanged: best-known config sits at ~1.3 × 10⁻⁶.
 **Δbest = max(obj_round) − max(obj_all_prior)**
 SAT when Δbest ≤ ε·R1-gain for last *k*=2 rounds (ε=0.05).
 
-- Anchor (R1) = **0.096**
-- Δbest **+0.058 → +0.161** thru R04
-- Hit-rate **55→50 %** (healthy)
-- **not saturated** — keep going
+- Anchor (R1) = **+0.088**, champion obj = **2.178** at X07R01_03
+- Δbest **negative for 8 consecutive rounds** (R02–R09)
+- Hit-rate first 20 / last 20: **55 % → 65 %** — rebounded after X08 R00 (qNEHVI) scattered into fresh corners; **HV grew but obj-best ceiling did not move** → diversity indicator, not a saturation indicator
+- **VERDICT: SATURATED** (per-round Δbest plateau is the load-bearing signal) — next is a dimensionality lift, not more rounds
 
 </div>
 </div>
@@ -198,25 +286,30 @@ Both panels: x = evaluation index in leaderboard (harvest order).
 
 | config             | n_up | n_down | rOut  | hT    | rIn  | sob  | calo (×10⁻⁵) | obj  |
 |--------------------|------|--------|-------|-------|------|------|---------------|------|
-| `foilsX03R04_02`   | 5    | 6      | 184.4 | 0.121 | 0.0  | 3.43 | 1.29          | **2.14** |
-| `foilsX05R00_09`   | 5    | 6      | 186.3 | 0.146 | 7.8  | 3.28 | 1.19          | 2.09 |
-| `foilsX05R00_08`   | 4    | 6      | 189.4 | 0.150 | 8.6  | 3.29 | 1.20          | 2.09 |
-| `foilsX03R03_03`   | 5    | 6      | 203.4 | 0.080 | 0.0  | 3.51 | 1.42          | 2.09 |
-| `foilsX05R00_06`   | 5    | 6      | 184.1 | 0.149 | 7.9  | 3.27 | 1.18          | 2.09 |
+| `foilsX07R01_03`   | 6    | 6      | 159.9 | 0.116 | 6.5  | 3.60 | 1.42          | **2.178** |
+| `foilsX07R01_08`   | 5    | 5      | 150.7 | 0.132 | 6.9  | 3.62 | 1.48          | 2.145 |
+| `foilsX03R04_02`   | 5    | 6      | 184.4 | 0.121 | 0.0  | 3.43 | 1.29          | 2.144 |
+| `foilsX07R01_01`   | 6    | 6      | 157.2 | 0.116 | 7.3  | 3.60 | 1.47          | 2.128 |
+| `foilsX05R01_03`   | 6    | 6      | 165.6 | 0.151 | 0.0  | 3.36 | 1.26          | 2.104 |
 
-**Pattern (top-5):** **max-extras** still dominates — `n_up ∈ {4,5}, n_down = 6`,
-`rOut ≈ 180-200 mm`, `hT ≈ 0.08-0.15 mm`. X05 R0 placed 3 fresh entries
-clustering tightly around the X03 champion, now probing **non-zero rIn (~8 mm)**
-— frontier tightening, not shifting.
+**Pattern (top-5):** **max-extras** dominates — `n_up ∈ {5,6}, n_down ∈ {5,6}`,
+`rOut ≈ 150-185 mm`, `hT ≈ 0.12-0.15 mm`, `rIn ≈ 0-7 mm`. The X07R01 batch
+placed **3 of the top-5** in a tight cluster around (n_up=6, n_down=6, rOut≈160) —
+champion ridge sharpened, then 5 rounds of failed exceedence attempts.
 
 ---
 
 ## Open questions / next steps
 
-- **foilsX05** in flight (q=10 × 3 rounds; R0 harvested, R1 on grid).
-- X04 silent total-fail (20/20 children at `preflight=ambiguous rc=3`) —
-  convergence check needs a "new evals this round" gate. Tracked.
-- `extra_rIn` length-scale still rails to upper bound at n=82 — next:
-  **hand-seed** small-rIn / large-rIn probes if X05 doesn't sharpen it.
-- Consider promoting a **6th dimension** (base hole radius decoupled
-  from extras) if 5D plateaus.
+- **5D space saturated** at n=212 (R02–R09 all negative Δbest, 8
+  consecutive rounds below ε·anchor). Champion **foilsX07R01_03 obj = 2.178**.
+- LOCO honest-judge eval (last 5 cohorts, held-out judge GP): **CL-min
+  wins 4/5**, Δ(BO−CL) mean = **−0.53**. → keep CL-min as production
+  picker; the prior "switch to BoTorch" claim was self-referee bias.
+- **Next move is a dimensionality lift, not more rounds:** promote
+  base hole-radius and/or base halfThickness to BO knobs (6th/7th
+  dim), or open a parallel BO line on stack-spacing.
+- Process fixes landed during X04→X07: ambiguous-preflight retry
+  (#162), per-launch unique thread_id (#165), zero-row classifier
+  + sidecar (#167), `node_propose` re-entry name preservation (#172),
+  `sourced_env` stderr leak fix (#170).
