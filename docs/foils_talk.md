@@ -282,6 +282,24 @@ Both panels: x = evaluation index in leaderboard (harvest order).
 
 ---
 
+## Obj champion geometry — foilsX07R01_03
+
+![w:78%](foil_champion_foilsX07R01_03_sketch.png)
+
+- **n_up=6 / n_down=6** max-extras; rOut≈160, hT≈0.116, hole rIn≈6.5 mm
+- Joint sob+calo optimum (obj = 2.178); pitch ΔZ=22.22 mm from base
+
+---
+
+## Sob-only champion geometry — foilsX08R04_08
+
+![w:78%](foil_champion_foilsX08R04_08_sketch.png)
+
+- Same max-extras corner; **smaller rOut≈124, thinner hT≈0.073, rIn≈1.3 mm**
+- Pure S/√B ridge: sob=3.93, but calo ~38% higher → obj=1.97
+
+---
+
 ## Top configurations so far
 
 | config             | n_up | n_down | rOut  | hT    | rIn  | sob  | calo (×10⁻⁵) | obj  |
