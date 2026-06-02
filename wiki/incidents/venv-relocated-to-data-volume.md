@@ -9,7 +9,7 @@ status: resolved
 
 **Type:** incident
 **Status:** resolved
-**Updated:** 2026-05-23
+**Updated:** 2026-05-31
 
 ## Summary
 
@@ -60,6 +60,38 @@ linearly extrapolate from small-venv timing.
   manually-activated only. `.venv-graph` is referenced from the
   [[graph-runner]] skill and is the standard entrypoint for
   `python -m graph.run`.
+- **Leaked CVMFS `PYTHONPATH` shadows venv packages** (2026-05-31): if a
+  Musing env was sourced into the launching shell (e.g. `MDC2025ap` —
+  `muse setup` / `setupmu2e-art.sh`), `PYTHONPATH` gets stuffed with cvmfs
+  spack **python3.10** site-packages (`…/environments/{muse-…-p096,ops-019}/
+  .spack-env/view/lib/python3.10/site-packages`) AND cvmfs `python3.10`
+  becomes first on `PATH`. Both venvs prepend `PYTHONPATH` ahead of their
+  own `site-packages`, so the py3.10 copies of numpy/typing_extensions
+  shadow the venv's:
+  - `.venv-botorch` (py3.9): imports numpy 2.1.2 → `ModuleNotFoundError:
+    numpy._core._multiarray_umath` + the *misleading* "do not import numpy
+    from its source directory" message (NOT a source-tree issue).
+  - `.venv-graph` (py3.11): `ImportError: cannot import name 'Sentinel'
+    from 'typing_extensions'` (py3.10 copy lacks it) → breaks
+    `unittest discover -s tests`.
+  - **Fix: prefix the command with `PYTHONPATH=` only.** `PYTHONHOME` is
+    NOT involved (it stays unset); do not `-u PYTHONHOME`. Verified
+    2026-05-31: `PYTHONPATH= .venv-graph/bin/python -m unittest …` →
+    56/56 green; `import typing_extensions` resolves inside the venv.
+  - **Scope: interactive / Claude-Bash sessions only.** The production
+    closed-loop parent runs with a CLEAN env (no `PYTHONPATH`/`PYTHONHOME`,
+    no cvmfs on PATH — verified via `/proc/<pid>/environ`), so grid runs
+    are unaffected. This only bites venv invocations from a shell that
+    sourced a Musing first (the `/closed-loop-status` saturation step,
+    ad-hoc test runs, etc.).
+- **skopt is NOT installed in `.venv-botorch`** (2026-05-31): any
+  cross-picker comparison script (e.g.
+  `mmackenz_table_plots/diversity_overlay_foils.py`) that wants both a
+  BoTorch qNEHVI batch AND a skopt CL-min batch in the same process
+  must invoke `gp_predict_{foils,helical}.compute_explore_picks` via a
+  `.venv-graph` subprocess (pipe picks back as JSON). matplotlib +
+  torch + botorch live in `.venv-botorch`; skopt + langgraph + scikit-
+  learn live in `.venv-graph`; there is no single venv with all four.
 
 ## Cross-links
 

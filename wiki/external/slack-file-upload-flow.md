@@ -2,7 +2,7 @@
 
 **Type:** external
 **Status:** active
-**Updated:** 2026-05-29
+**Updated:** 2026-05-31
 
 ## Summary
 The claudeai-proxy Slack MCP server has text/search/canvas/reaction tools
@@ -54,6 +54,15 @@ Documenting the working recipe so future sessions don't re-derive.
   it Slack returns a `missing_charset` warning AND silently drops the
   channel binding. Without `; charset=utf-8` we got "ok":true but no
   delivery.
+
+- **Building step-3 JSON with embedded newlines:** the `initial_comment`
+  needs real `\n` characters (multi-paragraph status messages). The
+  reliable pattern is `export MSG=$'...\n...'` then read via
+  `os.environ['MSG']` inside a `python3 -c` heredoc that builds the
+  JSON. **Gotcha:** `python3 -c '...' MSG="..."` (trailing var=val args)
+  does NOT inject into the child env — `os.environ['MSG']` raises
+  KeyError. Must use `export` BEFORE the python3 call. Hit this once
+  2026-05-31 building the foilsX07 status post.
 
 ## Cross-links
 - Related: [[slack-bot-dm-channel-not-found]]

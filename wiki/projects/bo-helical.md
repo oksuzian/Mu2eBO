@@ -8,7 +8,7 @@ type: project
 
 **Type:** project
 **Status:** dormant — retired from active runs 2026-05-29 after 4D Pareto saturation (HV +1.6% over last 76 evals, hit rate 62%→38%). Champion **helical045 obj=2.533 (2026-05-18)** stands but top-5 are likely G4 sibling-overlap artifacts (see [[tsda-disc-helical-sibling-overlap]]). HelicalMode class, `gp_predict_helical.py`, and `leaderboard_bo_helical*.tsv` preserved as frozen artifacts; the active BO line is now [[bo-foils]] (5D extras-only foil-stack).
-**Updated:** 2026-05-29 (retired — no further runs planned; superseded as active line by [[bo-foils]])
+**Updated:** 2026-05-31 (botorch_predict_helical.py NOT recoverable from `.snap/` — deleted before 2026-05-18 daily-snapshot window; only the qNEHVI shim recipe in this page survives)
 
 ## Summary
 Second BO mode in `autoresearch_bo_michael.py` (select with `--mode helical`).

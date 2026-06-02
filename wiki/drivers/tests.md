@@ -2,13 +2,14 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-29
+**Updated:** 2026-06-01
 
 ## Summary
 Regression tests for the Python drivers in this project. Two files today;
-37 tests run in ~1.1 s and require no grid contact (all mocks/tempdirs).
+**68 tests** run in ~1.1 s and require no grid contact (all mocks/tempdirs).
 Added 2026-05-29 alongside the 5-finding `/simplify` audit so future
-refactors that revert the audit fixes fail loudly.
+refactors that revert the audit fixes fail loudly; grown since with the
+foils v2 6D round-trip suite and the shared env-source helper.
 
 ## Key facts
 - **Venv & invocation:** `.venv-graph/bin/python -m unittest discover -s tests -v`.
@@ -20,10 +21,17 @@ refactors that revert the audit fixes fail loudly.
     predict_picks, _child_is_broken, _build_outer_graph). After the
     2026-05-28 `_import_gp(mode)` refactor (helical/michael/foils), the
     two `TestPredictPicks` fixtures MUST set `state["mode"] = "helical"`
-    or `_import_gp` raises KeyError.
-  - `tests/test_audit_fixes.py` — 15 tests across 5 classes that pin
-    the 5 /simplify audit fixes (#1-#5 on `oksuzian/Mu2eBO`, closed
-    2026-05-29 in commit `5aeb22d`).
+    or `_import_gp` raises KeyError. **`TestRenewToken` (2026-06-01) mocks
+    `cl.run_sourced_bash` for getToken** (not `cl.subprocess.run`), since
+    getToken now routes through the shared helper; `cl.subprocess.run` is
+    mocked only for the `kinit -R` call.
+  - `tests/test_audit_fixes.py` — pins the 5 /simplify audit fixes (#1-#5
+    on `oksuzian/Mu2eBO`, closed 2026-05-29 in commit `5aeb22d`), PLUS
+    `TestFoilsAsymmetric6D` (foils v2 6D `_geom_text`/`parse_geom`
+    round-trip, 49-entry vectors) and `TestRunSourcedBash` (5 cases over
+    `graph/sourced_bash.py:run_sourced_bash` — success/retry/exhaust/
+    banner-blocks-retry/timeout-not-retried; mocks `sb.subprocess.run` +
+    `sb.time.sleep`). See [[sourced-env-stderr-swallowed]].
 - **Off-tree module import recipe.** `gp_predict_helical.py` lives at
   `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/`
   (NOT in this git repo). To unit-test it, load via

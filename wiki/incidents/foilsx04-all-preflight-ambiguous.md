@@ -8,7 +8,22 @@ type: incident
 
 **Type:** incident
 **Status:** resolved 2026-05-29 (convergence-by-pareto-hash machinery deleted entirely; zero-row safety break in `node_decide_next`; rc=3 ambiguous now retriable in `route_after_preflight`)
-**Updated:** 2026-05-29
+**Updated:** 2026-06-01 (bug #1 root cause identified — transient cvmfs env-flake in cmd_preflight, no retry; see [[sourced-env-stderr-swallowed]])
+
+## ROOT CAUSE OF BUG #1 IDENTIFIED (2026-06-01)
+The "unknown" cause of the uniform rc=3 preflight failures is the **same
+transient cvmfs/spack env-source flake** documented in
+[[sourced-env-stderr-swallowed]], hitting `cmd_preflight`'s OWN env-source
+(`autoresearch_bo_michael.py:1039`, separate from `pipeline.py:sourced_env`).
+When the flake hits, `mu2e` never runs → empty output → nonzero rc →
+rc-map reads it as **rc=3 ambiguous**. The preflight log is just the 16-byte
+template. X03 passed because it ran outside a bad cvmfs window; X04 (and
+foilsY02 round 0 on 2026-06-01) ran inside one. Reproduced + fixed via
+foilsY02: a manual re-run of the "failed" geoms passes rc=0; the fix adds
+retry-with-backoff gated on "mu2e never emitted a banner"
+(`autoresearch_bo_michael.py:1047`). The earlier note ("needs interactive
+re-run to read the surface-check stderr") is now done — there was no
+surface-check stderr because surface-check never ran.
 
 ## Summary
 Closed-loop parent `foilsX04` (q=10, max-rounds=10) launched 2026-05-29,

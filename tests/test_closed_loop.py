@@ -142,30 +142,28 @@ class TestRenewToken(unittest.TestCase):
     def _fail():
         return mock.Mock(returncode=1, stderr="auth failed")
 
+    # kinit -R goes through cl.subprocess.run; getToken now goes through the
+    # shared cl.run_sourced_bash helper (retry-protected), so the two are
+    # mocked separately rather than as one ordered side_effect list.
     def test_happy_path_no_errors(self):
         state = {"round_idx": 0, "errors": []}
-        with mock.patch.object(cl.subprocess, "run",
-                                side_effect=[self._ok(), self._ok()]):
+        with mock.patch.object(cl.subprocess, "run", return_value=self._ok()), \
+             mock.patch.object(cl, "run_sourced_bash", return_value=self._ok()):
             out = cl.node_renew_token(state)
         self.assertEqual(out["errors"], [])
 
     def test_getToken_nonzero_rc_exits(self):
         state = {"round_idx": 0, "errors": []}
-        with mock.patch.object(cl.subprocess, "run",
-                                side_effect=[self._ok(), self._fail()]):
+        with mock.patch.object(cl.subprocess, "run", return_value=self._ok()), \
+             mock.patch.object(cl, "run_sourced_bash", return_value=self._fail()):
             with self.assertRaises(SystemExit) as cm:
                 cl.node_renew_token(state)
         self.assertEqual(cm.exception.code, 2)
 
     def test_getToken_raises_exits(self):
         state = {"round_idx": 0, "errors": []}
-
-        def side(args, **kw):
-            if args[0] == "kinit":
-                return self._ok()
-            raise OSError("ENOKEY")
-
-        with mock.patch.object(cl.subprocess, "run", side_effect=side):
+        with mock.patch.object(cl.subprocess, "run", return_value=self._ok()), \
+             mock.patch.object(cl, "run_sourced_bash", side_effect=OSError("ENOKEY")):
             with self.assertRaises(SystemExit) as cm:
                 cl.node_renew_token(state)
         self.assertEqual(cm.exception.code, 2)
@@ -173,8 +171,8 @@ class TestRenewToken(unittest.TestCase):
     def test_kinit_failure_does_not_exit(self):
         # kinit -R is best-effort; only getToken failure is fatal
         state = {"round_idx": 0, "errors": []}
-        with mock.patch.object(cl.subprocess, "run",
-                                side_effect=[self._fail(), self._ok()]):
+        with mock.patch.object(cl.subprocess, "run", return_value=self._fail()), \
+             mock.patch.object(cl, "run_sourced_bash", return_value=self._ok()):
             out = cl.node_renew_token(state)
         self.assertTrue(any("kinit -R" in e for e in out["errors"]))
 

@@ -56,6 +56,8 @@ from langgraph.graph import END, StateGraph  # noqa: E402
 from typing_extensions import TypedDict  # noqa: E402
 
 from config import (  # noqa: E402
+    BOTORCH_PREDICT,
+    BOTORCH_VENV_PY,
     CHECKPOINT_DB,
     CLOSED_LOOP_BARRIER_POLL_SEC,
     CLOSED_LOOP_BARRIER_TIMEOUT_MIN,
@@ -72,6 +74,11 @@ from config import (  # noqa: E402
     SQLITE_TIMEOUT_S,
     STOP_FLAG,
 )
+
+from sourced_bash import run_sourced_bash  # noqa: E402
+
+PICKER_CHOICES = ("cl_min", "qnehvi")
+DEFAULT_PICKER = "cl_min"
 
 # gp_predict_helical lives in the sub-repo (sister of leaderboard). Import
 # lazily so the module imports cleanly even when sub-repo is absent (e.g.,
@@ -109,6 +116,7 @@ class RoundState(TypedDict, total=False):
     barrier_timeout_min: int
     min_spacing: float
     pessimistic_calo: bool
+    picker: str
 
 
 # ============================================================================
@@ -240,7 +248,12 @@ def node_renew_token(state: RoundState) -> dict:
         errors.append(f"renew_token[r{state['round_idx']}]: kinit -R failed: {exc}")
     cmd = "source /cvmfs/mu2e.opensciencegrid.org/setupmu2e-art.sh && getToken"
     try:
-        r = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True, timeout=120)
+        # getToken shares the cvmfs/spack flake class -> retry via the shared
+        # helper (was a bare one-shot subprocess.run). A persistent rc!=0 after
+        # retries is still FATAL (krb5 likely expired); a transient flake now
+        # recovers instead of hard-exiting the whole campaign at a round edge.
+        r = run_sourced_bash(cmd, login=True, timeout=120,
+                             label=f"renew_token[r{state['round_idx']}]")
     except Exception as exc:  # noqa: BLE001
         msg = (f"[closed_loop] FATAL renew_token[r{state['round_idx']}]: "
                f"getToken raised: {exc}. "
@@ -258,19 +271,77 @@ def node_renew_token(state: RoundState) -> dict:
     return {"errors": errors}
 
 
+def _qnehvi_picks_subprocess(mode: str, q: int, round_idx: int, alpha: float) -> list[tuple]:
+    """Shell into .venv-botorch to run botorch_predict.py qNEHVI; return picks.
+
+    Disjoint-venv: closed_loop.py runs under .venv-graph (no botorch); the
+    qNEHVI picker needs .venv-botorch (no langgraph). We round-trip picks
+    through a temp JSON file using botorch_predict.py's --emit-picks-json.
+
+    Picks come back as JSON list-of-lists; convert to list-of-tuples to match
+    the sklearn-EI path (gp.compute_explore_picks return contract).
+    """
+    import tempfile
+    if not BOTORCH_VENV_PY.exists():
+        raise FileNotFoundError(
+            f"[closed_loop] picker=qnehvi requested but {BOTORCH_VENV_PY} "
+            f"is missing; install .venv-botorch or use --picker cl_min"
+        )
+    with tempfile.NamedTemporaryFile(mode="r", suffix=".json", delete=False) as tf:
+        out_path = Path(tf.name)
+    try:
+        cmd = [
+            str(BOTORCH_VENV_PY), str(BOTORCH_PREDICT),
+            "--mode", mode, "--q", str(q),
+            "--round-idx", str(round_idx),
+            "--alpha", str(alpha),
+            "--emit-picks-json", str(out_path),
+        ]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        if r.returncode != 0:
+            raise RuntimeError(
+                f"[closed_loop] botorch_predict rc={r.returncode}: "
+                f"stderr={r.stderr.strip()[:400]}"
+            )
+        raw = json.loads(out_path.read_text())
+    finally:
+        try:
+            out_path.unlink()
+        except FileNotFoundError:
+            pass
+    return [tuple(p) for p in raw]
+
+
 def node_predict_picks(state: RoundState) -> dict:
-    """Refit GP in-process, return q picks (helical 4D or foils 5D, mode-keyed)."""
+    """Refit GP, return q picks. Picker is one of {cl_min, qnehvi}.
+
+    cl_min (default): in-process sklearn-GP + skopt EI via mode-keyed
+      gp_predict_{foils,helical}.compute_explore_picks. Production default
+      per LOCO honest-judge eval (CL-min wins 4/5 cohorts on foils n=177)
+      — see wiki/concepts/batch-bo.md.
+
+    qnehvi: subprocess into .venv-botorch (disjoint venv) to run
+      botorch_predict.py. Multi-objective Pareto-HV picker; native
+      acquisition is qNEHVI, not the scalarized obj the leaderboard
+      reports. Exploration knob, not a recommended default.
+    """
     q = state["q"]
-    gp = _import_gp(state["mode"])
-    picks = gp.compute_explore_picks(
-        q=q,
-        nsteps_budget=state.get("nsteps_budget", NSTEPS_BUDGET),
-        min_spacing=state.get("min_spacing", CLOSED_LOOP_MIN_PICK_SPACING),
-        pessimistic_calo=state.get("pessimistic_calo", False),
-    )
+    mode = state["mode"]
+    picker = state.get("picker", DEFAULT_PICKER)
+    alpha = state.get("alpha", DEFAULT_ALPHA)
+    if picker == "qnehvi":
+        picks = _qnehvi_picks_subprocess(mode, q, state["round_idx"], alpha)
+    else:
+        gp = _import_gp(mode)
+        picks = gp.compute_explore_picks(
+            q=q,
+            nsteps_budget=state.get("nsteps_budget", NSTEPS_BUDGET),
+            min_spacing=state.get("min_spacing", CLOSED_LOOP_MIN_PICK_SPACING),
+            pessimistic_calo=state.get("pessimistic_calo", False),
+        )
     print(f"[closed_loop] predict_picks[r{state['round_idx']}]: "
-          f"pessimistic_calo={state.get('pessimistic_calo', False)} q={q} "
-          f"got={len(picks)}", flush=True)
+          f"picker={picker} pessimistic_calo={state.get('pessimistic_calo', False)} "
+          f"q={q} got={len(picks)}", flush=True)
     errors = list(state.get("errors", []))
     if len(picks) < q:
         errors.append(
@@ -509,17 +580,21 @@ def _build_outer_graph():
 
 _DRY_RUN_KNOB_LABELS = {
     "helical": ("dx", "dy", "halflen", "angle"),
-    "foils":   ("n_up", "n_down", "extra_rOut", "extra_halfThickness", "extra_rIn"),
+    # foils v2 is 6D per-side decoupled; must match FoilsMode.build_space order.
+    "foils":   ("rOut_up", "rOut_dn", "hT_up", "hT_dn", "rIn_up", "rIn_dn"),
 }
 
 
 def _dry_run(args: argparse.Namespace) -> int:
-    gp = _import_gp(args.mode)
-    picks = gp.compute_explore_picks(
-        q=args.q, nsteps_budget=args.nsteps_budget, min_spacing=args.min_spacing,
-        pessimistic_calo=args.pessimistic_calo,
-    )
-    print(f"[dry-run] round 0: {len(picks)} picks (mode={args.mode})")
+    if args.picker == "qnehvi":
+        picks = _qnehvi_picks_subprocess(args.mode, args.q, round_idx=0, alpha=args.alpha)
+    else:
+        gp = _import_gp(args.mode)
+        picks = gp.compute_explore_picks(
+            q=args.q, nsteps_budget=args.nsteps_budget, min_spacing=args.min_spacing,
+            pessimistic_calo=args.pessimistic_calo,
+        )
+    print(f"[dry-run] round 0: {len(picks)} picks (mode={args.mode}, picker={args.picker})")
     labels = _DRY_RUN_KNOB_LABELS.get(args.mode, tuple(f"x{i}" for i in range(len(picks[0]) if picks else 0)))
     for j, p in enumerate(picks):
         name = f"{args.name_prefix}R00_{j:02d}"
@@ -551,6 +626,10 @@ def main() -> int:
                          "(see wiki bo-helical pessimistic-prior bullet)")
     ap.add_argument("--thread-id", default=None,
                     help="if omitted, a fresh uuid is used; reuse to resume")
+    ap.add_argument("--picker", choices=PICKER_CHOICES, default=DEFAULT_PICKER,
+                    help="batch picker; cl_min = in-process skopt EI (default, "
+                         "LOCO-validated), qnehvi = subprocess into .venv-botorch "
+                         "for BoTorch Pareto-HV picks (exploration knob)")
     ap.add_argument("--dry-run", action="store_true",
                     help="print round-0 picks + names without launching")
     args = ap.parse_args()
@@ -581,10 +660,11 @@ def main() -> int:
         "barrier_timeout_min": args.barrier_timeout_min,
         "min_spacing": args.min_spacing,
         "pessimistic_calo": args.pessimistic_calo,
+        "picker": args.picker,
     }
 
     print(f"[closed_loop] thread_id={thread_id} q={args.q} max_rounds={args.max_rounds} "
-          f"prefix={args.name_prefix}", flush=True)
+          f"prefix={args.name_prefix} picker={args.picker}", flush=True)
     # Resume vs fresh: if a checkpoint exists for this thread_id, pass None
     # so LangGraph picks up from the last node instead of re-seeding state
     # (which would re-run predict_picks → assign_names → launch_children

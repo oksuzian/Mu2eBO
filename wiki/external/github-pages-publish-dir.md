@@ -2,7 +2,7 @@
 
 **Type:** external
 **Status:** active
-**Updated:** 2026-05-29
+**Updated:** 2026-05-30
 
 ## Summary
 GitHub Pages "Deploy from a branch" mode does NOT let you pick an arbitrary
@@ -27,6 +27,11 @@ needs a workflow file.
   use `actions/deploy-pages@v4` with a workflow that uploads the
   target path as the artifact. More work, more flexibility.
 - **Mu2eBO use:** `docs/foils_talk.html` → `https://oksuzian.github.io/Mu2eBO/foils_talk.html`.
+- **Pages branch = main only** in default config: pushing `docs/` to a
+  feature branch (e.g. `fix-closed-loop-failure-modes`) does NOT update
+  the live deck. The push succeeds, GitHub stores it, but Pages keeps
+  serving the `main`/`docs` snapshot until the branch merges. Easy
+  gotcha during PR-staged work.
 - **Marp `![bg left:N%](img.gif)` gotcha:** the bg-image directive
   renders the GIF as a *background panel*, which on Marp's default
   theme causes the global `footer:` text to render only over the

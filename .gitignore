@@ -28,6 +28,7 @@ loop_logs/
 gdml_dumps/
 *.log
 *.root
+*.art
 
 # =============================================================================
 # Editor / OS cruft
@@ -61,3 +62,4 @@ aitools/
 # Pending-BO in-flight queue (mutates on every iteration; not a durable record)
 # =============================================================================
 pending_bo_*.tsv
+/data/

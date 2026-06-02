@@ -78,6 +78,7 @@ MMACKENZ_WORKFLOWS = Path("/exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows
 
 sys.path.insert(0, str(ROOT / "graph"))
 from config import MUSING, PREFLIGHT_TIMEOUT_S, SETUPMU2E  # noqa: E402
+from sourced_bash import run_sourced_bash  # noqa: E402
 
 DEFAULT_ALPHA = 1.0e5  # mmackenz calo range 4e-8..2.5e-5; alpha=1e5 makes
                        # 1e-5 calo cost 1 unit of S/sqrt(B). Override per study.
@@ -550,88 +551,144 @@ class HelicalMode(BOMode):
 # ============================================================================
 
 class FoilsMode(BOMode):
-    """BO over n_up + n_down extra foils added around the base 37-foil stack.
+    """BO over the extras around the pinned 37-foil base — 6D, per-side decoupled.
 
-    Base 37 foils pinned at the stoppingTargetHoles_v02.txt deployed spec
-    (rOut=75, halfThickness=0.0528, holeRadius=21.5). All extras share a single
-    (rOut, halfThickness) triple — 5D rather than 12 × 3-D — and a single
-    holeRadius scalar applies globally because StoppingTargetMaker.cc:41 reads
-    `stoppingTarget.holeRadius` via getDouble, not getVectorDouble.
+    n_up and n_down are PINNED at 6 (both champions foilsX07R01_03 and
+    foilsX08R04_08 railed there in the 5D era). The 6 free knobs are
+    (rOut, halfThickness, rIn) × (up, dn) — upstream extras carry their own
+    triple, downstream their own.
 
-    No helical plug in this mode (tsda.helical.build = false, hasTSdA = false),
-    keeping results orthogonal to [[bo-helical]].
+    Geom vectors always have BASE_N_FOILS + 2*6 = 49 entries: 6 upstream
+    extras, 37 pinned base, 6 downstream extras. Base 37 keep
+    rOut=75, halfThickness=0.0528, holeRadius=21.5.
+
+    Patched StoppingTargetMaker.cc reads the per-foil holeRadii vector;
+    legacy binaries fall back to scalar holeRadius (still emitted at
+    BASE_HOLE_RADIUS_MM so the base 37 build correctly under either lib).
+
+    v1 (5D coupled) leaderboard rows are loaded as 6D priors via the
+    n_up=n_down=6 subset projection (*_up = *_dn = scalar).
+
+    No helical plug (tsda.helical.build = false, hasTSdA = false).
     """
     name = "foils"
-    leaderboard = ROOT / "leaderboard_bo_foils_v1.tsv"
+    leaderboard = ROOT / "leaderboard_bo_foils_v2.tsv"
+    leaderboard_v1 = ROOT / "leaderboard_bo_foils_v1.tsv"
     proposal_dir = ROOT / "bo_foils_proposals"
     preflight_dir = ROOT / "bo_foils_preflight"
 
-    # Base 37-foil DOE-2017 spec (stoppingTargetHoles_DOE_review_2017.txt +
-    # stoppingTargetHoles_v02.txt halfThickness override).
+    # Base 37-foil DOE-2017 spec.
     BASE_N_FOILS = 37
     BASE_ROUT_MM = 75.0
     BASE_HALFTHICK_MM = 0.0528
     BASE_HOLE_RADIUS_MM = 21.5
 
+    # v2: integer envelope knobs pinned at the saturated v1 upper bound.
+    FIXED_N_UP = 6
+    FIXED_N_DOWN = 6
+
+    # A v1 row is only a valid v2 prior when its global holeRadius matches v2's
+    # FIXED base hole. v1 _geom_text emitted `holeRadius = extra_rIn` GLOBALLY
+    # (base 37 + extras) whenever extras were present, whereas v2 pins the base
+    # 37 at BASE_HOLE_RADIUS_MM and only the extras get rIn. So unless
+    # extra_rIn == base hole, the prior's (sob,calo) was measured with a
+    # different base geometry than the projected v2 x-point builds -- and the
+    # base 37 dominate the 49-foil stack, so that mismatch makes the y
+    # meaningless for v2 (base stopping-area sensitivity ~0.83%/mm near 21.5).
+    # 1.5 mm tol keeps the base-area mismatch under ~1.3%.
+    # See wiki/projects/bo-foils.md (v1->v2 prior base-hole mismatch).
+    PRIOR_BASE_HOLE_TOL_MM = 1.5
+
     def load_priors(self):
-        # mmackenz's v22-v50 foil-stack runs are 7D over different knobs
-        # (rIn / halfLength4 / holeRadius / col5) and don't project onto this
-        # 5D extras-only search.
-        return []
+        """Project the SUBSET of v1 rows that round-trip into v2 geometry.
+
+        A v1 row qualifies only if n_up==n_down==6 AND its extra_rIn is within
+        PRIOR_BASE_HOLE_TOL_MM of BASE_HOLE_RADIUS_MM. For those rows the full
+        v1 geometry (symmetric extras, base+extras all at hole≈21.5) is
+        identical to the v2 geometry at x=[rOut,rOut,hT,hT,rIn,rIn], so the
+        (sob,calo) is valid. Rows with a different extra_rIn are DROPPED --
+        their y reflects a base hole v2 cannot reproduce (most v1 rows; see
+        wiki/projects/bo-foils.md). v2's own leaderboard history is the primary
+        warm start; these priors are supplementary.
+        """
+        if not self.leaderboard_v1.exists():
+            return []
+        out = []
+        with self.leaderboard_v1.open() as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                try:
+                    if int(row["n_up"]) != self.FIXED_N_UP:
+                        continue
+                    if int(row["n_down"]) != self.FIXED_N_DOWN:
+                        continue
+                    rOut = float(row["extra_rOut"])
+                    hT = float(row["extra_halfThickness"])
+                    rIn = float(row["extra_rIn"])
+                    if abs(rIn - self.BASE_HOLE_RADIUS_MM) > self.PRIOR_BASE_HOLE_TOL_MM:
+                        continue  # base-hole mismatch -> y invalid for v2
+                    out.append(Point(
+                        cfg=row["config"],
+                        x=[rOut, rOut, hT, hT, rIn, rIn],
+                        sob=float(row["sob"]),
+                        calo=float(row["calo"]),
+                    ))
+                except (KeyError, ValueError):
+                    continue
+        return out
 
     def build_space(self):
-        from skopt.space import Integer, Real
+        from skopt.space import Real
         return [
-            Integer(0, 6, name="n_up"),
-            Integer(0, 6, name="n_down"),
-            Real(50.0, 250.0, name="extra_rOut"),
-            Real(0.05, 1.0,   name="extra_halfThickness"),
-            Real(0.0,  50.0,  name="extra_rIn"),
+            Real(50.0, 250.0, name="extra_rOut_up"),
+            Real(50.0, 250.0, name="extra_rOut_dn"),
+            Real(0.05, 1.0,   name="extra_halfThickness_up"),
+            Real(0.05, 1.0,   name="extra_halfThickness_dn"),
+            Real(0.0,  50.0,  name="extra_rIn_up"),
+            Real(0.0,  50.0,  name="extra_rIn_dn"),
         ]
 
     def is_buildable(self, x) -> bool:
-        _, _, rOut, _, rIn = x
-        # extra_rIn applies globally to the base 75-mm foils too via the
-        # holeRadius scalar; rIn ≥ base rOut would erase the base annulus.
-        if rIn >= self.BASE_ROUT_MM:
+        rOut_up, rOut_dn, _, _, rIn_up, rIn_dn = x
+        if rIn_up >= rOut_up:
             return False
-        if rIn >= rOut:
+        if rIn_dn >= rOut_dn:
             return False
         return True
 
     def _geom_text(self, x) -> str:
-        n_up, n_down, rOut, hT, rIn = x
-        n_up = int(n_up)
-        n_down = int(n_down)
-        n_extras = n_up + n_down
-        # Per-foil vectors REPLACE the v02 include's vectors (FHiCL last-write
-        # wins for vectors; see geom_run1_b_v06.txt:29-31 pattern).
-        radii = ([rOut] * n_up
+        rOut_up, rOut_dn, hT_up, hT_dn, rIn_up, rIn_dn = x
+        n_up = self.FIXED_N_UP
+        n_down = self.FIXED_N_DOWN
+        radii = ([rOut_up] * n_up
                  + [self.BASE_ROUT_MM] * self.BASE_N_FOILS
-                 + [rOut] * n_down)
-        halfth = ([hT] * n_up
+                 + [rOut_dn] * n_down)
+        halfth = ([hT_up] * n_up
                   + [self.BASE_HALFTHICK_MM] * self.BASE_N_FOILS
-                  + [hT] * n_down)
+                  + [hT_dn] * n_down)
+        hole_radii = ([rIn_up] * n_up
+                      + [self.BASE_HOLE_RADIUS_MM] * self.BASE_N_FOILS
+                      + [rIn_dn] * n_down)
         radii_csv = ", ".join(f"{r:.4f}" for r in radii)
         halfth_csv = ", ".join(f"{h:.6f}" for h in halfth)
+        hole_radii_csv = ", ".join(f"{h:.4f}" for h in hole_radii)
 
-        # holeRadius is a SINGLE SCALAR (StoppingTargetMaker.cc:41 getDouble).
-        # Emit only when extras present so the v02 baseline (21.5 mm) survives
-        # the n_up=n_down=0 corner.
-        hole_line = (f'double stoppingTarget.holeRadius = {rIn:.4f};\n'
-                     if n_extras > 0 else '')
+        hole_lines = (
+            f'double stoppingTarget.holeRadius = {self.BASE_HOLE_RADIUS_MM};\n'
+            f'vector<double> stoppingTarget.holeRadii      = {{ {hole_radii_csv} }};\n'
+        )
 
         return (
             '#include "Offline/Mu2eG4/geom/geom_run1_a.txt"\n'
-            '\n// === autoresearch_bo_michael (foils mode) proposal ===\n'
-            f'// 37 base foils (DOE-2017, rOut=75, hT=0.0528) + {n_up}↑ + {n_down}↓ extras\n'
-            '// Extras share a single (extra_rOut, extra_halfThickness) per BO eval.\n'
-            '// Note: extra_rIn applies GLOBALLY (holeRadius is scalar, not vector).\n'
+            '\n// === autoresearch_bo_michael (foils mode v2, 6D) proposal ===\n'
+            f'// 37 base foils (DOE-2017, rOut=75, hT=0.0528, holeRadius=21.5)\n'
+            f'// + {n_up} up at (rOut={rOut_up:.2f}, hT={hT_up:.4f}, rIn={rIn_up:.2f})\n'
+            f'// + {n_down} dn at (rOut={rOut_dn:.2f}, hT={hT_dn:.4f}, rIn={rIn_dn:.2f})\n'
+            '// holeRadii vector decouples extras-rIn from base-rIn (patched lib).\n'
             'bool hasTSdA = false;\n'
             'bool tsda.helical.build = false;\n'
             f'vector<double> stoppingTarget.radii          = {{ {radii_csv} }};\n'
             f'vector<double> stoppingTarget.halfThicknesses = {{ {halfth_csv} }};\n'
-            + hole_line
+            + hole_lines
             + '\n// Degrader parked at 120° (mmackenz hardware detent)\n'
               'bool degrader.build = false;\n'
               'double degrader.rotation = 120.0;\n'
@@ -650,79 +707,93 @@ class FoilsMode(BOMode):
         r"vector<double>\s+stoppingTarget\.radii\s*=\s*\{([^}]*)\}")
     _HALFTH_RX = re.compile(
         r"vector<double>\s+stoppingTarget\.halfThicknesses\s*=\s*\{([^}]*)\}")
+    _HOLE_VEC_RX = re.compile(
+        r"vector<double>\s+stoppingTarget\.holeRadii\s*=\s*\{([^}]*)\}")
     _HOLE_RX = re.compile(
         r"stoppingTarget\.holeRadius\s*=\s*([\d.eE+-]+)")
 
     def parse_geom(self, text: str):
+        """Parse a v2 (6D, n_up=n_down=6) geom file. Vectors must have
+        BASE_N_FOILS + 12 = 49 entries; the first/last entries on each side
+        are the *_up/*_dn extras for (rOut, halfThickness, rIn)."""
+        n_up = self.FIXED_N_UP
+        n_down = self.FIXED_N_DOWN
+        expected_len = self.BASE_N_FOILS + n_up + n_down
+
         m = self._RADII_RX.search(text)
         if not m:
             return None
         radii = [float(v) for v in m.group(1).split(",")]
-        if len(radii) < self.BASE_N_FOILS:
-            return None
-        # Count leading + trailing entries that differ from BASE_ROUT_MM.
-        n_up = 0
-        for r in radii:
-            if abs(r - self.BASE_ROUT_MM) < 1e-6:
-                break
-            n_up += 1
-        n_down = 0
-        for r in reversed(radii):
-            if abs(r - self.BASE_ROUT_MM) < 1e-6:
-                break
-            n_down += 1
-        # Pull extra (rOut, halfThickness) from first leading-extra entry
-        # (or first trailing if n_up=0); halfThickness vector parses the same.
-        if n_up > 0:
-            extra_rOut = radii[0]
-        elif n_down > 0:
-            extra_rOut = radii[-1]
-        else:
-            extra_rOut = 80.0  # arbitrary inside-range default
+        if len(radii) != expected_len:
+            raise ValueError(
+                f"FoilsMode v2 expects {expected_len}-entry radii vector "
+                f"(n_up={n_up}+base={self.BASE_N_FOILS}+n_down={n_down}); "
+                f"got {len(radii)} entries"
+            )
 
         mh = self._HALFTH_RX.search(text)
-        if mh:
-            halfth = [float(v) for v in mh.group(1).split(",")]
-            if n_up > 0 and len(halfth) >= 1:
-                extra_hT = halfth[0]
-            elif n_down > 0 and len(halfth) >= 1:
-                extra_hT = halfth[-1]
-            else:
-                extra_hT = 0.05
+        if not mh:
+            return None
+        halfth = [float(v) for v in mh.group(1).split(",")]
+        if len(halfth) != expected_len:
+            raise ValueError(
+                f"FoilsMode v2 expects {expected_len}-entry halfThicknesses; "
+                f"got {len(halfth)}"
+            )
+
+        mvec = self._HOLE_VEC_RX.search(text)
+        if mvec:
+            hole_radii = [float(v) for v in mvec.group(1).split(",")]
+            if len(hole_radii) != expected_len:
+                raise ValueError(
+                    f"FoilsMode v2 expects {expected_len}-entry holeRadii; "
+                    f"got {len(hole_radii)}"
+                )
+            rIn_up = hole_radii[0]
+            rIn_dn = hole_radii[-1]
         else:
-            extra_hT = 0.05
+            # Pre-holeRadii era: scalar holeRadius applied to all foils; the
+            # extras' rIn was implicitly the scalar.
+            mr = self._HOLE_RX.search(text)
+            scalar = float(mr.group(1)) if mr else self.BASE_HOLE_RADIUS_MM
+            rIn_up = scalar
+            rIn_dn = scalar
 
-        # holeRadius is only emitted when n_extras > 0; when absent, the v02
-        # include's BASE_HOLE_RADIUS_MM survives, so that's what was actually
-        # built (round-trip must report the same value _geom_text produced).
-        mr = self._HOLE_RX.search(text)
-        extra_rIn = float(mr.group(1)) if mr else self.BASE_HOLE_RADIUS_MM
-
-        return [n_up, n_down, extra_rOut, extra_hT, extra_rIn]
+        return [radii[0], radii[-1], halfth[0], halfth[-1], rIn_up, rIn_dn]
 
     def format_row(self, p: Point, alpha: float) -> tuple[str, str]:
-        header = ("config\tn_up\tn_down\textra_rOut\textra_halfThickness\textra_rIn"
+        header = ("config"
+                  "\textra_rOut_up\textra_rOut_dn"
+                  "\textra_halfThickness_up\textra_halfThickness_dn"
+                  "\textra_rIn_up\textra_rIn_dn"
                   "\tsob\tcalo\talpha\tobj\n")
-        n_up, n_down, rOut, hT, rIn = p.x
-        line = (f"{p.cfg}\t{int(n_up)}\t{int(n_down)}\t{rOut:.4f}\t{hT:.6f}\t{rIn:.4f}"
+        rOut_up, rOut_dn, hT_up, hT_dn, rIn_up, rIn_dn = p.x
+        line = (f"{p.cfg}"
+                f"\t{rOut_up:.4f}\t{rOut_dn:.4f}"
+                f"\t{hT_up:.6f}\t{hT_dn:.6f}"
+                f"\t{rIn_up:.4f}\t{rIn_dn:.4f}"
                 f"\t{p.sob:.5f}\t{p.calo:.5e}\t{alpha:.3f}\t{p.obj(alpha):.5f}\n")
         return header, line
 
     def load_history_row(self, row: dict) -> Point:
         return Point(cfg=row["config"],
-                     x=[int(row["n_up"]), int(row["n_down"]),
-                        float(row["extra_rOut"]),
-                        float(row["extra_halfThickness"]),
-                        float(row["extra_rIn"])],
+                     x=[float(row["extra_rOut_up"]),
+                        float(row["extra_rOut_dn"]),
+                        float(row["extra_halfThickness_up"]),
+                        float(row["extra_halfThickness_dn"]),
+                        float(row["extra_rIn_up"]),
+                        float(row["extra_rIn_dn"])],
                      sob=float(row["sob"]), calo=float(row["calo"]))
 
     def print_top(self, pts, alpha, top):
-        print(f"{'cfg':>10}  {'n_up':>4}  {'n_dn':>4}  {'rOut':>6}  {'hT':>6}  {'rIn':>6}"
-              f"  {'sob':>6}  {'calo':>10}  {'obj':>7}")
+        print(f"{'cfg':>12}  {'rOut_up':>7}  {'rOut_dn':>7}  {'hT_up':>6}  {'hT_dn':>6}"
+              f"  {'rIn_up':>6}  {'rIn_dn':>6}  {'sob':>6}  {'calo':>10}  {'obj':>7}")
         for p in pts[:top]:
-            n_up, n_down, rOut, hT, rIn = p.x
-            print(f"{p.cfg:>10}  {int(n_up):4d}  {int(n_down):4d}"
-                  f"  {rOut:6.2f}  {hT:6.4f}  {rIn:6.2f}"
+            rOut_up, rOut_dn, hT_up, hT_dn, rIn_up, rIn_dn = p.x
+            print(f"{p.cfg:>12}"
+                  f"  {rOut_up:7.2f}  {rOut_dn:7.2f}"
+                  f"  {hT_up:6.4f}  {hT_dn:6.4f}"
+                  f"  {rIn_up:6.2f}  {rIn_dn:6.2f}"
                   f"  {p.sob:6.3f}  {p.calo:10.3e}  {p.obj(alpha):7.3f}")
 
 
@@ -991,25 +1062,38 @@ def cmd_preflight(args):
     print(f"[preflight/{mode.name}] geom: {geom}  fcl: {fcl_basename}")
 
     bash_cmd = (
-        f"source {SETUPMU2E} >/dev/null 2>&1 && "
-        f"source {MUSING}     >/dev/null 2>&1 && "
+        f"source {SETUPMU2E} >/dev/null && "
+        f"source {MUSING}     >/dev/null && "
         f"export MU2E_SEARCH_PATH=\"{workdir}:$MU2E_SEARCH_PATH\" && "
         f"export FHICL_FILE_PATH=\"{workdir}:$FHICL_FILE_PATH\" && "
         f"cd {workdir} && "
         f"mu2e -c {fcl_basename} -n 1"
     )
-    try:
-        proc = subprocess.run(
-            ["bash", "-c", bash_cmd],
-            capture_output=True, text=True, timeout=PREFLIGHT_TIMEOUT_S,
-        )
-        timed_out = False
-        out = (proc.stdout or "") + "\n--- STDERR ---\n" + (proc.stderr or "")
-        rc = proc.returncode
-    except subprocess.TimeoutExpired as e:
-        timed_out = True
-        out = (e.stdout or "") + "\n--- STDERR ---\n" + (e.stderr or "")
-        rc = -1
+    # Transient cvmfs/spack env-source flakes (==> Error: [Errno 5]) leave
+    # `mu2e` unsourced -> the subprocess exits nonzero having produced NO
+    # output, which the rc-map below misreads as rc=3 "ambiguous" (a real but
+    # rare G4 outcome). That false-ambiguous burned 2/3 foilsY02 round-0
+    # children (2026-06-01). Use the shared retry helper, but retry ONLY when
+    # mu2e never started -- a genuine run always emits a Geant4/art banner, so
+    # its presence means the result is real (pass, geom-fail, or
+    # true-ambiguous) and must NOT be retried. `>/dev/null` (not `2>&1`) in
+    # bash_cmd lets the flake's stderr reach the captured log.
+    # See wiki/incidents/sourced-env-stderr-swallowed.md.
+    def _retry_if_no_banner(p):
+        combined = (p.stdout or "") + (p.stderr or "")
+        started = any(s in combined for s in
+                      ("Geant4", "%MSG", "Art has", "Begin processing",
+                       "G4Exception"))
+        return p.returncode != 0 and not started
+
+    proc = run_sourced_bash(
+        bash_cmd, timeout=PREFLIGHT_TIMEOUT_S,
+        should_retry=_retry_if_no_banner,
+        label=f"preflight/{mode.name}", log=sys.stdout,
+    )
+    out = (proc.stdout or "") + "\n--- STDERR ---\n" + (proc.stderr or "")
+    rc = proc.returncode
+    timed_out = proc.timed_out
 
     log.write_text(out)
 

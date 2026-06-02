@@ -91,3 +91,11 @@ CLOSED_LOOP_MIN_PICK_SPACING = 0.05
 # from the SQLite default 5s to 30s absorbs CephFS lock-acquire jitter
 # under bursty multi-writer load.
 SQLITE_TIMEOUT_S = 30.0
+
+# Disjoint-venv plumbing: closed_loop.py runs under .venv-graph (langgraph,
+# sklearn, skopt) but the botorch_predict.py qNEHVI picker needs .venv-botorch
+# (gpytorch + botorch). When --picker qnehvi is requested, node_predict_picks
+# subprocess-shells into this interpreter, dumps picks to a tmp JSON, and
+# loads them back into the langgraph state.
+BOTORCH_VENV_PY = PROJECT_ROOT / ".venv-botorch" / "bin" / "python"
+BOTORCH_PREDICT = PROJECT_ROOT / "botorch_predict.py"

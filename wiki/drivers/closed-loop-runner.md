@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-29 (convergence-by-pareto-hash deleted; replaced with zero-row safety break — see Convergence)
+**Updated:** 2026-06-01 (extending a completed campaign needs a fresh --name-prefix: resume ignores new --max-rounds, prefix reuse trips the zero-row gate)
 
 ## Summary
 Multi-round closed-loop runner that wraps q parallel
@@ -65,6 +65,26 @@ in this phase.
     as completed, so `launch_children` skips them.
   - **Force-restart a round**: delete the round's leaderboard rows and
     re-invoke with the same thread-id.
+- **Extending a COMPLETED campaign needs a FRESH `--name-prefix`, not a
+  resume (2026-06-01, foilsY01→foilsY02).** A run that exited via
+  `max_rounds` is a closed thread and CANNOT be given more rounds two ways
+  that both look plausible and both fail:
+  1. **Reuse the same `--thread-id` with a higher `--max-rounds`** → no-op.
+     `main()` resume path passes `None` (not init state) when a checkpoint
+     exists, so the new `--max-rounds` never enters state — the graph reloads
+     its terminal checkpoint (already routed to END at `round_idx>=max_rounds`)
+     and does nothing.
+  2. **Reuse the same `--name-prefix` with a fresh `--thread-id`** → SILENT
+     dead-on-arrival. A fresh thread restarts at `round_idx=0`, regenerating
+     `{prefix}R00_{j}` names that are already in the leaderboard;
+     `assign_names` marks them completed, `launch_children` skips all q, the
+     barrier resolves with 0 children, and the zero-row safety gate ENDs
+     immediately (same shape as [[foilsx04-all-preflight-ambiguous]]).
+  **Correct continuation:** a new prefix (e.g. `foilsY01`→`foilsY02`). The new
+  campaign seeds from prior rows via `load_history` (+ `load_priors`), so the
+  GP starts informed — verified by `history_len_before=3` picking up
+  foilsY01's 3 rows at foilsY02 round 0. New rows still append to the same
+  per-mode leaderboard.
 - **Convergence (deleted 2026-05-29)**: previously hashed the rounded
   (2 sig-fig) `q` GP picks and called the run converged when the last
   k hashes were identical. **Deleted entirely** after 15-run production
@@ -261,6 +281,20 @@ in this phase.
   — perma-hash dirs (failed jobs) end up missing from `*_outputs.txt`
   and harvest errors out on missing .art.
 
+- **2026-05-31 foilsX08 (`--picker qnehvi --max-rounds 5`) first-launch
+  crashed on `subprocess.TimeoutExpired` at `closed_loop.py:293`
+  `_qnehvi_picks_subprocess`.** The hard-coded 600s timeout is too tight
+  for the BoTorch qNEHVI subprocess pick-time at large n. n=204 foils
+  leaderboard exceeded 600s; the overlay benchmark at the same n took
+  ~90 min for q=10 picks. Bumped to **3600s** (1 h). qNEHVI runtime is
+  super-linear in n; expect further bumps as the leaderboard grows past
+  ~300. The `picks subprocess timed out` error surfaces as a Python
+  Traceback in the parent log (NOT a LangGraph node error) and the
+  parent dies before any child launches → no leaderboard rows added
+  for the round, no barrier reached. Validate any future qnehvi launch
+  by tail-watching for `launched <prefix>R00_00` rather than absence
+  of error within 5 min.
+
 ## Cross-links
 - Related: [[graph-runner]], [[closed-loop-bo-design]], [[bo-helical]],
   [[batch-bo]], [[autoresearch-bo-michael]], [[scalarized-objective]],
@@ -277,6 +311,50 @@ in this phase.
   parents alive + jobsub queue + parent-log tail + leaderboard top-5.
   Sources: `.claude/commands/closed-loop-launch.md`,
   `.claude/commands/closed-loop-status.md`.
+
+## Saturation FoM (post-hoc, not runtime — 2026-05-29)
+- Because `obj = sob - α·calo` is already scalarized, full MOBO HV/EHVI
+  machinery is overkill. Recommended post-hoc FoM: **best-scalar regret
+  plateau** — per round compute `Δbest = max(obj_round) -
+  max(obj_all_prior)`; declare saturated when `Δbest ≤ ε ·
+  (max(obj_round1) - max(obj_round0))` for the last k=2 rounds (ε=0.05).
+  Pair with **Pareto-set Jaccard turnover** as a secondary check to
+  catch "stuck in one Pareto region" that pure best-obj misses.
+- This is what convergence-by-pareto-hash was trying to be, but
+  anchored on **leaderboard outcomes** (rows that actually landed)
+  not GP-proposed coords (which jitter across Sobol cells even at
+  saturation — see the 2026-05-29 audit above).
+- Numbers in `[[bo-helical]]` ("HV +1.6% / hit-rate 62%→38%") come from
+  one-off `/tmp/pareto_saturation.py` (W=20 window, 2D HV via
+  axis-aligned rectangle stacking). Promoted 2026-05-29 to
+  `autoresearch_grid/mmackenz_table_plots/saturation_report.py`
+  (~220 LOC); reads any leaderboard, parses `<prefix>R##_##` to derive
+  rounds (rows without that pattern lumped as "seed"), emits 4-panel
+  PNG (HV / PF-size / rolling hit-rate / per-round Δbest bars +
+  ε·anchor threshold line) + console verdict.
+  **Run with `.venv-botorch/bin/python`** (matplotlib); `.venv-graph`
+  has no matplotlib. Optional `--prefix foilsX05` to isolate one BO
+  campaign from prior history in the same leaderboard. Validated
+  2026-05-29: bo-helical-v2 fires SATURATED at R02 (hit-rate 70%→15%,
+  Δbest=-1.02 vs ε·anchor=0.0042); bo-foils-v1 stays not-saturated
+  through R04 (hit-rate 55%→50%, Δbest monotone +0.058 to +0.161).
+  Closed-loop runtime auto-stop NOT recommended — that's what the
+  deleted machinery already attempted and the 15-run audit showed
+  wasn't earning its keep.
+- **Rolling hit-rate is non-monotone — Δbest is the real verdict
+  (2026-05-31, foilsX08).** The W=20 hit-rate (fraction of new evals
+  that extend HV in the last 20) can REBOUND late in a saturated run
+  if a diverse-picker batch lands and most of its q points scatter to
+  fresh corners of the (sob, -calo) frontier without exceeding the
+  obj-best ceiling. Concrete: foilsX08 R00 (qNEHVI, q=10) flipped tail
+  hit-rate 55%→0% (post-X07 R06, slide 14 hand-authored) back up to
+  **65%** while Δbest stayed negative for 8 consecutive rounds (R02–R09)
+  and VERDICT remained SATURATED. The diversity-overlay finding (qNEHVI
+  scatters into corners, [[batch-bo]]) is the *cause*, not a
+  contradiction. **Trust per-round Δbest plateau for the SAT verdict;
+  treat the rolling hit-rate as a diversity indicator, not a saturation
+  indicator.** Hand-authored hit-rate numbers in slide decks decay
+  invisibly — auto-stamp them or drop them.
 
 ## Open questions / TODO
 - Barrier timeout default (240 min) may be tight if a grid stage hangs;

@@ -2,7 +2,7 @@
 
 **Type:** concept
 **Status:** active
-**Updated:** 2026-05-16
+**Updated:** 2026-06-01 (n=251 overlay post-foilsX08: CL-min L2=0.075 + 10/10 dominance — collapse onto `(n_up=6, n_down∈{0,1}, rOut≈128, hT≈0.23, rIn=0)`; sequence n=128→0.139, n=164→0.095, n=178→0.821, n=186→0.079, n=193→0.590, n=204→0.122, n=251→0.075)
 
 ## Summary
 How to propose **q > 1 in-flight BO points** at once instead of one-at-a-time, so
@@ -62,6 +62,166 @@ Three surgical patches land the batch retrofit; a fourth would automate the grid
 - `helical`: `strategy="cl_min"`, q=2 only — until history ≥ ~30 real points.
 
 **Diagnostic for q creep:** if `propose` starts returning near-duplicate geometries within a batch, CL is leaking; drop q or switch `strategy` to a more pessimistic variant.
+
+**Measured CL-min collapse on saturated frontier (2026-05-31, foils n=128):**
+`mmackenz_table_plots/diversity_overlay_foils.py` asked both pickers for q=10
+batches against the same n=128 leaderboard. CL-min produced an essentially-
+degenerate batch: all 10 picks within a normalized-5D L2 ball of radius ≈0.07
+around `(n_up=6, n_down=6, rOut≈155, hT≈0.12, rIn≈7)`; **intra-batch mean
+pairwise L2 = 0.139** (vs sqrt(5)=2.24 max, vs BoTorch qNEHVI **0.959**).
+BoTorch picks dominated ≥1 CL pick on predicted (sob, calo) in **10/10**
+cases; CL dominated BoTorch in **0/10**. Mechanism: the running-min lie
+saturates near the incumbent once the frontier is wide, so subsequent
+fake-tells don't push EI away. **Operational implication:** at n≈100+
+with a wide frontier, skopt's `cl_min` is no longer a useful diversifier
+for foils; closed_loop should either (a) switch the picker to BoTorch
+qNEHVI (already available as `botorch_predict.compute_explore_picks
+--mode foils`), or (b) add jitter to the running-min lie. The Phase-2
+gate above ("cluster fraction < 0.2 OR median batch-best ≥ 1.2× sequential")
+is now empirically hit on foils. Plot: `diversity_overlay_foils.png`.
+
+**Picker-comparison referee bias (2026-05-31, methodology audit):** both
+the n=128 and n=164 "BoTorch dominates CL" / "CL dominates BoTorch"
+results in `diversity_overlay_foils.py:107,126-130` are produced by
+**a single BoTorch GP** scoring **both pickers' picks**. BoTorch qNEHVI
+optimizes against that exact posterior surface; its picks are extremal
+on the (sob, calo) plane being plotted **by construction**. CL-min
+optimizes against a *different* posterior (sklearn Matérn, different
+lengthscales). The "flip" between n=128 and n=164 is consistent with
+the BoTorch GP's belief shifting (champion ridge sharpened by
+foilsX07R01_03), not with one picker producing better OBSERVED obj on
+the grid. **Honest test (not yet run):** held-out judge GP fit on
+cohorts NEITHER picker has trained on, then score both pickers' picks
+by judge-predicted mean obj. Leaderboard has 20 cohorts (foilsX01R00 →
+foilsX07R04); LOCO over last 5 cohorts is ~100s no-grid runtime. The
+**existing closed_loop default (CL-min) is safer than a switch to
+qNEHVI** for THIS surface because (a) the picker comparison is biased,
+(b) qNEHVI maximizes Pareto HV but our objective is scalarized
+(`obj = sob − 1e5·calo`) — the matching BoTorch acquisition is
+**qLogNEI** not qNEHVI, and (c) `botorch_predict.py:185-191` rounds
+Integer dims (n_up, n_down) post-hoc, silently collapsing intra-batch
+diversity for those dims. If exploration restoration is wanted, the
+cheaper first move is **switch CL-min → CL-mean** (one-character config
+change, no new venv plumbing) before reaching for BoTorch.
+
+**Pareto-dominance flip at n=164 (2026-05-31, post-foilsX07 R04):** re-ran
+the same overlay on the 164-row leaderboard. Intra-batch spread:
+**BoTorch 0.833**, **CL-min 0.095** (CL collapsed even tighter than at n=128).
+But predicted Pareto dominance **fully reversed**: CL-min picks dominated
+≥1 BoTorch pick in **10/10** cases; BoTorch dominated CL in **0/10**.
+Mechanism: foilsX07R01_03 (obj=2.178, sob=3.60, calo=1.4e-5) and siblings
+defined a narrow band of champions at `(n_up=6, n_down=6, rOut≈210-230,
+hT≈0.08, rIn≈20)`; CL-min collapses ONTO that band (its 10 picks predict
+sob∈[3.07, 3.34], calo∈[1.37e-5, 1.65e-5]) while BoTorch qNEHVI scatters
+across underexplored corners (sob∈[0.80, 3.58]) and lands mostly at
+predicted-worse points. **Operational implication:** the n=128 conclusion
+("switch to BoTorch") was leaderboard-state-specific — once the champion
+ridge is sharp, exploitation (CL-min collapse) beats exploration (qNEHVI
+scatter) on next-pick predicted dominance. The robust answer is to keep
+both pickers in rotation, not to crown one.
+
+**LOCO honest-judge result (2026-05-31, foils n=177, q=5):**
+`mmackenz_table_plots/loco_picker_eval.py` removes the self-refereeing
+bias above by holding cohort C out of BOTH pickers' training and
+holding the **judge GP** out of cohorts {C, C−1} (target + closest
+neighbor). Judge scores both pickers' q=5 picks by
+`posterior.mean → obj = sob − 1e5·calo`. Aggregate over last 5 cohorts
+(foilsX07R02..R06): **CL-min wins mean-obj 4/5, best-obj 3/5**;
+Δ(BO−CL) mean=**−0.53**, median=**−0.60**, range [−1.22, +0.72]. BO
+only wins R02 (least-sharpened leaderboard). **Confirms** the
+referee-bias hypothesis: once the judge has not seen what either picker
+trained on, CL-min's champion-ridge exploitation actually scores higher
+on judge-predicted obj than qNEHVI's scatter. The n=128 / n=164
+diversity_overlay flips were artifacts of the BoTorch self-judge, not
+real picker-quality signals. **Operational implication:** do NOT swap
+closed_loop's default picker to qNEHVI on the strength of the
+diversity_overlay finding; CL-min is the better next-pick predictor on
+this surface as of 2026-05-31. Pickers should be kept in rotation, not
+crowned. **Runtime knob:** the LOCO script monkey-patches
+`botorch.optim.optimize_acqf` with cheap settings (num_restarts=4,
+raw_samples=128, maxiter=50; vs production 16/512/200) for ~30× speedup;
+parallel-pool of 5 cohorts runs in ~3 min wall (was ~7-8 min serial).
+Output: `loco_picker_eval.json`.
+
+**n=178 overlay refresh (2026-05-31, post-foilsX07 R07):** third
+diversity_overlay run on the now-178-row leaderboard. **CL-min intra-batch
+L2 jumped 0.095 (n=164) → 0.821 (n=178)** — no longer the degenerate
+collapse seen at n=128/164. Mechanism: foilsX07 R05+R06+R07 added points
+that broadened the champion ridge (multiple distinct (n_up=6, n_down∈{2..5},
+rOut∈[180,250]) configs near obj≈2.1), so the running-min lie no longer
+locks every pick to a single corner. Pareto dominance also moderated:
+**CL-min 5/10 vs BoTorch 3/10** (vs the dramatic 10/0 reversals at n=128
+and n=164). **Operational implication reinforces the LOCO finding:**
+CL-min's "saturation collapse" is leaderboard-state-specific, not a
+permanent failure mode; whichever picker the closed_loop is configured
+with, the diversity_overlay should be re-run after every ~30 evals to
+catch the transition. The 3-hour qNEHVI runtime at n=178 (was ~5 min at
+n=128) is also load-bearing: BoTorch GP fit + qNEHVI optimize scales
+super-linearly in n; budget accordingly. Wall: 25 min from skopt-CL-min
+start to PNG write; ~3 hr aggregate CPU on 12 cores. Plot:
+`diversity_overlay_foils.png`.
+
+**n=186 overlay (2026-05-31, post-foilsX07 R07):** fourth run, +8 rows
+from R07 (top R07 obj=1.992, none beat the R01 champion 2.178). **CL-min
+L2 collapsed back to 0.079** (the tightest of all four runs: n=128→0.139,
+n=164→0.095, n=178→0.821, n=186→0.079). All 10 CL picks pinned at
+`(n_up∈{3,4}, n_down=6, rOut≈130, hT≈0.13, rIn≈12)` — a *different* ridge
+than the R01 champion neighborhood. Dominance fully reverted: CL-min
+10/10 vs BoTorch 0/10. **Mechanism:** the R07 picks at `(n_up=3, n_down=6,
+rOut≈160, hT≈0.21)` (obj≈1.99) sharpened CL-min's posterior view of a
+second sub-champion ridge, and the running-min lie immediately collapses
+onto it. **Implication:** the n=178 broadening was a temporary artifact
+of mid-cohort posterior smoothness, NOT a stable behavioral change.
+Spread is volatile in BOTH directions; do not infer a trend from any
+single overlay snapshot — use the LOCO honest-judge metric (above) for
+operational picker decisions.
+
+**n=193 overlay (2026-05-31, post-foilsX07 R08 partial):** fifth run.
+**CL-min L2=0.590** (recovered from 0.079 at n=186 but well below the
+n=178 0.821 peak); BoTorch L2=0.968; inter-batch centroid 0.576.
+**Pareto dominance: BoTorch 5/10 vs CL-min 0/10** — *sharpest BoTorch
+advantage observed in this series* (vs 3/5 at n=178, 0/10 at n=186).
+CL-min still spends 8/10 picks on the `rOut=250, hT=1, rIn=0` boundary
+corner (mode-collapse to GP-predicted "safe" extreme). Sequence so far:
+n=128→L2 0.139, n=164→0.095, n=178→0.821, n=186→0.079, n=193→0.590 —
+confirms volatility is fundamental, not a transient. Wall time:
+~1h45min total (qNEHVI step alone exceeded 90 min on 12 cores at
+n=193 — well past the super-linear knee). Plot:
+`diversity_overlay_foils.png`.
+
+**n=204 overlay (2026-05-31, post-foilsX07 exit, +11 rows from R08+R09):**
+sixth run. **Dramatic reversal vs n=193**: CL-min L2 collapsed back to
+**0.122**, Pareto dominance flipped fully to **CL-min 10/10 vs BoTorch
+2/10**. Inter-batch centroid distance **1.197** (largest in the series —
+the two pickers' picks are now in *entirely different* regions of X-space).
+**New observation:** CL-min collapsed onto a NEW corner this time —
+`rOut≈245, hT≈0.5, rIn≈50` (boundary on all three continuous dims) — vs
+the n=186 collapse onto `rOut≈130, hT≈0.13, rIn≈12`. The corner *identity*
+varies between collapses even when L2 is similarly low; CL-min finds
+whichever GP-predicted "safe" extreme the current posterior favors.
+Updated sequence: n=128→0.139, n=164→0.095, n=178→0.821, n=186→0.079,
+n=193→0.590, n=204→0.122. **Operational implication:** ratchets the
+LOCO-honest-judge conclusion. The diversity_overlay metric oscillates
+wildly with leaderboard state (BoTorch L2 ∈ [0.83, 1.07], CL-min L2
+∈ [0.079, 0.821], dominance flips fully both ways within 11 rows) —
+it is NOT a reliable picker-quality signal in isolation. Plot:
+`diversity_overlay_foils.png`.
+
+**n=251 overlay (2026-06-01, post-foilsX08 close at R04):** seventh run,
++47 rows from full foilsX08 cohort (qNEHVI production picker). **CL-min
+L2 collapsed to 0.075** (tightest in the entire series, beating n=186's
+0.079); BoTorch L2=1.148 (highest seen). Inter-batch centroid 1.010.
+Pareto dominance fully on CL-min: **10/10 vs BoTorch 0/10**. New corner
+this time: CL-min collapsed onto `(n_up=6, n_down∈{0,1}, rOut≈128,
+hT≈0.23, rIn=0)` — a *third distinct* collapse corner across the series
+(n=186 was rOut≈130/hT≈0.13/rIn≈12; n=204 was rOut≈245/hT≈0.5/rIn≈50).
+**Notable:** the qNEHVI-driven foilsX08 cohort did NOT shift CL-min's
+behavior toward the BoTorch picks — the running-min lie still finds
+whichever GP-predicted safe extreme dominates the current posterior,
+independent of which picker generated the recent evals. Updated
+sequence: n=128→0.139, n=164→0.095, n=178→0.821, n=186→0.079,
+n=193→0.590, n=204→0.122, n=251→0.075. Plot:
+`diversity_overlay_foils.png`.
 
 ## Cross-links
 - Driver: [[autoresearch-bo-michael]]

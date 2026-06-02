@@ -281,10 +281,21 @@ indicator hinting which off-axis knob to promote next.
 - Apply the −0.80 log-calo bias correction to GP predictions before
   rendering (caveat: invalidates uncertainty quantification)
 
+### Shared x-axis chokepoint (2026-05-30)
+`cloud_plot.py:192` `ax.set_xlim(0, 1.4)` is the **single line** controlling
+the x-limit on BOTH the static (`gp_predict_foils_cloud.py`) and animated
+(`gp_predict_foils_cloud_anim.py`) renders, plus the helical equivalents
+(`overlay_gp_predictions_helical_mpl.py`, `botorch_predict_helical.py`). All
+four scripts import `cloud_plot.finalize(...)`, which calls `ax.set_xlim`.
+Was 1.15 until 2026-05-30; widened to 1.4 so the GP-predicted Pareto frontier
+stops railing the right edge of the foils cloud. To change again, edit one
+line in `cloud_plot.py` — not the four caller scripts.
+
 ## Cross-links
-- Related: [[bfield-at-helical-plug]], [[bo-helical]], [[batch-bo]]
+- Related: [[bfield-at-helical-plug]], [[bo-helical]], [[batch-bo]], [[refresh-foils-slides]]
 - Source files: `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/overlay_gp_predictions_helical_mpl.py`,
   `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predict_helical.py`,
+  `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/cloud_plot.py`,
   `/tmp/residuals_over_iter.py`
 - Data: `gp_predictions_helical.tsv` (8.4M Sobol), `leaderboard_bo_helical_v2.tsv`
 

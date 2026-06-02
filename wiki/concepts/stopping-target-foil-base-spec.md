@@ -2,7 +2,7 @@
 
 **Type:** concept
 **Status:** active
-**Updated:** 2026-05-28
+**Updated:** 2026-06-01
 
 ## Summary
 The deployed Mu2e stopping-target geometry is 37 aluminum foils at rOut=75 mm,
@@ -33,13 +33,19 @@ overrides (e.g. [[bo-foils]] adds extras around this base) or interpreting
   Use **0.0528** when matching the simulated geometry; use **0.05** if you
   intend to compare against a documents-spec configuration.
 
-- **`stoppingTarget.holeRadius` is a SINGLE SCALAR**
-  (`StoppingTargetMaker.cc:41` → `c.getDouble("stoppingTarget.holeRadius", 0)`).
-  It applies globally to every foil, not per-foil. Per-foil vector overrides
-  (`radii`, `halfThicknesses`) coexist with a single shared hole — there is
-  no `vector<double> stoppingTarget.holeRadii` config key. This is
-  load-bearing for any BO mode that wants to vary hole geometry across
-  foils: you can't.
+- **`stoppingTarget.holeRadius` historically a SINGLE SCALAR; patched lib
+  (2026-06-01) adds optional per-foil `stoppingTarget.holeRadii` vector.**
+  Upstream `StoppingTargetMaker.cc:41` reads only the scalar via
+  `c.getDouble("stoppingTarget.holeRadius", 0)`. The patched build in
+  `Code_helical_base.tar.bz2` (post 2026-06-01 cutover) reads
+  `vector<double> stoppingTarget.holeRadii` when present (last-element-
+  repeat semantics, mirrors `halfThicknesses` parsing), falls back to the
+  scalar otherwise. Decouples extras-rIn from the pinned base rIn=21.5 in
+  [[bo-foils]]. **Dual-emit contract:** `FoilsMode._geom_text` always emits
+  BOTH the scalar (at BASE_HOLE_RADIUS_MM=21.5) and the per-foil vector —
+  legacy grid workers running the old tarball silently fall back to the
+  scalar and rebuild the deployed-baseline base correctly (extras still
+  wrong, but base is right). Patch at `/tmp/holeRadii-vector.patch`.
 
 - **Vector keys that ARE per-foil** (`StoppingTargetMaker.cc:40, 50`,
   `getVectorDouble`): `stoppingTarget.radii`, `stoppingTarget.halfThicknesses`.

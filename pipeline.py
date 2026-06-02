@@ -74,6 +74,7 @@ from config import (  # noqa: E402
     SETUPMU2E,
     STAGE_TARGETS,
 )
+from sourced_bash import run_sourced_bash  # noqa: E402
 
 # Canonical muse-built Code.tar.bz2 produced by `muse tarball` from
 # /exp/mu2e/app/users/oksuzian/autoresearch_muse/ (mgit Mu2eG4 sparse
@@ -269,15 +270,50 @@ def sourced_env(extra="", *, with_muse=False) -> dict:
             f"export LD_LIBRARY_PATH={mmlib}:$LD_LIBRARY_PATH && "
         )
     else:
+        # `muse setup ops` (spack-native) provides the mu2egrid binaries
+        # (/cvmfs/.../artexternals/mu2egrid/v8_03_02/bin/{mu2ejobsub,
+        # mu2ejobdef,mu2eprodsys}) via the active Musing's env, replacing the
+        # legacy UPS `setup mu2egrid`.
+        # NOTE: this swap does NOT prevent rc=127. That failure comes from a
+        # transient cvmfs I/O flake (==> Error: [Errno 5]) inside
+        # setupmu2e-art.sh that leaves museDefine.sh unsourced and the `muse`
+        # function itself undefined -- upstream of this line. The retry loop
+        # below is what actually recovers it.
+        # See wiki/incidents/sourced-env-stderr-swallowed.md.
         prelude = (
-            f"source {SETUPMU2E} >/dev/null 2>&1 && "
-            f"source {MUSING}     >/dev/null 2>&1 && "
-            f"setup mu2egrid      >/dev/null 2>&1 && "
+            f"source {SETUPMU2E} && "
+            f"source {MUSING} && "
+            f"muse setup ops && "
         )
     cmd = f"{prelude}{extra} env"
-    out = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, check=True)
+    # Transient cvmfs read flakes (==> Error: [Errno 5] Input/output error)
+    # leave museDefine.sh unsourced -> `muse` undefined -> rc=127
+    # "command not found". These are NOT deterministic: a re-run seconds later
+    # succeeds, so retry with backoff before giving up. 8+ closed-loop children
+    # were lost to this across X05/X06/X08 before retries were added. Shared
+    # retry lives in graph/sourced_bash.py (run_sourced_bash).
+    proc = run_sourced_bash(cmd, label="sourced_env")
+    if proc.returncode != 0:
+        # Persist stderr so the cause survives the CalledProcessError raise.
+        # Without this, the transient cvmfs/spack flake surfaces as a bare
+        # "submit <stage> failed (rc=1)" with no captured cause.
+        err_dir = Path("/tmp") / f"sourced_env_errs_{os.environ.get('USER','x')}"
+        err_dir.mkdir(parents=True, exist_ok=True)
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        err_path = err_dir / f"sourced_env_{ts}_rc{proc.returncode}.err"
+        err_path.write_text(
+            f"$ bash -c {shlex.quote(cmd)}\n\n"
+            f"--- STDOUT ---\n{proc.stdout}\n"
+            f"--- STDERR ---\n{proc.stderr}\n"
+        )
+        tail = "\n".join(proc.stderr.splitlines()[-20:])
+        raise subprocess.CalledProcessError(
+            proc.returncode, cmd,
+            output=proc.stdout,
+            stderr=f"{proc.stderr}\n[sourced_env] full log: {err_path}\n[sourced_env] stderr tail:\n{tail}",
+        )
     env = {}
-    for line in out.stdout.splitlines():
+    for line in proc.stdout.splitlines():
         if "=" not in line:
             continue
         k, _, v = line.partition("=")
@@ -406,11 +442,16 @@ def submit_stage(stage: str, env: dict, *, inputs_file: Path | None = None,
     # concurrent load condor_vault_storer races; the lock guarantees only one
     # process at a time touches the bearer token + mu2ejobsub.
     with _submit_lock(stage):
-        print(f"[{stage}] renewing bearer token: mu2einit && getToken", flush=True)
-        subprocess.run(
-            ["bash", "-c", f"source {SETUPMU2E} >/dev/null 2>&1 && getToken"],
-            check=True,
-        )
+        print(f"[{stage}] renewing bearer token: getToken", flush=True)
+        # getToken sources setupmu2e-art.sh, so it shares the cvmfs/spack flake
+        # class -> route through the shared retry helper (was bare check=True).
+        tok = run_sourced_bash(f"source {SETUPMU2E} >/dev/null 2>&1 && getToken",
+                               label=f"{stage}/getToken")
+        if tok.stdout.strip():
+            print(tok.stdout)
+        if tok.returncode != 0:
+            raise subprocess.CalledProcessError(
+                tok.returncode, "getToken", output=tok.stdout, stderr=tok.stderr)
 
         submit = ["mu2ejobsub", "--jobdef", cnf.name,
                   "--firstjob", "0", "--njobs", str(cfg["njobs"]),

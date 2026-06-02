@@ -18,6 +18,8 @@ PLOTS=/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots
 
 GIF_SRC="$PLOTS/gp_predicted_foils_cloud.gif"
 PNG_SRC="$PLOTS/gp_predicted_foils_cloud.png"
+BOTORCH_SRC="$PLOTS/botorch_predicted_foils_cloud.png"
+DIVERSITY_SRC="$PLOTS/diversity_overlay_foils.png"
 
 if [[ ! -f "$GIF_SRC" ]]; then
   echo "[refresh-slides] missing $GIF_SRC — render it first" >&2
@@ -27,6 +29,18 @@ fi
 cp -p "$GIF_SRC" "$DOCS/gp_predicted_foils_cloud.gif"
 # PNG ships only in Slack today; keep optional copy in docs in case slide refs it.
 [[ -f "$PNG_SRC" ]] && cp -p "$PNG_SRC" "$DOCS/gp_predicted_foils_cloud.png" || true
+# Slide deck also embeds BoTorch cross-check + diversity overlay images.
+# These are not always present; warn but don't fail if missing.
+if [[ -f "$BOTORCH_SRC" ]]; then
+  cp -p "$BOTORCH_SRC" "$DOCS/botorch_predicted_foils_cloud.png"
+else
+  echo "[refresh-slides] WARN: missing $BOTORCH_SRC (slide will show stale)" >&2
+fi
+if [[ -f "$DIVERSITY_SRC" ]]; then
+  cp -p "$DIVERSITY_SRC" "$DOCS/diversity_overlay_foils.png"
+else
+  echo "[refresh-slides] WARN: missing $DIVERSITY_SRC (slide will show stale)" >&2
+fi
 
 # Regenerate saturation panels (slides 9-10). The _slim/_hv/_pf variants
 # don't live in mmackenz_table_plots/ — they're rendered straight into docs/
@@ -43,6 +57,20 @@ if [[ -f "$LB" && -x "$VENV" && -f "$SAT" ]]; then
     --out "$DOCS/saturation_bo_foils_v1_pf.png" 2>&1 | tail -1
 else
   echo "[refresh-slides] WARN: skipping saturation panels (missing $LB or $VENV or $SAT)" >&2
+fi
+
+# Stamp leaderboard-derived numbers into foils_talk.md highlights block.
+# Idempotent: rewrites only the region between <!-- highlights:start/end -->.
+if [[ -x "$VENV" ]]; then
+  "$VENV" "$ROOT/tools/stamp_foils_highlights.py" || \
+    echo "[refresh-slides] WARN: stamp_foils_highlights.py failed (continuing)" >&2
+fi
+
+# Refresh the larger data-derived caption regions
+# (botorch-cross-check, run-timeline, footer line).
+if [[ -x "$VENV" ]]; then
+  "$VENV" "$ROOT/tools/refresh_foils_talk_captions.py" || \
+    echo "[refresh-slides] WARN: refresh_foils_talk_captions.py failed (continuing)" >&2
 fi
 
 # Re-render HTML. --allow-local-files lets the GIF be inlined as data URI.

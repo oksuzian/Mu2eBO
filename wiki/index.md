@@ -37,6 +37,7 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [graph-runner](drivers/graph-runner.md) — LangGraph state-machine orchestrator (Phase 1 mock-grid); Studio + Streamlit overlay
 - [closed-loop-runner](drivers/closed-loop-runner.md) — multi-round Pareto-pick BO driver: wraps q parallel graph-runner children, refits GP between rounds
 - [tests](drivers/tests.md) — `tests/test_closed_loop.py` + `tests/test_audit_fixes.py`; 37 tests, no grid contact; `.venv-graph/bin/python -m unittest discover -s tests -v`
+- [refresh-foils-slides](drivers/refresh-foils-slides.md) — `tools/refresh_foils_slides.sh`: copies fresh GP cloud GIF into `docs/`, re-renders `docs/foils_talk.html` via `npx @marp-team/marp-cli`; no commit/push (operator reviews)
 
 ## Incidents (root-caused gotchas)
 - [geom-run1a-vs-run1b](incidents/geom-run1a-vs-run1b.md) — `geom_run1_a.txt` baseline missing TT_MidInner fix; fails in run1b_mubeam
@@ -61,6 +62,10 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [slack-bot-dm-channel-not-found](incidents/slack-bot-dm-channel-not-found.md) — bot's `files.completeUploadExternal` → `channel_not_found` on user-MCP DM channels; call `conversations.open` first to mint the bot's own DM
 - [claude-bash-no-ssh-agent](incidents/claude-bash-no-ssh-agent.md) — Bash-tool subshells can't reach user's `ssh-agent`; `git push` to GitHub fails for Claude even when it works in user's interactive shell
 - [foilsx04-all-preflight-ambiguous](incidents/foilsx04-all-preflight-ambiguous.md) — foilsX04 silent total failure (2026-05-29): 20/20 children died at preflight=ambiguous rc=3, parent reported converged=True with zero new leaderboard rows; convergence check has no "new evals this round" gate
+- [closed-loop-thread-id-checkpoint-collision](incidents/closed-loop-thread-id-checkpoint-collision.md) — SqliteSaver thread_id reuse silently swapped foilsX05R01_07's config_name to graph001 (2026-05-30); leaderboard row never landed under intended name
+- [sourced-env-stderr-swallowed](incidents/sourced-env-stderr-swallowed.md) — pipeline.py:278 sourced_env() swallows bash stderr; 3/10 foilsX06R00 children died on transient `setup mu2egrid` rc=127 + missing CET_PLUGIN_PATH mfPlugin "cerr" with no captured cause
+- [root-gdml-forward-volume-ref](incidents/root-gdml-forward-volume-ref.md) — ROOT TGDMLParse segfaults on forward `<volume>` refs (children must precede parents); Geant4 reader is order-tolerant, ROOT isn't; subset extractors must DFS post-order
+- [botorch-predict-seed-pow-vs-xor](incidents/botorch-predict-seed-pow-vs-xor.md) — `botorch_predict.py:161` used `42 ** round_idx` (pow) instead of documented `42 ^ round_idx` (xor); rounds 0+1 silently shared seed=42 → identical Sobol draw
 
 ## External pointers
 - [mmackenz-workflow](external/mmackenz-workflow.md) — `/exp/mu2e/app/users/mmackenz/run1b/Run1BAna/workflows/`
