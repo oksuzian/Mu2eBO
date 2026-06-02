@@ -75,3 +75,4 @@ See [[CLAUDE]] for the schema and maintenance contract.
 - [slack-file-upload-flow](external/slack-file-upload-flow.md) — three-step `getUploadURLExternal → POST bytes → completeUploadExternal` recipe for posting binary files to Slack from this project
 - [mu2e-exp-website-docroot](external/mu2e-exp-website-docroot.md) — `https://mu2e-exp.fnal.gov` docroot is NFS-mounted at `/web/sites/m/mu2e-exp.fnal.gov/htdocs/`; readable without Shibboleth login
 - [github-pages-publish-dir](external/github-pages-publish-dir.md) — GitHub Pages branch-deploy folder dropdown hardcodes `/(root)` and `/docs` only; arbitrary names like `/talks` require switching source to GitHub Actions
+- [mmackenz-table-plots-dir](external/mmackenz-table-plots-dir.md) — off-repo /data dir holding ~20 unversioned picker/renderer scripts + artifacts; name is historical misnomer; 3 hardcoded repo refs; migration blocked while a closed-loop runs

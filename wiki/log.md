@@ -17,6 +17,13 @@ Append-only. Newest entries at the bottom. One line per change:
 2026-06-01: CONSOLIDATED all 4 env-source sites onto graph/sourced_bash.py:run_sourced_bash (getToken gaps closed); +5 TestRunSourcedBash, TestRenewToken rewired; 68/68 green; long-lived-parent picks up only at relaunch — sourced-env-stderr-swallowed, tests
 2026-06-01: /code-review found v1→v2 prior base-hole mismatch — 50/51 priors' (sob,calo) measured at base-hole=extra_rIn but v2 builds base-hole=21.5; both pickers seeded on biased data; unfixed — bo-foils
 2026-06-01: FIXED prior base-hole mismatch — load_priors filters to extra_rIn≈21.5 (tol 1.5mm), 51→1 prior; v2 history is now primary warm start; +regression test — bo-foils
+2026-06-02: foilsY02 5-round campaign complete — obj 1.71→2.00 (champion R03_01 sob=3.62), R4 cl_min late-collapse; 11/15 landed; ran on OLD cached (biased) priors — bo-foils
+2026-06-02: rendered foilsY v2 6D static GP cloud (n=18); applied base-hole filter to the 2nd projection copy foils_v2_loader._load_v1_projected so cloud matches optimizer — bo-foils
+2026-06-02: added foilsY v2 cloud slide to docs/foils_talk deck (new gp_predicted_foilsY_cloud.png, distinct from v1) — bo-foils
+2026-06-02: created mmackenz-table-plots-dir — why named that (historical), unversioned code on /data, 3 hardcoded refs, migration plan blocked by live picker import — mmackenz-table-plots-dir
+2026-06-02: sized mmackenz_table_plots — 2.2GB total but 1.6GB is TSV/JSON, code only 147KB; size is NOT a reason to keep code off git, migration is size-free — mmackenz-table-plots-dir
+2026-06-02: the 1.6GB is 4 helical prediction dumps (3× 509MB near-dup variants base/_nolegacy/_fixC + 64MB botorch); ~1GB stale+regenerable — mmackenz-table-plots-dir
+2026-06-02: deleted stale helical dump variants _nolegacy + _fixC (~1GB); dir 2.2GB→1.2GB — mmackenz-table-plots-dir
 
 Verbs: `created`, `updated`, `merged`, `superseded`, `linted`.
 

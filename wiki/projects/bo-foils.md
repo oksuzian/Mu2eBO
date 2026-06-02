@@ -271,6 +271,20 @@ in (sob, calo) is attributable to the +12 envelope alone.
   extras collapsed → the upstream extras carry most of the S/√B signal;
   downstream contributes little at these picks.** Don't read R00 obj as
   competitive — it's information-buying about up≠ dn, not exploitation.
+- **foilsY02 5-round campaign COMPLETE (q=3, cl_min, 2026-06-01→02):** the
+  multi-round refit paid off — best obj climbed **1.71 (R0) → 2.00 (R3)**;
+  champion **foilsY02R03_01 obj=2.00, sob=3.62** (approaches but doesn't beat
+  the v1 obj champion foilsX07R01_03 at 2.178). Per-round best obj:
+  R0 1.71 / R1 1.24 / R2 1.88 / **R3 2.00** / R4 0.61 — **R4 regressed hard**
+  (obj 0.61/0.44), cl_min wandering into a low-signal corner late (the
+  documented [[batch-bo]] cl_min late-collapse). **11 of 15 evals landed**
+  (2 lost to the R0 cvmfs preflight flake, R01_01 + an R04 child to harvest
+  `metrics_none`). **Caveat: this run used the OLD cached `load_priors`**
+  (51 base-hole-mismatched priors) — the parent launched before the prior
+  filter fix and holds the cached module, so the picker/prior code change does
+  NOT apply mid-campaign (same long-lived-parent nuance as
+  [[sourced-env-stderr-swallowed]]); the next launch uses the corrected
+  1-prior version.
 - **v1→v2 priors are base-hole MISMATCHED (bug, found by /code-review
   2026-06-01).** `FoilsMode.load_priors` projects each v1 row to
   `x=[rOut,rOut,hT,hT,rIn,rIn]` and carries its `(sob,calo)` as the y-value.
@@ -294,6 +308,15 @@ in (sob, calo) is attributable to the +12 envelope alone.
   a richer warm start the only sound path is re-measuring v1 champions under
   v2 geometry (grid work). Regression: `test_audit_fixes.py:
   test_load_priors_drops_base_hole_mismatch`.
+  **Duplicate-logic warning (2026-06-02):** the v1→6D projection exists in a
+  SECOND place — `mmackenz_table_plots/foils_v2_loader.py:_load_v1_projected`
+  (on /data; feeds the static GP cloud `gp_predict_foils_cloud.py`). It had
+  its own unfiltered copy; the same `abs(extra_rIn-21.5)<=1.5` filter was added
+  there so the cloud's GP trains on the same data the optimizer sees (else the
+  cloud shows a belief the optimizer no longer holds). A 3rd function,
+  `foils_v2_loader.load_history_all_v1_symmetric`, is ANIMATION-ONLY and
+  intentionally projects every v1 row (no filter). Any future change to which
+  v1 rows project must touch `load_priors` AND `_load_v1_projected` in lockstep.
 - **First asymmetric pick beats the diagonal (preliminary, n=1, 2026-06-01;
   note the prior bias above weakens this signal):**
   foilsY02R00_02 — up `(rOut=143, hT=0.05, rIn=23.96)`, dn `(rOut=250,

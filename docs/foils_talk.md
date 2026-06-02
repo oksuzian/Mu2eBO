@@ -3,7 +3,7 @@ marp: true
 theme: default
 paginate: true
 size: 16:9
-footer: "FoilsMode — 5D BO on the Mu2e Stopping-Target Foil Stack · Y. Oksuzian · 2026-06-01 (n=251, latest=X08)"
+footer: "FoilsMode — Mu2e Stopping-Target Foil-Stack BO (5D → 6D) · Y. Oksuzian · 2026-06-02"
 style: |
   section { font-size: 24px; }
   h1 { color: #003366; }
@@ -14,10 +14,10 @@ style: |
 ---
 
 # FoilsMode
-## 5D Bayesian Optimization of the Mu2e Stopping-Target Foil Stack
+## 5D → 6D Bayesian Optimization of the Mu2e Stopping-Target Foil Stack
 
 **Y. Oksuzian**
-2026-05-31
+2026-06-02
 Mu2e — autoresearch / closed-loop BO
 
 ---
@@ -331,3 +331,44 @@ champion ridge sharpened, then 5 rounds of failed exceedence attempts.
   (#162), per-launch unique thread_id (#165), zero-row classifier
   + sidecar (#167), `node_propose` re-entry name preservation (#172),
   `sourced_env` stderr leak fix (#170).
+
+---
+
+## v2 — the dimensionality lift (foilsY)
+
+The 5D frontier **saturated** at obj = 2.178 — so the next move is *more
+dimensions, not more rounds*. **foilsY** is that lift:
+
+**5D → 6D, per-side decoupled.** v1 forced all extras to share one
+`(rOut, hT, rIn)` triple. v2 gives **upstream and downstream their own**:
+`(rOut, hT, rIn) × (up / dn)`.
+
+- `n_up = n_down = 6` **pinned** — both v1 champions railed there.
+- Base 37 still pinned; a new per-foil **`holeRadii` vector** decouples the
+  extras' hole from the fixed base hole = 21.5 mm (patched `StoppingTargetMaker`).
+- Warm start: the v2 leaderboard + the **1 base-hole-valid v1 prior** — the
+  other 50 v1 rows measured a base geometry v2 can't reproduce, so they're dropped.
+
+→ **First question:** does decoupling up / dn buy anything the diagonal can't reach?
+
+---
+
+## foilsY: first 6D cloud
+
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div>
+
+![w:100%](gp_predicted_foilsY_cloud.png)
+
+</div>
+<div>
+
+**Early v2 read** (n = 18: 1 valid v1 prior + 17 foilsY):
+
+- Best **obj = 2.00** (sob 3.62) at a genuinely **asymmetric** pick
+  (up ≠ dn) — beats every near-diagonal v1-style config so far
+- `rIn` dims still under-trained → read as interpolation, not extrapolation
+- **foilsY03 in flight** (q=3 × 5 rounds) — more rounds landing
+
+</div>
+</div>
