@@ -363,12 +363,13 @@ dimensions, not more rounds*. **foilsY** is that lift:
 </div>
 <div>
 
-**Early v2 read** (n = 18: 1 valid v1 prior + 17 foilsY):
+**v2 read** (n = 30: 1 valid v1 prior + 29 foilsY across Y01–Y03):
 
-- Best **obj = 2.00** (sob 3.62) at a genuinely **asymmetric** pick
-  (up ≠ dn) — beats every near-diagonal v1-style config so far
+- Best **obj = 2.00** (sob 3.62, `foilsY02R03_01`) at a genuinely
+  **asymmetric** pick (up ≠ dn) — beats every near-diagonal v1-style config
+- **foilsY03 done** (q=3 × 5 rounds, **15/15 clean**) — consolidated the 6D
+  space, no new champion yet
 - `rIn` dims still under-trained → read as interpolation, not extrapolation
-- **foilsY03 in flight** (q=3 × 5 rounds) — more rounds landing
 
 </div>
 </div>

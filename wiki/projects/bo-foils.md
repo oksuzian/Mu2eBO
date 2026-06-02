@@ -271,6 +271,16 @@ in (sob, calo) is attributable to the +12 envelope alone.
   extras collapsed → the upstream extras carry most of the S/√B signal;
   downstream contributes little at these picks.** Don't read R00 obj as
   competitive — it's information-buying about up≠ dn, not exploitation.
+- **foilsY03 5-round campaign COMPLETE (q=3, cl_min, 2026-06-02):** first
+  campaign run with all of today's fixes committed (filtered priors,
+  retry-protected preflight, consolidated env-source). **15/15 evals landed —
+  ZERO losses across all 5 rounds** (vs foilsY02's 4 losses), a clean
+  production validation of the preflight cvmfs-flake retry
+  ([[sourced-env-stderr-swallowed]]). **No new champion:** best
+  foilsY03R01_00 obj=1.899; v2 leader stays foilsY02R03_01 obj=2.00. A
+  consolidation run — filled in the 6D space, didn't exceed. Cloud refreshed
+  to n=30 (1 prior + 29 foilsY), GP Pareto frontier 75→181. Deck (foils_talk)
+  v2 coda updated to the n=30 numbers.
 - **foilsY02 5-round campaign COMPLETE (q=3, cl_min, 2026-06-01→02):** the
   multi-round refit paid off — best obj climbed **1.71 (R0) → 2.00 (R3)**;
   champion **foilsY02R03_01 obj=2.00, sob=3.62** (approaches but doesn't beat

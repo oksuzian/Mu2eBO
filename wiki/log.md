@@ -24,6 +24,7 @@ Append-only. Newest entries at the bottom. One line per change:
 2026-06-02: sized mmackenz_table_plots — 2.2GB total but 1.6GB is TSV/JSON, code only 147KB; size is NOT a reason to keep code off git, migration is size-free — mmackenz-table-plots-dir
 2026-06-02: the 1.6GB is 4 helical prediction dumps (3× 509MB near-dup variants base/_nolegacy/_fixC + 64MB botorch); ~1GB stale+regenerable — mmackenz-table-plots-dir
 2026-06-02: deleted stale helical dump variants _nolegacy + _fixC (~1GB); dir 2.2GB→1.2GB — mmackenz-table-plots-dir
+2026-06-02: foilsY03 5-round campaign COMPLETE — 15/15 ZERO losses (validates preflight retry fix); no new champ (best 1.899, v2 leader stays 2.00); cloud refreshed n=30 Pareto 181, deck updated — bo-foils
 
 Verbs: `created`, `updated`, `merged`, `superseded`, `linted`.
 
