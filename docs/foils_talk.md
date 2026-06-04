@@ -355,7 +355,7 @@ dimensions, not more rounds*. **foilsY** is that lift:
 
 ## foilsY: first 6D cloud
 
-<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center;">
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center; font-size: 18px;">
 <div>
 
 ![w:100%](gp_predicted_foilsY_cloud.png)
@@ -363,13 +363,110 @@ dimensions, not more rounds*. **foilsY** is that lift:
 </div>
 <div>
 
-**v2 read** (n = 30: 1 valid v1 prior + 29 foilsY across Y01–Y03):
+**v2 read** (n = 54: 1 prior + 53 foilsY, Y01–Y05):
 
-- Best **obj = 2.00** (sob 3.62, `foilsY02R03_01`) at a genuinely
-  **asymmetric** pick (up ≠ dn) — beats every near-diagonal v1-style config
-- **foilsY03 done** (q=3 × 5 rounds, **15/15 clean**) — consolidated the 6D
-  space, no new champion yet
-- `rIn` dims still under-trained → read as interpolation, not extrapolation
+- Best **obj = 2.00** (sob 3.62, `foilsY02R03_01`) — an **asymmetric** pick
+  (up ≠ dn), still the v2 ceiling
+- **cl_min plateaued: 4 campaigns, none beats 2.00** (all ~1.9–2.0 on one ridge)
+- **Next lever: qnehvi or a 7th dim** — `foilsY05` (10-round) is the last
+  cl_min attempt
+- `rIn` dims under-trained → interpolation, not extrapolation
+
+</div>
+</div>
+
+---
+
+## Top foilsY configurations (v2, 6D)
+
+| config           | rOut ↑/↓  | hT ↑/↓      | rIn ↑/↓ | sob  | calo (×10⁻⁵) | obj   |
+|------------------|-----------|-------------|---------|------|--------------|-------|
+| `foilsY02R03_01` | 149 / 160 | 0.05 / 0.17 | 0 / 50  | 3.62 | 1.62         | **2.003** |
+| `foilsY04R03_00` | 135 / 175 | 0.16 / 0.17 | 0 / 50  | 3.34 | 1.38         | 1.963 |
+| `foilsY04R03_01` | 133 / 188 | 0.14 / 0.18 | 0 / 50  | 3.33 | 1.39         | 1.943 |
+| `foilsY02R03_02` | 159 / 161 | 0.05 / 0.23 | 7 / 0   | 3.48 | 1.57         | 1.905 |
+| `foilsY04R02_02` | 146 / 194 | 0.05 / 0.25 | 0 / 50  | 3.24 | 1.34         | 1.904 |
+
+**Pattern (top-5):** the v2 optima are **asymmetric** — moderate rOut
+(≈130–195, *not* the rOut=250 boundary cl_min drifts to), thin hT, and a
+striking **rIn split: upstream solid (rIn↑=0), downstream fully holed
+(rIn↓=50)** in 4 of 5. The up ≠ dn decoupling v1's coupled space *couldn't*
+express is exactly what the champions exploit — yet it still caps at obj ≈ 2.0.
+
+---
+
+## foilsY saturation: cl_min at its ceiling
+
+<div style="display: grid; grid-template-columns: 60% 40%; gap: 20px; align-items: center; font-size: 18px;">
+<div>
+
+![h:520px](saturation_foilsY.png)
+
+</div>
+<div>
+
+53 v2 evals (Y01–Y05). **Hit-rate 80% → 70%**, HV flattening — frontier softening.
+
+- **Per-round Δbest pools the campaigns** (each reuses R00–R09): tops at
+  **2.00 (foilsY02's R03)**, R04 dips — FoM says "not saturated" but is
+  cross-campaign-blind.
+- **Real signal: 4 cl_min campaigns, none > 2.00.**
+- **foilsY05** (10-round) → clean single-run curve.
+
+</div>
+</div>
+
+---
+
+## What's next — v3: open the downstream hole
+
+<div style="font-size: 20px;">
+
+**Diagnosis of the plateau.** The top-5 v2 configs are *asymmetric* — upstream
+solid (`rIn↑→0`), downstream holed — and **`rIn_dn` pegs at its search ceiling
+(50 mm)** in the champions. rOut stays interior; only the downstream hole presses
+on the box. **The optimum wants a hole bigger than the box allows.**
+
+**Fix — fractional holes (v3 / `foilsf`).** Reparameterize the hole as a
+*fraction* of its outer radius, `f = rIn/rOut`, `f ∈ [0, 0.95]`:
+
+- reaches `rIn` up to ~0.95·rOut (**≈190 mm** vs the old **50 mm** cap)
+- **no infeasible region** — `f < 1` ⇒ hole always inside the foil
+- **lossless reuse** — all 53 v2 evals map in exactly (`f = rIn/rOut`, same
+  geometry), so v3 starts fully warm
+
+**`foilsZ01`** (foilsX 5D → foilsY 6D abs → **foilsZ 6D fractional**; q=3,
+cl_min, 5 rounds). The question: does a bigger downstream hole break the
+obj ≈ 2.0 ceiling — or is 2.0 a real physical limit, not just a box edge? →
+
+</div>
+
+---
+
+## v3 result: 2.0 is a real ceiling, not a box edge
+
+<div style="display: grid; grid-template-columns: 58% 42%; gap: 18px; align-items: center; font-size: 16px;">
+<div>
+
+![h:540px](saturation_foilsZ.png)
+
+</div>
+<div>
+
+15 evals (foilsZ01). Best obj climbs **1.12 → 1.41 (R03)**, then **R04 regresses
+to 1.20** — never near the v2 bar **2.00**.
+
+- **R01 probed the big hole** (`rIn_dn = 238 mm`, impossible in v2) → **sob
+  collapses 3.4 → 1.69**: thin ring, far off-axis, misses the muons.
+- The climb back to 1.41 is a *retreat* to small/moderate holes.
+- **cl_min's `f_dn = 0.95` peg self-corrected** — it reached the moderate
+  interior (`f ≈ 0.1–0.7`) on its own and *still* couldn't break 2.0.
+
+**Verdict: opening the hole doesn't help — obj ≈ 2.0 is physical, not a box
+edge.** All-time best stays the v1 champion **`foilsX07R01_03`, obj = 2.178**.
+
+**Now running:** `foilsZ02` (qNEHVI, 10 rounds) — does a different acquisition
+find what cl_min's greedy picks missed?
 
 </div>
 </div>

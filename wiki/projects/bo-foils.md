@@ -8,7 +8,7 @@ type: project
 
 **Type:** project
 **Status:** active (Phase 0 preflight PASS on +12 extreme-corner envelope 2026-05-28; awaiting first closed-loop round)
-**Updated:** 2026-06-01 (v1→v2 6D prior reuse: 51 of 251 v1 rows — the n_up==n_down==6 subset — project onto the up==dn diagonal as priors; 200 dropped. Also: sob-only ridge differs from obj-champion — top-sob is foilsX08R04_08 at sob=3.93, rOut=124, hT=0.073; obj-champion foilsX07R01_03 at sob=3.60. FoilsMode does NOT touch foil-to-foil z-spacing — pitch inherited from v02 baseline via `geom_run1_a.txt` include; extras land in the next slot up/down on the same evenly-spaced grid as the base 37)
+**Updated:** 2026-06-04 (v1→v2 6D prior reuse: 51 of 251 v1 rows — the n_up==n_down==6 subset — project onto the up==dn diagonal as priors; 200 dropped. Also: sob-only ridge differs from obj-champion — top-sob is foilsX08R04_08 at sob=3.93, rOut=124, hT=0.073; obj-champion foilsX07R01_03 at sob=3.60. FoilsMode does NOT touch foil-to-foil z-spacing — pitch inherited from v02 baseline via `geom_run1_a.txt` include; extras land in the next slot up/down on the same evenly-spaced grid as the base 37)
 
 ## Summary
 Third BO mode in `autoresearch_bo_michael.py` (select with `--mode foils`).
@@ -271,6 +271,30 @@ in (sob, calo) is attributable to the +12 envelope alone.
   extras collapsed → the upstream extras carry most of the S/√B signal;
   downstream contributes little at these picks.** Don't read R00 obj as
   competitive — it's information-buying about up≠ dn, not exploitation.
+- **cl_min looks EXHAUSTED on the v2 6D surface (2026-06-02, strategic):**
+  three consecutive cl_min campaigns have not beaten **obj=2.00**
+  (`foilsY02R03_01`, itself below the v1 champ 2.178): Y02 climbed to 2.00,
+  Y03 consolidated (best 1.899, no beat), **Y04 COMPLETE — per-round best obj
+  1.39 / 0.68 / 1.90 / 1.96 / 1.89** (best 1.963, no beat). The R1=0.68 was a
+  **transient** boundary dip, NOT a terminal collapse — cl_min escaped it on
+  its own R2–R4 and recovered to the ridge. But the **plateau is now settled:
+  four cl_min campaigns, none has cracked 2.00**, all topping ~1.9–2.0. The
+  surface is mapped; cl_min reliably finds the ridge and reliably fails to
+  exceed it. **Implication: the next lever is exploration (qnehvi) or a
+  dimensionality lift (promote base holeRadius / halfThickness to a 7th knob,
+  per the deck's "next steps"), NOT a 5th cl_min run.**
+  - **Mechanism (diagnosed 2026-06-02 from Y04 geometry):** every Y04 pick
+    railed `rOut` to **250** (the max), R1 also railed `hT` to **~1.0** — the
+    big-thick-foil **boundary corner** — vs the champion's moderate rOut≈150 /
+    thin hT≈0.05. The low obj is **low SOB (0.6–2.2), not a calo penalty**
+    (calo is tiny there): big thick foils stop muons poorly → weak CE signal.
+    This is the LIVE realization of the [[batch-bo]] n=193 note ("CL-min
+    spends 8/10 picks on the rOut=250, hT=1, rIn=0 boundary corner —
+    mode-collapse to a GP-predicted safe extreme"), amplified by the
+    running-min lie getting more pessimistic as low-obj rows accumulate.
+    **NOT a prior effect** — the single filtered prior can't pull the GP off
+    29 history rows. qnehvi scatters AWAY from this exact boundary, so it's
+    the right escape lever.
 - **foilsY03 5-round campaign COMPLETE (q=3, cl_min, 2026-06-02):** first
   campaign run with all of today's fixes committed (filtered priors,
   retry-protected preflight, consolidated env-source). **15/15 evals landed —
@@ -327,6 +351,132 @@ in (sob, calo) is attributable to the +12 envelope alone.
   `foils_v2_loader.load_history_all_v1_symmetric`, is ANIMATION-ONLY and
   intentionally projects every v1 row (no filter). Any future change to which
   v1 rows project must touch `load_priors` AND `_load_v1_projected` in lockstep.
+- **Asymmetric-rIn champion pattern CONFIRMED across the top-5 (n=50,
+  2026-06-03):** the 5 best v2 configs all share a geometry v1's *coupled*
+  triple could not express — **moderate rOut (≈130–195, NOT the rOut=250
+  boundary cl_min drifts to), thin hT, and a sharp rIn split: upstream solid
+  (rIn↑=0), downstream fully holed (rIn↓=50) in 4 of 5.** Physically the
+  downstream extras want a big hole, the upstream extras want solid foils.
+  This is the concrete payoff of the 5D→6D lift — the optima live in an up≠dn
+  region v1 was blind to — **even though the scalar obj still caps at ~2.0**
+  (`foilsY02R03_01` obj=2.003, sob=3.62; next `foilsY04R03_00` 1.963). Top-5
+  rows: foilsY02R03_01 / foilsY04R03_00 / foilsY04R03_01 / foilsY02R03_02 /
+  foilsY04R02_02. Upgrades the n=1 note below into a settled pattern.
+  - **rIn pegs at the RANGE EXTREMES — and the two ends mean different things
+    (diagnosed 2026-06-03, all 50 evals):** rIn↑ distribution 39 solid(0) / 6
+    mid / 5 max(50); rIn↓ 30 max(50) / 14 solid(0) / 6 mid. Physics:
+    upstream-solid stops muons; downstream-holed lets the CE (+ beam core)
+    pass to the detector. **rIn↑=0 is a HARD physical floor** (can't be more
+    solid than solid — not wideable). **rIn↓=50 is the SEARCH-RANGE CEILING**
+    (`build_space` caps rIn at 50) — pegging there is the classic sign the
+    optimum wants rIn_dn > 50 but can't reach it. **ACTIONABLE: widen the
+    rIn_dn upper bound (e.g. 0–100 mm) — a bigger downstream hole may be the
+    2.0-plateau breaker that lives OUTSIDE the current box, which no amount of
+    cl_min rounds can find.** Caveat: cl_min also collapses to boundary
+    corners, so some pegging is picker-artifact; the up≠dn asymmetry argues
+    real signal underneath. qnehvi (interior probe) or the widened range would
+    disentangle.
+  - **Only rIn_dn warrants widening — NOT rOut (2026-06-03).** The discriminator
+    is *which* configs sit at the bound: for **rIn_dn the CHAMPIONS** (top-5)
+    are pegged at 50 → optimum likely outside the box → widen. For **rOut the
+    bound-pegs are the BAD picks** — best configs are interior (rOut_up ~105–160,
+    rOut_dn ~160–190, both well inside [50,250]); `rOut_up=50` floor → obj
+    0.9/−0.03, and `rOut=250` ceiling is where cl_min boundary-collapses (low
+    sob). So widening rOut just hands cl_min more boundary to collapse onto;
+    if anything the rOut high end is a dead zone to NARROW. Next-campaign spec:
+    change **only** `rIn_dn: 0–50 → 0–100`, leave the other 5 knobs as-is.
+  - **BLOCKER before widening rIn (found 2026-06-03):** widening `rIn_dn` past
+    `rOut_dn`'s floor (50) creates an INVERTED-foil region (`rIn_dn >= rOut_dn`,
+    hole bigger than outer radius). `is_buildable` rejects it
+    (`autoresearch_bo_michael.py:98`), BUT the **closed-loop picker does not
+    enforce it** — `gp_predict_foils.compute_explore_picks` has no is_buildable
+    call, and the `--x-point` child path bypasses `propose_one`'s guard
+    (`graph/pipeline_io.py:86`). Current ranges are safe ONLY by accident
+    (`max(rIn)=50 == min(rOut)=50`). So naive widening → cl_min (which pegs at
+    boundaries) piles picks at `rIn_dn=100`, half infeasible → preflight
+    failures, wasted evals. **Fix first:** either (1) reparameterize the hole as
+    a FRACTION of rOut (`rIn = f·rOut`, `f∈[0,0.95]` — always valid, scale-free,
+    arguably more physical), or (2) add the is_buildable retry loop to
+    `gp_predict_foils.compute_explore_picks`. See [[closed-loop-runner]].
+  - **The fraction reparam is LOSSLESS — opposite of v1→v2 (2026-06-03).**
+    `rIn = f·rOut` is an invertible coordinate change of the SAME geometry, so
+    every existing v2 row transfers EXACTLY: `f = rIn/rOut`, rOut/hT unchanged,
+    `(sob,calo)` valid because the physical foil is identical (no base-hole
+    mismatch). So a v3 mode's loader is a pure `rIn→rIn/rOut` conversion — NO
+    filtering (vs v2's `load_priors` which had to drop 50/51 because the
+    geometry changed). All ~47 v2 evals + the 1 v1 prior reuse; the old data
+    fills the low-f region and the new `f≤0.95` range opens big holes (rIn up
+    to ~0.95·rOut) with NO infeasible region (f<1 ⇒ hole<rOut). Bonus: fraction
+    is likely better-conditioned for the GP than the under-trained absolute-mm
+    rIn dims. (rOut≥50 always ⇒ no div-by-zero.)
+- **v3 / `foilsf` mode BUILT + launched (`foilsZ01`, 2026-06-03).** New mode
+  `FoilsFracMode(FoilsMode)` (name `foilsf`): hole = fraction `f=rIn/rOut`,
+  `f∈[0,0.95]` (`F_MAX`), `is_buildable` ≡ True, writes
+  `leaderboard_bo_foils_v3.tsv`. `_geom_text`/`parse_geom` just wrap the v2
+  methods with the f↔rIn transform (geometry layer unchanged). `load_priors`
+  returns **51 lossless priors** (all v2 evals + the 1 v1 prior, `f=rIn/rOut`).
+  Validated: 51 priors load, round-trip exact, dry-run cl_min immediately pegs
+  `f_dn=0.95`/`f_up=0` (wants the big downstream hole), and a **rIn_dn=180 mm
+  geom — impossible in v2 — PASSES real G4 preflight**. **Naming: foilsX (v1
+  5D) → foilsY (v2 6D abs) → foilsZ (v3 6D fractional).** foilsZ01 = q=3,
+  max-rounds 5, cl_min, thread `closed-d163308e`. Tests the hypothesis: does a
+  downstream hole bigger than v2's 50 mm cap break the obj≈2.0 ceiling?
+  (Y05 was killed at round 2 to pivot here.) Uncommitted.
+  - **foilsZ01 R0 (preliminary, n=3): the reparam MOVED cl_min's collapse but
+    didn't kill it.** All 3 R0 picks peg `f_dn=0.95` (max fraction) AND collapse
+    `rOut_dn` to its FLOOR (50) → `rIn_dn = 0.95·50 ≈ 48 mm` — basically v2's
+    old cap, reached via small foils, NOT the big absolute hole v3 was built to
+    test (which needs big rOut_dn × big f_dn → rIn_dn ~190 mm). Those
+    small-foil/full-hole picks are high-sob (~3.43)/high-calo (~2.3e-5) → obj
+    only ~1.1, no beat. So in fraction space cl_min corner-seeks a DIFFERENT
+    corner than v2 (v2: rOut→250; v3: rOut→50 + f→0.95) but still doesn't reach
+    the big-absolute-hole region. **Implication if R1–R2 don't pull rOut_dn up:
+    the fraction reparam is necessary but NOT sufficient — qnehvi (interior
+    explorer) is still needed to actually probe `large rOut_dn × large f_dn`.**
+  - **foilsZ01 R1 PROBED the big hole — and it FAILED (key result, n=6,
+    2026-06-03).** R1 best pick was `rOut_dn=250, f_dn=0.95 → rIn_dn=238 mm`
+    (impossible in v2) and **sob collapsed to 1.69** (obj 1.11) vs ~3.4 for the
+    small-hole picks. Physics: a thin ring (`f=0.95`) at large rOut sits far
+    from the beam axis → misses the muons → low signal. **Implications that
+    UPDATE the earlier "widen rIn_dn = plateau-breaker" hypothesis:** (a) the
+    v2 `rIn_dn=50` pegging was mostly **cl_min boundary artifact, NOT a real
+    out-of-box optimum** — the big-hole region is bad; (b) **obj≈2.0 looks like
+    a real ceiling, not a box edge**; (c) cl_min STILL boundary-collapses in
+    f-space (pegs `f_dn=0.95`, the wrong region — the v2 champion is at
+    `f_dn≈0.31`, a MODERATE hole). So the real lever is **qnehvi to explore the
+    moderate-hole interior (`f≈0.3`) cl_min won't reach**, NOT further box
+    widening. Confirm if R2–R3 keep pegging f_dn=0.95.
+  - **foilsZ01 R2–R3 RESOLVE the watch-item: the f_dn=0.95 peg SELF-CORRECTED
+    (2026-06-04, n=12 thru R03).** Once R1's wide-hole probes harvested sob≈1.69,
+    the GP learned big holes kill signal and cl_min **moved into the interior on
+    its own** — R02 best `f_dn=0.11` (obj 1.317), R03 best `f_dn=0.66`
+    (obj 1.409). So cl_min did NOT need qnehvi rescue *here*; boundary-collapse
+    is GP-data-dependent, not a fixed cl_min pathology. **Per-round best obj
+    climbs 1.120→1.110→1.317→1.409 (R00→R03)** but stays **far below the v2 bar
+    obj=2.003** — every wide-hole config is low-sob, and the climb back toward
+    1.4 comes from *retreating* to small/moderate holes. **Verdict: opening the
+    downstream hole does NOT break the obj≈2.0 ceiling; the ceiling is real, not
+    a v2 box-edge artifact** — which is exactly what foilsZ01 was built to test.
+    R04 (final round of max-rounds 5) running 2026-06-04; an optimistic R04
+    won't leap 1.4→2.0, so v3 is expected to confirm the ceiling, not break it.
+  - **foilsZ01 COMPLETE (2026-06-04, 15 rows, all 5 rounds, parent exited
+    clean).** R04 **regressed** — its 3 picks returned to the big-foil/big-hole
+    corner (`rOut_dn=250, sob≈3.1, calo≈1.9e-5`) for obj≈1.20, beating nothing;
+    the optimizer found nothing better in the final round. **v3 champion =
+    `foilsZ01R03_00`, obj=1.409 (sob=2.37, f_dn=0.66)** — peaked at R03. Final
+    standings across all foils campaigns: **v1 champion `foilsX07R01_03`
+    obj=2.178 (sob=3.60, coupled up==dn diagonal) remains the ALL-TIME best**;
+    v2 best 2.003; v3 best 1.409. **Conclusions the campaign settled:** (1) the
+    obj≈2.0 ceiling is robust under v2 (abs rIn) AND v3 (fractional rIn); (2)
+    cl_min DID reach the moderate-hole interior on its own (R02 f_dn=0.11, R03
+    f_dn=0.66) yet still couldn't break 2.0 — so **qnehvi-interior is NO LONGER
+    a compelling lever** (that region got sampled, ceiling held); (3) decoupling
+    up≠down (the entire 6D v2+v3 effort) never beat the 5D coupled-diagonal v1
+    champion. **The foil-stack GEOMETRY line (rIn/rOut/halfThickness) is
+    saturated at obj=2.178.** The one genuinely unexplored lever is foil-to-foil
+    **z-spacing/pitch**, which `FoilsMode` currently PINS to the v02 baseline
+    (deck open-questions slide) — that, not another rIn reparam or picker swap,
+    is the real next dimensionality lift.
 - **First asymmetric pick beats the diagonal (preliminary, n=1, 2026-06-01;
   note the prior bias above weakens this signal):**
   foilsY02R00_02 — up `(rOut=143, hT=0.05, rIn=23.96)`, dn `(rOut=250,

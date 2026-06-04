@@ -2,7 +2,7 @@
 
 **Type:** driver
 **Status:** active
-**Updated:** 2026-05-31
+**Updated:** 2026-06-04
 
 ## Summary
 `tools/refresh_foils_slides.sh` rebuilds the `docs/foils_talk.*` artifacts
@@ -13,6 +13,25 @@ animated GIF the 4-hourly cron posts to Slack. Safer split: this script
 pushes manually.
 
 ## Key facts
+- **Saturation 4-panel PNG is PORTRAIT (2026-06-03):** `saturation_report.py`
+  writes `saturation_<prefix>.png` at **1400×1792 (h/w=1.28, taller than
+  wide)**, so embedding it `![w:..%]` in the deck's 60/40 side-by-side grid
+  overflows the 16:9 slide vertically. Fix: cap the HEIGHT —
+  `![h:520px](...)` (Marp 16:9 = 1280×720px; ~580px usable after the h2 title
+  + footer). This is why the v1 deck used the separate landscape
+  `saturation_bo_foils_v1_{slim,hv,pf}.png` panels instead of the full
+  4-panel PNG. Image+bullets slides also need `font-size: 18px` (or 17px) in
+  the grid `<div>` to fit, matching slides 14–16.
+  - **Denser two-column RESULTS slides need 16px, not 18px (2026-06-04, from
+    the v3 result slide).** When the right column carries the full saturation
+    plot on the LEFT *and* a multi-bullet text column on the RIGHT (≥4 bullets +
+    verdict + a footer line), `font-size: 18px` overflows the *text* column —
+    the last paragraph renders under the page-footer and clips. `16px` +
+    `h:520px` (plot) fits a 58/42 grid. Verify by exporting PNGs
+    (`marp … --images png -o /tmp/s.png`) and Read-ing the last slide; the h2
+    title + footer eat enough vertical space that eyeballing the markdown is
+    NOT reliable. The portrait plot itself fits fine at h:520–540; the binding
+    constraint is always the text column, not the image.
 - Inputs (read-only):
   `/exp/mu2e/data/users/oksuzian/autoresearch_grid/mmackenz_table_plots/gp_predicted_foils_cloud.{gif,png}`
 - Outputs (written into `docs/`):

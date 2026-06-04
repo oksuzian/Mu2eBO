@@ -1,8 +1,16 @@
 # claude-bash-no-ssh-agent — Bash-tool subshells can't reach user's ssh-agent
 
 **Type:** incident
-**Status:** active
-**Updated:** 2026-05-29
+**Status:** active (general SSH limitation) — but RESOLVED for Mu2eBO via HTTPS remote
+**Updated:** 2026-06-02
+
+## CONFIRMED: Claude CAN push to Mu2eBO (2026-06-02)
+The `git push origin main` workaround on lines 67–73 is **live and proven**:
+Mu2eBO's `origin` is now `https://github.com/oksuzian/Mu2eBO.git` (HTTPS) with
+cached credentials, and **`git push origin main` succeeded directly from the
+Claude Bash tool** (pushed `387b3bb..2badabf`). So for THIS repo, do NOT hedge
+"I can't push" — just push. The ssh-agent limitation below only bites for
+`git@github.com:` (SSH) remotes; Mu2eBO no longer uses one.
 
 ## Summary
 The user's interactive gpvm shell has a working `ssh-agent` (forwarded from

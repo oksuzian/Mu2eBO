@@ -31,6 +31,18 @@ in this phase.
   `subprocess.Popen(..., start_new_session=True)`. Subprocess isolation
   means a child OOM/kill doesn't touch siblings or the parent; restart of
   the parent doesn't re-launch in-flight children (barrier just re-polls).
+- **The closed-loop picker does NOT enforce `is_buildable` (gap, 2026-06-03).**
+  `node_predict_picks` → `gp_predict_{foils,helical}.compute_explore_picks`
+  just does `opt.ask(q, cl_min)` within the box — no `is_buildable` filter
+  (unlike `cmd_propose` / `propose_one`, which retry-loop on it). And the
+  closed-loop launches children with `--x-point`, which **bypasses**
+  `propose_one`'s guard (`graph/pipeline_io.py:86` — "x_override bypasses the
+  guard"). So a geometrically-invalid pick goes straight to the grid and fails
+  at preflight. It has never bitten foils only because the box is safe by
+  accident (`max(extra_rIn)=50 == min(extra_rOut)=50`, so `rIn>=rOut` is
+  measure-zero). **Any range change that breaks that coincidence (e.g.
+  widening `rIn_dn` past 50) MUST first add is_buildable filtering to the
+  picker, or reparameterize to remove the infeasible region.** See [[bo-foils]].
 - **Barrier polls the SqliteSaver checkpoint, NOT the leaderboard TSV.**
   Per `[[closed-loop-bo-design]]` revision #3: the TSV is a derived
   end-of-harvest artifact, so using it as the barrier source-of-truth
@@ -334,7 +346,19 @@ in this phase.
   ε·anchor threshold line) + console verdict.
   **Run with `.venv-botorch/bin/python`** (matplotlib); `.venv-graph`
   has no matplotlib. Optional `--prefix foilsX05` to isolate one BO
-  campaign from prior history in the same leaderboard. Validated
+  campaign from prior history in the same leaderboard.
+  - **GOTCHA — a MULTI-campaign prefix pools rounds (2026-06-03):** passing a
+    prefix that matches several campaigns which each reuse R00–R09 (e.g.
+    `--prefix foilsY` matches foilsY01…Y05) makes the per-round Δbest panel
+    POOL by round number across campaigns — "R03=2.00" is then *whichever*
+    campaign's R03 was best (foilsY02's), not one run's progression. The
+    resulting VERDICT is cross-campaign-blind (says "not saturated" even when
+    every campaign plateaued, because it can't see "campaign N didn't beat
+    N−1"). The HV / PF-size / hit-rate panels ARE valid (eval-indexed,
+    campaign-agnostic). For a true saturation curve use a SINGLE-campaign
+    prefix (a 10-round run like foilsY05 is the right analog, as foilsX07 was
+    for v1). See [[bo-foils]].
+  Validated
   2026-05-29: bo-helical-v2 fires SATURATED at R02 (hit-rate 70%→15%,
   Δbest=-1.02 vs ε·anchor=0.0042); bo-foils-v1 stays not-saturated
   through R04 (hit-rate 55%→50%, Δbest monotone +0.058 to +0.161).
