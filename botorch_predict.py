@@ -66,6 +66,15 @@ MODE_SPECS = {
         "hi":       [250.0, 250.0, 1.00, 1.00, 50.0, 50.0],
         "int_dims": [],
     },
+    "foilsf": {
+        # v3 6D: (rOut_up, rOut_dn, hT_up, hT_dn, f_up, f_dn). All Real.
+        # Identical to "foils" except the last two dims are the fractional
+        # hole f = rIn/rOut in [0, F_MAX=0.95] (FoilsFracMode.build_space,
+        # autoresearch_bo_michael.py:823). Keep F_MAX in sync with that class.
+        "lo":       [ 50.0,  50.0, 0.05, 0.05, 0.00, 0.00],
+        "hi":       [250.0, 250.0, 1.00, 1.00, 0.95, 0.95],
+        "int_dims": [],
+    },
     "helical": {
         "lo":       [0.01,  40.0,  25.0,  60.0],
         "hi":       [5.00, 400.0, 500.0, 720.0],

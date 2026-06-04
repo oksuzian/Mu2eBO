@@ -136,6 +136,8 @@ def _import_gp(mode: str = "helical"):
         import gp_predict_helical as gp  # noqa: WPS433
     elif mode == "foils":
         import gp_predict_foils as gp  # noqa: WPS433
+    elif mode == "foilsf":
+        import gp_predict_foilsf as gp  # noqa: WPS433
     else:
         raise ValueError(f"_import_gp: no GP picker registered for mode={mode!r}")
     return gp
@@ -582,6 +584,8 @@ _DRY_RUN_KNOB_LABELS = {
     "helical": ("dx", "dy", "halflen", "angle"),
     # foils v2 is 6D per-side decoupled; must match FoilsMode.build_space order.
     "foils":   ("rOut_up", "rOut_dn", "hT_up", "hT_dn", "rIn_up", "rIn_dn"),
+    # foilsf (v3) swaps the rIn dims for hole-fractions f = rIn/rOut.
+    "foilsf":  ("rOut_up", "rOut_dn", "hT_up", "hT_dn", "f_up", "f_dn"),
 }
 
 
@@ -606,7 +610,7 @@ def _dry_run(args: argparse.Namespace) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", default=DEFAULT_MODE,
-                    choices=["helical", "michael", "foils"])
+                    choices=["helical", "michael", "foils", "foilsf"])
     ap.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
     ap.add_argument("--q", type=int, default=CLOSED_LOOP_Q)
     ap.add_argument("--max-rounds", type=int, default=CLOSED_LOOP_MAX_ROUNDS)

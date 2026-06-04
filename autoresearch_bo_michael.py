@@ -797,10 +797,125 @@ class FoilsMode(BOMode):
                   f"  {p.sob:6.3f}  {p.calo:10.3e}  {p.obj(alpha):7.3f}")
 
 
+class FoilsFracMode(FoilsMode):
+    """v3: identical 6D foils geometry to FoilsMode, but each side's hole radius
+    is a FRACTION of that side's outer radius (rIn = f * rOut) rather than an
+    absolute mm value. Two payoffs:
+
+      * the downstream hole can exceed the old 50 mm cap (the rIn_dn=50 pegging
+        pointed past it) with NO infeasible rIn>=rOut region — f in [0, 0.95]
+        means rIn < rOut always, so is_buildable is trivially True;
+      * LOSSLESS reparam of v2 — every v2 row maps EXACTLY via f = rIn/rOut
+        (same physical foil), so all v2 evals + the 1 v1 prior reuse with no
+        base-hole filter. See wiki/projects/bo-foils.md.
+
+    Point.x = [rOut_up, rOut_dn, hT_up, hT_dn, f_up, f_dn]. The geometry layer
+    (geom emission, parse, preflight, harvest) is unchanged and still works in
+    absolute rIn; only the BO search coordinate differs, so _geom_text /
+    parse_geom just wrap the v2 methods with the f<->rIn transform.
+    """
+    name = "foilsf"
+    leaderboard = ROOT / "leaderboard_bo_foils_v3.tsv"
+    leaderboard_v2 = ROOT / "leaderboard_bo_foils_v2.tsv"
+
+    F_MAX = 0.95  # hole <= 95% of rOut -> always buildable
+
+    def build_space(self):
+        from skopt.space import Real
+        return [
+            Real(50.0, 250.0, name="extra_rOut_up"),
+            Real(50.0, 250.0, name="extra_rOut_dn"),
+            Real(0.05, 1.0,   name="extra_halfThickness_up"),
+            Real(0.05, 1.0,   name="extra_halfThickness_dn"),
+            Real(0.0,  self.F_MAX, name="extra_f_up"),
+            Real(0.0,  self.F_MAX, name="extra_f_dn"),
+        ]
+
+    def is_buildable(self, x) -> bool:
+        return True  # f in [0, F_MAX<1] => rIn = f*rOut < rOut, always buildable
+
+    @staticmethod
+    def _frac_to_abs(x):
+        rOut_up, rOut_dn, hT_up, hT_dn, f_up, f_dn = x
+        return [rOut_up, rOut_dn, hT_up, hT_dn, f_up * rOut_up, f_dn * rOut_dn]
+
+    @staticmethod
+    def _abs_to_frac(xa):
+        rOut_up, rOut_dn, hT_up, hT_dn, rIn_up, rIn_dn = xa
+        return [rOut_up, rOut_dn, hT_up, hT_dn, rIn_up / rOut_up, rIn_dn / rOut_dn]
+
+    def _geom_text(self, x) -> str:
+        return FoilsMode._geom_text(self, self._frac_to_abs(x))
+
+    def parse_geom(self, text: str):
+        xa = FoilsMode.parse_geom(self, text)  # [..., rIn_up, rIn_dn] absolute
+        return None if xa is None else self._abs_to_frac(xa)
+
+    def load_priors(self):
+        """ALL v2 evals + the 1 v1 prior, converted f = rIn/rOut (lossless: same
+        geometry, exact coordinate change — no base-hole filter needed)."""
+        out = [Point(cfg=p.cfg, x=self._abs_to_frac(p.x), sob=p.sob, calo=p.calo)
+               for p in FoilsMode.load_priors(self)]  # the 1 v1 prior (abs)
+        if self.leaderboard_v2.exists():
+            with self.leaderboard_v2.open() as f:
+                for row in csv.DictReader(f, delimiter="\t"):
+                    try:
+                        rOut_up = float(row["extra_rOut_up"])
+                        rOut_dn = float(row["extra_rOut_dn"])
+                        out.append(Point(
+                            cfg=row["config"],
+                            x=[rOut_up, rOut_dn,
+                               float(row["extra_halfThickness_up"]),
+                               float(row["extra_halfThickness_dn"]),
+                               float(row["extra_rIn_up"]) / rOut_up,
+                               float(row["extra_rIn_dn"]) / rOut_dn],
+                            sob=float(row["sob"]), calo=float(row["calo"]),
+                        ))
+                    except (KeyError, ValueError, ZeroDivisionError):
+                        continue
+        return out
+
+    def format_row(self, p: Point, alpha: float) -> tuple[str, str]:
+        header = ("config"
+                  "\textra_rOut_up\textra_rOut_dn"
+                  "\textra_halfThickness_up\textra_halfThickness_dn"
+                  "\textra_f_up\textra_f_dn"
+                  "\tsob\tcalo\talpha\tobj\n")
+        rOut_up, rOut_dn, hT_up, hT_dn, f_up, f_dn = p.x
+        line = (f"{p.cfg}"
+                f"\t{rOut_up:.4f}\t{rOut_dn:.4f}"
+                f"\t{hT_up:.6f}\t{hT_dn:.6f}"
+                f"\t{f_up:.4f}\t{f_dn:.4f}"
+                f"\t{p.sob:.5f}\t{p.calo:.5e}\t{alpha:.3f}\t{p.obj(alpha):.5f}\n")
+        return header, line
+
+    def load_history_row(self, row: dict) -> Point:
+        return Point(cfg=row["config"],
+                     x=[float(row["extra_rOut_up"]),
+                        float(row["extra_rOut_dn"]),
+                        float(row["extra_halfThickness_up"]),
+                        float(row["extra_halfThickness_dn"]),
+                        float(row["extra_f_up"]),
+                        float(row["extra_f_dn"])],
+                     sob=float(row["sob"]), calo=float(row["calo"]))
+
+    def print_top(self, pts, alpha, top):
+        print(f"{'cfg':>12}  {'rOut_up':>7}  {'rOut_dn':>7}  {'hT_up':>6}  {'hT_dn':>6}"
+              f"  {'f_up':>5}  {'f_dn':>5}  {'sob':>6}  {'calo':>10}  {'obj':>7}")
+        for p in pts[:top]:
+            rOut_up, rOut_dn, hT_up, hT_dn, f_up, f_dn = p.x
+            print(f"{p.cfg:>12}"
+                  f"  {rOut_up:7.2f}  {rOut_dn:7.2f}"
+                  f"  {hT_up:6.4f}  {hT_dn:6.4f}"
+                  f"  {f_up:5.3f}  {f_dn:5.3f}"
+                  f"  {p.sob:6.3f}  {p.calo:10.3e}  {p.obj(alpha):7.3f}")
+
+
 MODES: dict[str, BOMode] = {
     "michael": MichaelMode(),
     "helical": HelicalMode(),
     "foils":   FoilsMode(),
+    "foilsf":  FoilsFracMode(),
 }
 
 
@@ -1045,7 +1160,7 @@ def cmd_preflight(args):
     # as preflight.fcl — the prior two-pass design (init, then surface-check)
     # paid for G4 geometry construction twice. Non-helical modes use the
     # lighter preflight.fcl since they don't need overlap diagnostics.
-    if mode.name in ("helical", "foils"):
+    if mode.name in ("helical", "foils", "foilsf"):
         overlay_basename = f"autoresearch_{name}_surfacecheck_geom.txt"
         (workdir / overlay_basename).write_text(
             SURFACE_CHECK_GEOM_OVERLAY.format(base_geom_basename=geom_basename))
@@ -1111,7 +1226,7 @@ def cmd_preflight(args):
     # WWWW warnings on every baseline overlap (~117 hits in stock geometry).
     # These are advisory, not init failures, so the geom_fail regex must only
     # be consulted when geometry construction actually aborted (past_init=False).
-    if mode.name in ("helical", "foils"):
+    if mode.name in ("helical", "foils", "foilsf"):
         all_hits = SURFACE_OVERLAP_RX.findall(out)
         unique_all = sorted(set(all_hits))
         managed_hits = [v for v in all_hits if SURFACE_OVERLAP_MANAGED.match(v)]
@@ -1145,7 +1260,7 @@ def cmd_preflight(args):
     if timed_out or rc == 0 or past_init:
         print(f"[preflight/{mode.name}] PASS  init=True; "
               f"no geom-fail signature"
-              f"{' and no managed-volume overlap' if mode.name in ('helical', 'foils') else ''}.")
+              f"{' and no managed-volume overlap' if mode.name in ('helical', 'foils', 'foilsf') else ''}.")
         return 0
 
     print(f"[preflight/{mode.name}] AMBIGUOUS  rc={rc}, no geom-fail signature. See {log}")
