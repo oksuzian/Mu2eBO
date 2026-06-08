@@ -204,16 +204,16 @@ Just *"how much signal if you cap the calo background at B?"* (**247 evals**):
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 14px; align-items: start; text-align: center;">
 <div>
 
-![h:420px](saturation_foilsZ.png)
+![h:420px](saturation_foils_v3all.png)
 
-All foilsZ* rounds
+All v3 rounds (foilsZ* + foilsf*, 247 evals)
 
 </div>
 <div>
 
-![h:420px](saturation_foilsZ02.png)
+![h:420px](saturation_foilsZ.png)
 
-foilsZ02 alone
+foilsZ* alone
 
 </div>
 </div>
