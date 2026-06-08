@@ -201,40 +201,15 @@ Just *"how much signal if you cap the calo background at B?"* (**247 evals**):
 
 ## Convergence — front saturated
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; align-items: start; text-align: center;">
-<div>
+<div style="text-align: center;">
 
-![h:200px](saturation_foilsf01.png)
-
-foilsf01 (50 evals)
+![h:460px](saturation_foils_v3all.png)
 
 </div>
-<div>
 
-![h:200px](saturation_foilsf03.png)
+<div style="font-size: 18px; margin-top: 4px; text-align: center;">
 
-foilsf03 (20 evals)
-
-</div>
-<div>
-
-![h:200px](saturation_foilsf06.png)
-
-foilsf06 (50 evals)
-
-</div>
-<div>
-
-![h:200px](saturation_foilsf_all.png)
-
-all foilsf* (179 evals)
-
-</div>
-</div>
-
-<div style="font-size: 16px; margin-top: 6px;">
-
-**VERDICT: SATURATED** on all four panels — round-best Δ vs prior-max negative for the last 6+ rounds. Picker maps the front rather than climbing it.
+**VERDICT: SATURATED** — round-best Δ vs prior-max negative for the last 6+ rounds across all 247 v3 evals. Picker maps the front rather than climbing it.
 
 </div>
 
