@@ -67,7 +67,7 @@ them in parallel on the grid, repeat.
 </div>
 <div>
 
-GP density over the 6-D space, **223 evals**; **gold = exploration picks**.
+GP density over the 6-D space, **247 evals**; **gold = exploration picks**.
 
 - Exploration maps the **whole front** in one campaign.
 - The **off-axis big-hole corner** (far left, low `S/√B`): a thin ring at large
@@ -82,7 +82,7 @@ GP density over the 6-D space, **223 evals**; **gold = exploration picks**.
 
 ## The result: best S/√B at a calo budget
 
-Just *"how much signal if you cap the calo background at B?"* (**223 evals**):
+Just *"how much signal if you cap the calo background at B?"* (**247 evals**):
 
 <style scoped>
   .geom-tbl { font-size: 15px; border-collapse: collapse; margin-top: -4px; }
@@ -176,14 +176,14 @@ Just *"how much signal if you cap the calo background at B?"* (**223 evals**):
   <td>114.6</td><td>31.8</td><td>0.136</td>
 </tr>
 <tr>
-  <td>2</td><td class="name">foilsf02R00_03</td><td>3.880</td><td>2.16e-5</td>
-  <td>118.5</td><td>0.0</td><td>0.050</td>
-  <td>119.5</td><td>19.5</td><td>0.109</td>
+  <td>2</td><td class="name">foilsf06R04_04</td><td>3.880</td><td>2.13e-5</td>
+  <td>102.0</td><td>15.3</td><td>0.064</td>
+  <td>107.3</td><td>34.2</td><td>0.141</td>
 </tr>
 <tr>
-  <td>3</td><td class="name">foilsZ02R07_02</td><td>3.870</td><td>2.05e-5</td>
-  <td>136.9</td><td>42.8</td><td>0.050</td>
-  <td>115.8</td><td>48.3</td><td>0.119</td>
+  <td>3</td><td class="name">foilsf02R00_03</td><td>3.880</td><td>2.16e-5</td>
+  <td>118.5</td><td>0.0</td><td>0.050</td>
+  <td>119.5</td><td>19.5</td><td>0.109</td>
 </tr>
 </table>
 
@@ -193,7 +193,7 @@ Just *"how much signal if you cap the calo background at B?"* (**223 evals**):
 
 - **All three converged to the same geometry family**: rOut ≈ 115–137 mm, **upstream hT pinned at the lower bound (0.050 mm)** + **downstream slightly thicker** (0.11–0.14 mm), small upstream hole + small downstream hole.
 - S/√B values within **0.5%** — the front is **flat at the top**; any of the three is operationally equivalent.
-- Picked across **3 separate campaigns** (foilsZ02 / foilsf02 / foilsf03), independent restarts — strong evidence the optimum is real, not a single-run artefact.
+- Picked across **3 separate campaigns** (foilsf02 / foilsf03 / foilsf06), independent restarts — strong evidence the optimum is real, not a single-run artefact.
 
 </div>
 
@@ -228,6 +228,6 @@ foilsZ02 alone
 
 ## Status & next steps
 
-- **Campaign so far:** 223 evals across 8+ rounds of qLogNEHVI (q = 10).
+- **Campaign so far:** 247 evals across 10+ rounds of qLogNEHVI (q = 10).
   GP is under-identified on the small training set (length_scale rails to
   1000 mm), but the picker keeps advancing the front.
