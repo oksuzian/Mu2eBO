@@ -203,13 +203,13 @@ Just *"how much signal if you cap the calo background at B?"* (**247 evals**):
 
 <div style="text-align: center;">
 
-![h:460px](saturation_foils_v3all.png)
+![h:480px](saturation_foils_v3all.png)
 
 </div>
 
 <div style="font-size: 18px; margin-top: 4px; text-align: center;">
 
-**VERDICT: SATURATED** — round-best Δ vs prior-max negative for the last 6+ rounds across all 247 v3 evals. Picker maps the front rather than climbing it.
+**VERDICT: SATURATED** — picker maps the front rather than climbing it (247 evals, Δbest negative for 6+ rounds).
 
 </div>
 
