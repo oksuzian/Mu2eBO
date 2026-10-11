@@ -199,8 +199,8 @@ VALIDATORS: Dict[str, Callable] = {
 
 # How many jobs one point's step submits, for the start_campaign dry run's
 # budget (service/campaigns.py). Each KitDecl names one of these as its
-# jobs_of: (study, step) -> the count, or a str saying why the step has no
-# one count.
+# jobs_of: (study, step) -> the count. A step's job count never comes from
+# the point: the loader refuses a mapped njobs (kit_params rule 2).
 
 def no_jobs(study, step):
     """A kit that submits no jobs: an analysis, the pre-check, a toy."""
@@ -210,14 +210,8 @@ def no_jobs(study, step):
 def njobs_of(study, step):
     """A step that submits `njobs` jobs per point: the step's fixed value,
     else its stage template's (prodtools_entry.entry_for_step takes the same
-    default at submit). A step that maps njobs (params or params_from) gets
-    it from the point, so it has no one count: a str saying so. Set nowhere
-    is a ValueError: the submit would be refused."""
-    for part in ("params", "params_from"):
-        source = getattr(step, part).get("njobs")
-        if source is not None:
-            return (f"step {step.step!r} maps njobs from {source!r} "
-                    f"({part}), so each point has its own count")
+    default at submit). Set nowhere is a ValueError: the submit would be
+    refused."""
     if "njobs" in step.fixed:
         return step.fixed["njobs"]
     template = study.entry_template(step.step)    # None: the kit takes none
@@ -245,8 +239,8 @@ class KitDecl:
     factory: Optional[str]            # "module.path:Name" relative to core/;
                                       # None for a native (kits.toml) kit
     reserved_params: FrozenSet[str]   # names the worker sets itself
-    jobs_of: Callable                 # (study, step) -> jobs per point, or
-                                      # why none is fixed (no_jobs, njobs_of)
+    jobs_of: Callable                 # (study, step) -> jobs per point
+                                      # (no_jobs, njobs_of)
     accepts_lists: bool               # a profile goes whole, not as <p>_i
     passes_on: FrozenSet[str]         # fixed keys sent on to the server,
                                       # not read by the adapter itself
@@ -433,8 +427,8 @@ def kits_of(study) -> set:
 
 def step_jobs(study, step):
     """The jobs one point's `step` submits, as its kit counts them
-    (KitDecl.jobs_of): an int, or a str saying why the step has no one
-    count. A kit this registry does not declare is a ValueError."""
+    (KitDecl.jobs_of). A kit this registry does not declare is a
+    ValueError."""
     decl = KITS.get(step.kit)
     if decl is None:
         raise ValueError(f"step {step.step!r}: kit {step.kit!r} is not "

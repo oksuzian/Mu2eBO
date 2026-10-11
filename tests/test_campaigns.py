@@ -262,7 +262,7 @@ class TestStart(_Camp):
         self.assertEqual(out["problems"], [])
         self.assertEqual(out["budget"],
                          {"grid_jobs_per_point": 0, "grid_jobs_total": 0,
-                          "local_jobs_per_point": 0, "jobs_vary": []})
+                          "local_jobs_per_point": 0})
         self.assertNotIn("--check-only", out["command"])
         self.assertIn("--name-prefix dry", out["command"])
         # The server writes nothing (closed_loop's launch check leaves its
@@ -400,25 +400,23 @@ class TestBudget(_Camp):
     def test_budget(self):
         self.assertEqual(self.svc.budget("branin", 4, "local"),
                          {"grid_jobs_per_point": 0, "grid_jobs_total": 0,
-                          "local_jobs_per_point": 0, "jobs_vary": []})
+                          "local_jobs_per_point": 0})
         self.assertEqual(self.svc.budget("foilspfbpz_ax", 10, "grid"),
                          {"grid_jobs_per_point": 130,
-                          "grid_jobs_total": 1300, "jobs_vary": []})
+                          "grid_jobs_total": 1300})
 
     def test_a_beamkit_study_counts_its_jobs(self):
         # ptg5k01 and ptg5k02 launched after dry runs that showed 0 grid
         # jobs; they ran 20 per point (180 and 400 in all).
         self.assertEqual(self.svc.budget("ptg4bl", 10, "grid"),
-                         {"grid_jobs_per_point": 20, "grid_jobs_total": 200,
-                          "jobs_vary": []})
+                         {"grid_jobs_per_point": 20, "grid_jobs_total": 200})
 
     def test_a_step_without_njobs_counts_its_stage_template(self):
         svc = self.with_studies(self.smoke(
             "tmplnjobs", lambda doc, s: s["mubeam"]["fixed"].pop("njobs")))
         # stage_entries/mubeam.json's njobs is 200, plus mustops_ce's 1.
         self.assertEqual(svc.budget("tmplnjobs", 3, "grid"),
-                         {"grid_jobs_per_point": 201, "grid_jobs_total": 603,
-                          "jobs_vary": []})
+                         {"grid_jobs_per_point": 201, "grid_jobs_total": 603})
         # The count prodtools submits for the same steps.
         study = svc.load_study("tmplnjobs")
         submitted = sum(prodtools_entry.entry_for_step(
@@ -438,8 +436,7 @@ class TestBudget(_Camp):
             obj["metric"] = f"ana.{obj['name']}"
         svc = self.with_studies(doc)
         self.assertEqual(svc.budget("anaonly", 10, "grid"),
-                         {"grid_jobs_per_point": 0, "grid_jobs_total": 0,
-                          "jobs_vary": []})
+                         {"grid_jobs_per_point": 0, "grid_jobs_total": 0})
 
     def test_a_mapped_job_count_is_refused_at_load(self):
         def from_knob(doc, s):

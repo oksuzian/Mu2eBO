@@ -285,30 +285,19 @@ class CampaignService:
     def budget(self, study: str, max_evals: int,
                executor: str) -> Optional[Dict[str, Any]]:
         """Jobs a campaign would run: every step's jobs per point, each
-        counted by its own kit (kit_registry.step_jobs). jobs_vary says why
-        a step has no one count (it maps its job count from the point);
-        then the per-point and total counts are None, never a partial sum.
-        None when the study does not load; a count its kit cannot give is a
+        counted by its own kit (kit_registry.step_jobs), summed. None when
+        the study does not load; a count its kit cannot give is a
         ValueError."""
         try:
             s = self.load_study(study)
         except ValueError:
             return None
-        per, vary = 0, []
-        for step in s.steps:
-            n = kit_registry.step_jobs(s, step)
-            if isinstance(n, str):
-                vary.append(n)
-            else:
-                per += n
-        if vary:
-            per = None
+        per = sum(kit_registry.step_jobs(s, step) for step in s.steps)
         if executor == "local":
             return {"grid_jobs_per_point": 0, "grid_jobs_total": 0,
-                    "local_jobs_per_point": per, "jobs_vary": vary}
+                    "local_jobs_per_point": per}
         return {"grid_jobs_per_point": per,
-                "grid_jobs_total": None if per is None else per * max_evals,
-                "jobs_vary": vary}
+                "grid_jobs_total": per * max_evals}
 
     def _dry_run(self, argv: List[str]) -> Dict[str, Any]:
         proc = subprocess.Popen(
