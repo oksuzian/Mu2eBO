@@ -231,6 +231,21 @@ class TestAdapter(_Tmp):
         self.assertEqual(args["deck_ref"], "a" * 40)
         self.assertEqual(args["deck_url"], DECK_URL)
 
+    def test_the_ptg4bl_centre_payload_is_pinned(self):
+        """What run_beamline receives for ptg4bl at the box centre, from the
+        step params the golden pins (tests/test_kit_params_golden.py). A
+        resumed point is adopted only when this payload is unchanged."""
+        golden = json.loads((ROOT / "tests" / "fixtures" /
+                             "golden_kit_params.json").read_text())
+        self.kit.submit("cfgR00_00.g4bl", golden["ptg4bl"]["g4bl"], [], [],
+                        "w")
+        self.assertEqual(self.sent_params(), {
+            "Tlength": "200.0", "R_up": "3.75", "R_mid": "3.75",
+            "R_dn": "3.75", "Use_Proton_Target": "4", "epsMax": "0.01"})
+        args = next(c for c in self.calls()
+                    if c["tool"] == "run_beamline")["args"]
+        self.assertEqual((args["njobs"], args["events_per_job"]), (20, 5000))
+
     def test_a_refused_submit_leaves_no_record(self):
         with self.assertRaises(KitError) as cm:
             self.kit.submit("cfgR00_00.g4bl", step_params(deck_ref="f" * 40),

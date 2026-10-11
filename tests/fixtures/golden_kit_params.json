@@ -1,0 +1,903 @@
+{
+ "branin": {
+  "toy": {
+   "delay_s": 0.2,
+   "function": "branin_currin",
+   "x1": 2.5,
+   "x2": 7.5
+  }
+ },
+ "ce_chain": {
+  "ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_ana_v020202.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Step ce of ce_chain (docs/superpowers/specs/2026-09-30-ce-chain-design.md): CeEndpoint primary from production's MDC2025 target stops, as prodtools data/mdc2025/primary_muon.json does.",
+    "desc_fmt": "CeEndpoint_{cfg}",
+    "events": 100,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt",
+     "services.GeometryService.inputFile": "{geom}"
+    },
+    "inloc": "disk",
+    "input_data": {
+     "sim.mu2e.MuminusStopsCat.MDC2025ac.art": 1
+    },
+    "njobs": 1,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1430,
+    "sequential_aux": true
+   },
+   "events_per_job": 100,
+   "fatal_log_codes": [],
+   "memory_mb": 3000,
+   "njobs": 1,
+   "quorum": 1.0
+  },
+  "dig": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_ana_v020202.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Step dig of ce_chain (docs/superpowers/specs/2026-09-30-ce-chain-design.md): OnSpill digitization without pileup. MDC2025ax digitization has a single Output module, and it needs DbService Sim_best v1_5 (an empty DbService fails at makeSD).",
+    "desc_fmt": "CeEndpointOnSpill_{cfg}",
+    "fcl": "Production/JobConfig/digitize/OnSpill.fcl",
+    "fcl_overrides": {
+     "outputs.Output.fileName": "dig.owner.CeEndpointOnSpill.version.sequencer.art",
+     "services.DbService.purpose": "Sim_best",
+     "services.DbService.version": "v1_5",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt",
+     "services.GeometryService.inputFile": "{geom}"
+    },
+    "njobs": 1,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dig.*.CeEndpointOnSpill.*.art"
+   },
+   "fatal_log_codes": [],
+   "memory_mb": 3000,
+   "njobs": 1,
+   "quorum": 1.0
+  },
+  "mcs": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_ana_v020202.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Step mcs of ce_chain (docs/superpowers/specs/2026-09-30-ce-chain-design.md): reconstruction of the digitized events; needs the same DbService Sim_best v1_5 as digitization.",
+    "desc_fmt": "CeEndpointOnSpillReco_{cfg}",
+    "fcl": "Production/JobConfig/recoMC/OnSpill.fcl",
+    "fcl_overrides": {
+     "outputs.LoopHelixOutput.fileName": "mcs.owner.CeEndpointOnSpillTriggered.version.sequencer.art",
+     "services.DbService.purpose": "Sim_best",
+     "services.DbService.version": "v1_5",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt",
+     "services.GeometryService.inputFile": "{geom}"
+    },
+    "njobs": 1,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "mcs.*.CeEndpointOnSpillTriggered.*.art"
+   },
+   "fatal_log_codes": [],
+   "memory_mb": 4000,
+   "njobs": 1,
+   "quorum": 1.0
+  },
+  "nts": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_ana_v020202.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Step nts of ce_chain (docs/superpowers/specs/2026-09-30-ce-chain-design.md): EventNtuple from the reconstructed events (from_mcs-mockdata); needs the AnalysisMDC2025 code tarball.",
+    "desc_fmt": "CeEndpointOnSpillNtuple_{cfg}",
+    "fcl": "EventNtuple/fcl/from_mcs-mockdata.fcl",
+    "fcl_overrides": {
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_no_tsu_ps_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.TFileService.fileName": "nts.owner.CeEndpointOnSpillTriggered.version.sequencer.root"
+    },
+    "njobs": 1,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "nts.*.CeEndpointOnSpillTriggered.*.root"
+   },
+   "fatal_log_codes": [],
+   "memory_mb": 3000,
+   "njobs": 1,
+   "quorum": 1.0
+  },
+  "plot": {
+   "analysis": "trigger_efficiency_ntuple",
+   "musing": "SimJob MDC2025ay",
+   "trigger_paths": "apr_TrkDe_80m70p, cpr_TrkDe_80m70p"
+  }
+ },
+ "foilsflash_ax": {
+  "<preflight>": {
+   "checks_managed_overlap": true,
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dumps_gdml": true,
+   "require_zero_overlaps": true,
+   "verifies_foil_gdml": true
+  },
+  "ce_edep": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "elebeam_flash": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"elebeam_flash\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"elebeam_flash\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; AUTORESEARCH_ELEBEAM_NJOBS env var also still overrides it directly, see core/pipeline.py stage_cfg(), which absorbed core/runtime.py's retired STAGE_TARGETS dict on 2026-08-19).",
+    "desc_fmt": "Run1A_EleBeamFlash_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/pileup/EleBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": "Production/JobConfig/pileup/epilog_1b.fcl",
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyEleBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.EleBeamFlash.version.sequencer.art",
+     "physics.filters.EarlyPrescaleFilter.nPrescale": 1,
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.elebeamflash.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.EleBeamCat.Run1Baa.art": 1
+    },
+    "memory": 3000,
+    "njobs": 100,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.EarlyEleBeamFlash.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1803
+   },
+   "events_per_job": 110000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 100,
+   "quorum": 0.8
+  },
+  "flash": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "mubeam": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mubeam\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mubeam\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()).",
+    "desc_fmt": "Run1A_MuBeam_{cfg}",
+    "events": 5000,
+    "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": [
+      "Production/JobConfig/pileup/epilog_1b.fcl",
+      "sim_kept_products_extras.fcl",
+      "mubeam_targetstop_path.fcl"
+     ],
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+     "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+     "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+     "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+     "physics.filters.muminusSelector.ParticleCodes": [
+      [
+       13,
+       "uninitialized",
+       "muMinusCaptureAtRest"
+      ]
+     ],
+     "physics.filters.muminusSelector.PrintLevel": 0,
+     "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+     "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+    },
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "sim.*.TargetStops.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1800
+   },
+   "events_per_job": 200000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "mustops_ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mustops_ce\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mustops_ce\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()). njobs/events tuning history, carried verbatim from the retired STAGES[\"mustops_ce\"] comment: 100 jobs per A/B noise test on helical001 (2026-05-16) -- half-vs-half ce_seen agreed to 0.4% at 97 jobs each, well below GP noise floor. njobs=200 (then core/runtime.py STAGE_TARGETS, retired 2026-08-19 into core/pipeline.py stage_cfg()) paired with events=2500 preserves total CE statistics at 500k events while halving per-job wall-time and doubling per-cluster parallelism. 2026-05-21 PM: SR00_00's long-tail (dx=0.011 -> N_crit~4144 -> 3-4h CPU/job, 5x normal) showed the implicit throughput gate; halving events_per_job halves per-job CPU cost at constant total statistics. The earlier 2026-05-21 AM reversion to events_per_job=5000 was made WITHOUT compensating njobs, which halved stats and moved sigma(sob) 0.10 -> 0.14; the 200x2500 pairing restores it. Stamped at submit -- see wiki/incidents/events-per-job-mid-flight-edit.md. MaxEventsToSkip is 8000 here, in the template: the prolog leaves it nil and art aborts at ResamplingMixer construction without it; a dir: inloc gets no SAM auto-compute; and each job reads ONE staged mubeam file of about 16k events, so the random skip must stay below the smallest plausible file.",
+    "desc_fmt": "Run1A_CeEndpoint_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 8000,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1
+    },
+    "inloc": "disk",
+    "memory": 3000,
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1801,
+    "sequential_aux": true
+   },
+   "events_per_job": 75000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "sob": {
+   "analysis": "approx_ce_sensitivity",
+   "cosmic_rate_per_s_per_mev": 0.0018181818181818182,
+   "musing": "SimJob MDC2025ay",
+   "stops_per_pot": 0.00125
+  },
+  "stops": {
+   "analysis": "muon_stop_rate",
+   "musing": "SimJob MDC2025ay",
+   "upstream_eff": 0.01278168
+  }
+ },
+ "foilspf_nominal": {
+  "<preflight>": {
+   "checks_managed_overlap": true,
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dumps_gdml": true,
+   "require_zero_overlaps": true,
+   "verifies_foil_gdml": true
+  },
+  "ce_edep": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "elebeam_flash": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"elebeam_flash\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"elebeam_flash\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; AUTORESEARCH_ELEBEAM_NJOBS env var also still overrides it directly, see core/pipeline.py stage_cfg(), which absorbed core/runtime.py's retired STAGE_TARGETS dict on 2026-08-19).",
+    "desc_fmt": "Run1A_EleBeamFlash_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/pileup/EleBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": "Production/JobConfig/pileup/epilog_1b.fcl",
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyEleBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.EleBeamFlash.version.sequencer.art",
+     "physics.filters.EarlyPrescaleFilter.nPrescale": 1,
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.elebeamflash.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.EleBeamCat.Run1Baa.art": 1
+    },
+    "memory": 3000,
+    "njobs": 100,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.EarlyEleBeamFlash.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1803
+   },
+   "events_per_job": 110000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 100,
+   "quorum": 0.8
+  },
+  "flash": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "mubeam": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mubeam\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mubeam\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()).",
+    "desc_fmt": "Run1A_MuBeam_{cfg}",
+    "events": 5000,
+    "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": [
+      "Production/JobConfig/pileup/epilog_1b.fcl",
+      "sim_kept_products_extras.fcl",
+      "mubeam_targetstop_path.fcl"
+     ],
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+     "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+     "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+     "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+     "physics.filters.muminusSelector.ParticleCodes": [
+      [
+       13,
+       "uninitialized",
+       "muMinusCaptureAtRest"
+      ]
+     ],
+     "physics.filters.muminusSelector.PrintLevel": 0,
+     "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+     "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+    },
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "sim.*.TargetStops.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1800
+   },
+   "events_per_job": 200000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "mustops_ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mustops_ce\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mustops_ce\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()). njobs/events tuning history, carried verbatim from the retired STAGES[\"mustops_ce\"] comment: 100 jobs per A/B noise test on helical001 (2026-05-16) -- half-vs-half ce_seen agreed to 0.4% at 97 jobs each, well below GP noise floor. njobs=200 (then core/runtime.py STAGE_TARGETS, retired 2026-08-19 into core/pipeline.py stage_cfg()) paired with events=2500 preserves total CE statistics at 500k events while halving per-job wall-time and doubling per-cluster parallelism. 2026-05-21 PM: SR00_00's long-tail (dx=0.011 -> N_crit~4144 -> 3-4h CPU/job, 5x normal) showed the implicit throughput gate; halving events_per_job halves per-job CPU cost at constant total statistics. The earlier 2026-05-21 AM reversion to events_per_job=5000 was made WITHOUT compensating njobs, which halved stats and moved sigma(sob) 0.10 -> 0.14; the 200x2500 pairing restores it. Stamped at submit -- see wiki/incidents/events-per-job-mid-flight-edit.md. MaxEventsToSkip is 8000 here, in the template: the prolog leaves it nil and art aborts at ResamplingMixer construction without it; a dir: inloc gets no SAM auto-compute; and each job reads ONE staged mubeam file of about 16k events, so the random skip must stay below the smallest plausible file.",
+    "desc_fmt": "Run1A_CeEndpoint_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 8000,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1
+    },
+    "inloc": "disk",
+    "memory": 3000,
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1801,
+    "sequential_aux": true
+   },
+   "events_per_job": 75000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "sob": {
+   "analysis": "approx_ce_sensitivity",
+   "cosmic_rate_per_s_per_mev": 0.0018181818181818182,
+   "musing": "SimJob MDC2025ay",
+   "stops_per_pot": 0.00125
+  },
+  "stops": {
+   "analysis": "muon_stop_rate",
+   "musing": "SimJob MDC2025ay",
+   "upstream_eff": 0.01278168
+  }
+ },
+ "foilspfbpz_ax": {
+  "<preflight>": {
+   "checks_managed_overlap": true,
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dumps_gdml": true,
+   "require_zero_overlaps": true,
+   "verifies_foil_gdml": true
+  },
+  "ce_edep": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "elebeam_flash": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"elebeam_flash\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"elebeam_flash\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; AUTORESEARCH_ELEBEAM_NJOBS env var also still overrides it directly, see core/pipeline.py stage_cfg(), which absorbed core/runtime.py's retired STAGE_TARGETS dict on 2026-08-19).",
+    "desc_fmt": "Run1A_EleBeamFlash_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/pileup/EleBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": "Production/JobConfig/pileup/epilog_1b.fcl",
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyEleBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.EleBeamFlash.version.sequencer.art",
+     "physics.filters.EarlyPrescaleFilter.nPrescale": 1,
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.elebeamflash.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.EleBeamCat.Run1Baa.art": 1
+    },
+    "memory": 3000,
+    "njobs": 100,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.EarlyEleBeamFlash.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1803
+   },
+   "events_per_job": 110000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 100,
+   "quorum": 0.8
+  },
+  "flash": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "mubeam": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mubeam\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mubeam\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()).",
+    "desc_fmt": "Run1A_MuBeam_{cfg}",
+    "events": 5000,
+    "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": [
+      "Production/JobConfig/pileup/epilog_1b.fcl",
+      "sim_kept_products_extras.fcl",
+      "mubeam_targetstop_path.fcl"
+     ],
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+     "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+     "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+     "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+     "physics.filters.muminusSelector.ParticleCodes": [
+      [
+       13,
+       "uninitialized",
+       "muMinusCaptureAtRest"
+      ]
+     ],
+     "physics.filters.muminusSelector.PrintLevel": 0,
+     "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+     "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+    },
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "sim.*.TargetStops.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1800
+   },
+   "events_per_job": 200000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "mustops_ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mustops_ce\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mustops_ce\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()). njobs/events tuning history, carried verbatim from the retired STAGES[\"mustops_ce\"] comment: 100 jobs per A/B noise test on helical001 (2026-05-16) -- half-vs-half ce_seen agreed to 0.4% at 97 jobs each, well below GP noise floor. njobs=200 (then core/runtime.py STAGE_TARGETS, retired 2026-08-19 into core/pipeline.py stage_cfg()) paired with events=2500 preserves total CE statistics at 500k events while halving per-job wall-time and doubling per-cluster parallelism. 2026-05-21 PM: SR00_00's long-tail (dx=0.011 -> N_crit~4144 -> 3-4h CPU/job, 5x normal) showed the implicit throughput gate; halving events_per_job halves per-job CPU cost at constant total statistics. The earlier 2026-05-21 AM reversion to events_per_job=5000 was made WITHOUT compensating njobs, which halved stats and moved sigma(sob) 0.10 -> 0.14; the 200x2500 pairing restores it. Stamped at submit -- see wiki/incidents/events-per-job-mid-flight-edit.md. MaxEventsToSkip is 8000 here, in the template: the prolog leaves it nil and art aborts at ResamplingMixer construction without it; a dir: inloc gets no SAM auto-compute; and each job reads ONE staged mubeam file of about 16k events, so the random skip must stay below the smallest plausible file.",
+    "desc_fmt": "Run1A_CeEndpoint_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 8000,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1
+    },
+    "inloc": "disk",
+    "memory": 3000,
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1801,
+    "sequential_aux": true
+   },
+   "events_per_job": 75000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 15,
+   "quorum": 0.8
+  },
+  "sob": {
+   "analysis": "approx_ce_sensitivity",
+   "cosmic_rate_per_s_per_mev": 0.0018181818181818182,
+   "musing": "SimJob MDC2025ay",
+   "stops_per_pot": 0.00125
+  },
+  "stops": {
+   "analysis": "muon_stop_rate",
+   "musing": "SimJob MDC2025ay",
+   "upstream_eff": 0.01278168
+  }
+ },
+ "foilspfbpz_local": {
+  "<preflight>": {
+   "checks_managed_overlap": true,
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dumps_gdml": true,
+   "require_zero_overlaps": true,
+   "verifies_foil_gdml": true
+  },
+  "ce_edep": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "elebeam_flash": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"elebeam_flash\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"elebeam_flash\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; AUTORESEARCH_ELEBEAM_NJOBS env var also still overrides it directly, see core/pipeline.py stage_cfg(), which absorbed core/runtime.py's retired STAGE_TARGETS dict on 2026-08-19).",
+    "desc_fmt": "Run1A_EleBeamFlash_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/pileup/EleBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": "Production/JobConfig/pileup/epilog_1b.fcl",
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyEleBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.EleBeamFlash.version.sequencer.art",
+     "physics.filters.EarlyPrescaleFilter.nPrescale": 1,
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.elebeamflash.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.EleBeamCat.Run1Baa.art": 1
+    },
+    "memory": 3000,
+    "njobs": 100,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.EarlyEleBeamFlash.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1803
+   },
+   "events_per_job": 10000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 4,
+   "quorum": 1.0
+  },
+  "flash": {
+   "analysis": "edep",
+   "musing": "SimJob MDC2025ay"
+  },
+  "mubeam": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mubeam\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mubeam\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()).",
+    "desc_fmt": "Run1A_MuBeam_{cfg}",
+    "events": 5000,
+    "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": [
+      "Production/JobConfig/pileup/epilog_1b.fcl",
+      "sim_kept_products_extras.fcl",
+      "mubeam_targetstop_path.fcl"
+     ],
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+     "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+     "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+     "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+     "physics.filters.muminusSelector.ParticleCodes": [
+      [
+       13,
+       "uninitialized",
+       "muMinusCaptureAtRest"
+      ]
+     ],
+     "physics.filters.muminusSelector.PrintLevel": 0,
+     "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+     "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+    },
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "sim.*.TargetStops.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1800
+   },
+   "events_per_job": 10000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 2,
+   "quorum": 1.0
+  },
+  "mustops_ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mustops_ce\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mustops_ce\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()). njobs/events tuning history, carried verbatim from the retired STAGES[\"mustops_ce\"] comment: 100 jobs per A/B noise test on helical001 (2026-05-16) -- half-vs-half ce_seen agreed to 0.4% at 97 jobs each, well below GP noise floor. njobs=200 (then core/runtime.py STAGE_TARGETS, retired 2026-08-19 into core/pipeline.py stage_cfg()) paired with events=2500 preserves total CE statistics at 500k events while halving per-job wall-time and doubling per-cluster parallelism. 2026-05-21 PM: SR00_00's long-tail (dx=0.011 -> N_crit~4144 -> 3-4h CPU/job, 5x normal) showed the implicit throughput gate; halving events_per_job halves per-job CPU cost at constant total statistics. The earlier 2026-05-21 AM reversion to events_per_job=5000 was made WITHOUT compensating njobs, which halved stats and moved sigma(sob) 0.10 -> 0.14; the 200x2500 pairing restores it. Stamped at submit -- see wiki/incidents/events-per-job-mid-flight-edit.md. MaxEventsToSkip is 8000 here, in the template: the prolog leaves it nil and art aborts at ResamplingMixer construction without it; a dir: inloc gets no SAM auto-compute; and each job reads ONE staged mubeam file of about 16k events, so the random skip must stay below the smallest plausible file.",
+    "desc_fmt": "Run1A_CeEndpoint_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 8000,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1
+    },
+    "inloc": "disk",
+    "memory": 3000,
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1801,
+    "sequential_aux": true
+   },
+   "events_per_job": 2000,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 2,
+   "quorum": 1.0
+  },
+  "sob": {
+   "analysis": "approx_ce_sensitivity",
+   "cosmic_rate_per_s_per_mev": 0.0018181818181818182,
+   "musing": "SimJob MDC2025ay",
+   "stops_per_pot": 0.00125
+  },
+  "stops": {
+   "analysis": "muon_stop_rate",
+   "musing": "SimJob MDC2025ay",
+   "upstream_eff": 0.01278168
+  }
+ },
+ "prodtools_smoke": {
+  "<preflight>": {
+   "checks_managed_overlap": true,
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dumps_gdml": true,
+   "require_zero_overlaps": true,
+   "verifies_foil_gdml": true
+  },
+  "mubeam": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mubeam\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mubeam\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()).",
+    "desc_fmt": "Run1A_MuBeam_{cfg}",
+    "events": 5000,
+    "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+    "fcl_overrides": {
+     "#include": [
+      "Production/JobConfig/pileup/epilog_1b.fcl",
+      "sim_kept_products_extras.fcl",
+      "mubeam_targetstop_path.fcl"
+     ],
+     "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+     "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+     "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+     "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+     "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+     "physics.filters.muminusSelector.ParticleCodes": [
+      [
+       13,
+       "uninitialized",
+       "muMinusCaptureAtRest"
+      ]
+     ],
+     "physics.filters.muminusSelector.PrintLevel": 0,
+     "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+     "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+     "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1,
+     "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root"
+    },
+    "inloc": "tape",
+    "input_data": {
+     "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+    },
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "sim.*.TargetStops.*.art",
+    "resampler_name": "beamResampler",
+    "run": 1800
+   },
+   "events_per_job": 200,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 2000,
+   "njobs": 1,
+   "quorum": 1.0
+  },
+  "mustops_ce": {
+   "code_tarball": "/nonexistent-artifact-root/autoresearch_muse/Code_mdc2025ax.tar.bz2",
+   "dsconf": "MDC2025ax_{cfg}",
+   "entry": {
+    "_comment": "Rationale for these keys lives in core/pipeline.py, in the comment block immediately above _render_fcl_overrides (Task 14, lifted from Task 13's STAGE_FCL[\"mustops_ce\"]). Edit that comment block, not this note, when the rationale changes. desc_fmt/output_glob/njobs (Task 6, lifted from the retired STAGES[\"mustops_ce\"] literal) are per-stage orchestration constants -- desc_fmt is the json2jobdef description format, output_glob is the file pattern this stage emits regardless of geometry, njobs is the default grid job count (mode specs may override via run.jobs_per_stage; see core/pipeline.py stage_cfg()). njobs/events tuning history, carried verbatim from the retired STAGES[\"mustops_ce\"] comment: 100 jobs per A/B noise test on helical001 (2026-05-16) -- half-vs-half ce_seen agreed to 0.4% at 97 jobs each, well below GP noise floor. njobs=200 (then core/runtime.py STAGE_TARGETS, retired 2026-08-19 into core/pipeline.py stage_cfg()) paired with events=2500 preserves total CE statistics at 500k events while halving per-job wall-time and doubling per-cluster parallelism. 2026-05-21 PM: SR00_00's long-tail (dx=0.011 -> N_crit~4144 -> 3-4h CPU/job, 5x normal) showed the implicit throughput gate; halving events_per_job halves per-job CPU cost at constant total statistics. The earlier 2026-05-21 AM reversion to events_per_job=5000 was made WITHOUT compensating njobs, which halved stats and moved sigma(sob) 0.10 -> 0.14; the 200x2500 pairing restores it. Stamped at submit -- see wiki/incidents/events-per-job-mid-flight-edit.md. MaxEventsToSkip is 8000 here, in the template: the prolog leaves it nil and art aborts at ResamplingMixer construction without it; a dir: inloc gets no SAM auto-compute; and each job reads ONE staged mubeam file of about 16k events, so the random skip must stay below the smallest plausible file.",
+    "desc_fmt": "Run1A_CeEndpoint_{cfg}",
+    "events": 2500,
+    "fcl": "Production/JobConfig/primary/CeEndpoint.fcl",
+    "fcl_overrides": {
+     "outputs.PrimaryOutput.fileName": "dts.owner.CeEndpoint.version.sequencer.art",
+     "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 8000,
+     "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+     "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+     "services.GeometryService.inputFile": "{geom}",
+     "services.SeedService.baseSeed": 1
+    },
+    "inloc": "disk",
+    "memory": 3000,
+    "njobs": 200,
+    "outloc": {
+     "*.art": "outstage",
+     "*.root": "outstage"
+    },
+    "output_glob": "dts.*.CeEndpoint.*.art",
+    "resampler_name": "TargetStopResampler",
+    "run": 1801,
+    "sequential_aux": true
+   },
+   "events_per_job": 200,
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ],
+   "memory_mb": 3000,
+   "njobs": 1,
+   "quorum": 1.0
+  }
+ },
+ "ptg4bl": {
+  "g4bl": {
+   "R_dn": 3.75,
+   "R_mid": 3.75,
+   "R_up": 3.75,
+   "Tlength": 200.0,
+   "deck_params": {
+    "Use_Proton_Target": 4,
+    "epsMax": 0.01
+   },
+   "deck_ref": "17bc967238ae3f88ce3610a5e197bbae3b3c63bb",
+   "deck_url": "https://github.com/oksuzian/G4BeamlineScripts",
+   "events_per_job": 5000,
+   "main_input": "Mu2E.in",
+   "njobs": 20,
+   "pdg": [
+    13,
+    -211
+   ],
+   "plane": "VirtualDetector/Coll_01_DetIn",
+   "quorum": 0.9
+  }
+ }
+}
