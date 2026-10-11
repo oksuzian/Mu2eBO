@@ -19,12 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
 
 from langgraph.graph import END, START, StateGraph  # noqa: E402
 
+import kit_params  # noqa: E402
 from contract import ContractError  # noqa: E402
 from kits import KitError  # noqa: E402
 from leaderboard import LeaderboardError  # noqa: E402
 from point_dir import (DERIVED, GEOM, VERDICT, PointDir,  # noqa: E402
                        PointMismatch, write_atomic)
-from scheduler import map_params, merge_params, run_steps  # noqa: E402
+from scheduler import run_steps  # noqa: E402
 from score import ScoreError, score  # noqa: E402
 
 __all__ = ["PointMismatch", "build_study_graph", "check_x"]
@@ -160,14 +161,11 @@ def build_study_graph(study, *, config: str, campaign: str, context: dict,
             return refused(exc)
         try:
             kit = kits.get(pre["kit"])
-            accepts_lists = kit.accepts_lists
         except (KitError, ContractError) as exc:
             return refused(exc)
         try:
-            params = merge_params("preflight",
-                                  map_params(pre["params"], shared["env"],
-                                             accepts_lists),
-                                  study.kits.get(pre["kit"], {}))
+            params = kit_params.build(study, kit_params.preflight_sender(study),
+                                      shared["env"], {})
         except (KeyError, ValueError, OSError) as exc:
             return refused(exc)
         try:

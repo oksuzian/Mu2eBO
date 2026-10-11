@@ -143,7 +143,6 @@ class ProdtoolsKit:
     it, one step each; every write is per step or content-addressed."""
 
     name = "prodtools"
-    accepts_lists = False
 
     def __init__(self, campaign, *, executor="grid", parallel=None,
                  clients=None, clock=time.time, pause=time.sleep,

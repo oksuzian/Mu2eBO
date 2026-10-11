@@ -34,7 +34,6 @@ class OfflinePreflightKit:
     `describe`: a study names it as its preflight, never as a step."""
 
     name = "offline_preflight"
-    accepts_lists = False
 
     def __init__(self, campaign, *, executor="grid", parallel=None,
                  grid_root=None, runner=None, timeout_s=None):

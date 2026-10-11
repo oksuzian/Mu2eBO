@@ -1,9 +1,7 @@
-import dataclasses
 import json
 import sys
 import threading
 import time
-import types
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -11,16 +9,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "core"))
 sys.path.insert(0, str(ROOT))
+import kit_registry  # noqa: E402
 import scheduler as sch  # noqa: E402
-import study as st_mod  # noqa: E402
 from contract import ContractError, Results, Status  # noqa: E402
 from contract import KitSet as ContractKits  # noqa: E402
 from kits import KitError  # noqa: E402
 from study import Step  # noqa: E402
-from tests.engine_fixtures import Kits, TmpCase  # noqa: E402
-
-DEMO = ROOT / "tests" / "fixtures" / "studies" / "demo.json"
-
+from tests.engine_fixtures import (Kits, TmpCase, fake_decls,  # noqa: E402
+                                   plain_study)
 
 def step(name, files_from=(), params=None, fixed=None, kit="fake",
          params_from=None):
@@ -28,8 +24,15 @@ def step(name, files_from=(), params=None, fixed=None, kit="fake",
                 dict(params_from or {}), dict(fixed or {}))
 
 
-def study(*steps, kits=None):
-    return types.SimpleNamespace(steps=tuple(steps), kits=dict(kits or {}))
+study = plain_study
+
+
+def setUpModule():
+    # the made-up kit names these tests run steps on
+    patcher = unittest.mock.patch.dict(
+        kit_registry.KITS, fake_decls("fake", "ka", "kb", "kb1", "kb2"))
+    patcher.start()
+    unittest.addModuleCleanup(patcher.stop)
 
 
 class FakeKit:
@@ -614,57 +617,6 @@ class TestParamsFrom(_Run):
         self.assertEqual(b[0][1]["r"], 1.0)
 
 
-class TestParams(unittest.TestCase):
-    def test_a_params_from_value_may_not_replace_a_flattened_profile_element(self):
-        st_ = study(step("b", params={"r": "prof"},
-                         params_from={"r_1": "a.v"}))
-        with self.assertRaises(ValueError) as cm:
-            sch.step_params(st_, st_.steps[0], {"prof": [1.0, 2.0, 3.0]},
-                            False, {"a": {"metrics": {"v": 99.0}}})
-        self.assertIn("['r_1']", str(cm.exception))
-        self.assertIn("params_from", str(cm.exception))
-
-    def test_a_params_from_value_joins_the_mapped_params(self):
-        st_ = study(step("b", params={"p": "x"},
-                         params_from={"r": "a.rate"}))
-        self.assertEqual(
-            sch.step_params(st_, st_.steps[0], {"x": 1.5}, False,
-                            {"a": {"metrics": {"rate": 2.0}}}),
-            {"p": 1.5, "r": 2.0})
-
-    def test_mapped_then_settings_then_fixed(self):
-        st_ = study(step("a", params={"p": "x"}, fixed={"n": 3, "mode": "fast"}),
-                    kits={"fake": {"mode": "slow", "tag": "t"}})
-        self.assertEqual(sch.step_params(st_, st_.steps[0], {"x": 1.5}, False, {}),
-                         {"p": 1.5, "mode": "fast", "tag": "t", "n": 3})
-
-    def test_a_profile_is_flattened_for_a_kit_without_lists(self):
-        st_ = study(step("a", params={"r": "prof"}))
-        env = {"prof": [1.0, 2.0]}
-        self.assertEqual(sch.step_params(st_, st_.steps[0], env, False, {}),
-                         {"r_0": 1.0, "r_1": 2.0})
-        self.assertEqual(sch.step_params(st_, st_.steps[0], env, True, {}),
-                         {"r": [1.0, 2.0]})
-
-    def test_a_mapped_param_may_not_clash_with_a_setting(self):
-        st_ = study(step("a", params={"n": "x"}, fixed={"n": 3}))
-        with self.assertRaises(ValueError) as cm:
-            sch.step_params(st_, st_.steps[0], {"x": 1.0}, False, {})
-        self.assertIn("['n']", str(cm.exception))
-
-    def test_the_preflight_shares_the_clash_rule(self):
-        """graph/study_graph.py's preflight merges through the same helper:
-        a kit setting never silently replaces a mapped param."""
-        self.assertEqual(sch.merge_params("preflight", {"p": 1.5}, {"tag": "t"}),
-                         {"p": 1.5, "tag": "t"})
-        with self.assertRaises(ValueError) as cm:
-            sch.merge_params("preflight", {"function": 1.0},
-                             {"function": "branin_currin"})
-        self.assertIn("preflight", str(cm.exception))
-        self.assertIn("['function']", str(cm.exception))
-        self.assertIn("may not share a name", str(cm.exception))
-
-
 class TestCancelOnFailure(_Run):
     def test_a_failure_cancels_the_running_steps(self):
         # b ends on its own (~0.5 s of 1 ms polls, long after a fails), so a
@@ -738,23 +690,6 @@ class TestCancelOnFailure(_Run):
         self.assertFalse(out.ok)
         self.assertIn("not submitted", out.message)
         self.assertEqual(kit.submits, [])
-
-
-class TestEntryParam(unittest.TestCase):
-    def test_an_entry_kit_gets_the_resolved_template(self):
-        s = st_mod.load_study_file(DEMO)
-        mubeam = next(x for x in s.steps if x.step == "mubeam")
-        params = sch.step_params(s, mubeam, {}, False, {})
-        self.assertEqual(params["entry"], s.entry_template("mubeam"))
-        self.assertEqual(params["quorum"], 0.8)
-
-    def test_entry_is_reserved_for_an_entry_kit(self):
-        s = st_mod.load_study_file(DEMO)
-        mubeam = next(x for x in s.steps if x.step == "mubeam")
-        clash = dataclasses.replace(mubeam, fixed=dict(mubeam.fixed, entry=1))
-        with self.assertRaises(ValueError) as cm:
-            sch.step_params(s, clash, {}, False, {})
-        self.assertIn("entry", str(cm.exception))
 
 
 if __name__ == "__main__":

@@ -524,6 +524,24 @@ class TestLaunchProblems(_Toy):
         study = self.study(lambda d: d["evaluate"][0]["params"].update(x3="x1"))
         self.assertTrue(any("x3" in p for p in self.check(study)))
 
+    def test_every_split_name_is_checked_against_describe(self):
+        def mutate(doc):
+            doc["knobs"] += [{"name": c, "type": "real", "min": 0.0,
+                              "max": 1.0, "unit": "", "fmt": "{:.4f}"}
+                             for c in ("c0", "c1", "c2")]
+            doc["derive"]["profiles"]["prof"] = {
+                "kind": "lagrange", "count": 2,
+                "control": ["c0", "c1", "c2"],
+                "clip": [0.0, 1.0]}
+            doc["geom"] = {"writer": "offline_simpleconfig",
+                           "base": "Offline/Mu2eG4/geom/geom_run1_a.txt",
+                           "lines": []}
+            doc["evaluate"][0]["params"]["x"] = "prof"
+        problems = self.check(self.study(mutate))
+        self.assertTrue(any("does not accept param(s)" in p
+                            and "['x_0', 'x_1']" in p for p in problems),
+                        problems)
+
     def test_an_unknown_metric(self):
         study = self.study(lambda d: d["objectives"][0].update(metric="toy.nope"))
         self.assertTrue(any("nope" in p for p in self.check(study)))

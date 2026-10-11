@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "core"))
 sys.path.insert(0, str(ROOT))
 import modes  # noqa: E402
+import kit_params  # noqa: E402
 import paths  # noqa: E402
-import scheduler  # noqa: E402
 import study as st  # noqa: E402
 from tests.engine_fixtures import (ENGINE_STUDIES, TmpCase,  # noqa: E402
                                    toy_doc, write_study)
@@ -216,8 +216,8 @@ class TestFixedPaths(_Tmp):
         self.assertEqual(s.steps[0].fixed["fail"], self.RAW)
         with mock.patch.multiple(paths, ARTIFACT_ROOT=self.tmp / "art",
                                  BACKING=self.tmp / "no_backing"):
-            params = scheduler.step_params(s, s.steps[0],
-                                           {"x1": 1.0, "x2": 2.0}, False, {})
+            params = kit_params.build(s, kit_params.sender_of(s.steps[0]),
+                                      {"x1": 1.0, "x2": 2.0}, {})
         self.assertEqual(params["fail"],
                          str(self.tmp / "art" / "c2b" / "table.tbl"))
 

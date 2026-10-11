@@ -16,8 +16,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "core"))
 sys.path.insert(0, str(ROOT))
+import kit_params  # noqa: E402
 import paths  # noqa: E402
-import scheduler  # noqa: E402
 import study as st  # noqa: E402
 
 GOLDEN = ROOT / "tests" / "fixtures" / "golden_kit_params.json"
@@ -49,18 +49,13 @@ def sent(study):
     env = (study.geom.derived_env(x) if study.geom is not None
            else dict(zip(study.knob_names, x)))
     out = {}
-    for step in study.steps:
-        upstream = {up: {"metrics": {}} for up in step.upstream}
-        for source in step.params_from.values():
+    for sender in kit_params.senders(study):
+        upstream = {}
+        for source in sender.params_from.values():
             up, key = source.split(".", 1)
-            upstream[up]["metrics"][key] = METRIC
-        out[step.step] = scheduler.step_params(study, step, env, False,
-                                               upstream)
-    pre = study.preflight
-    if pre is not None:
-        out["<preflight>"] = scheduler.merge_params(
-            "preflight", scheduler.map_params(pre["params"], env, False),
-            study.kits.get(pre["kit"], {}))
+            upstream.setdefault(up, {"metrics": {}})["metrics"][key] = METRIC
+        out[sender.step or "<preflight>"] = kit_params.build(
+            study, sender, env, upstream)
     return out
 
 

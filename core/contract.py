@@ -8,7 +8,7 @@ never success. Replies must carry the keys the contract names, with the
 right types; keys it doesn't name are ignored, so a kit can add fields.
 
 The Kit interface, which NativeKit and every adapter implement:
-  name, version, tools, accepts_lists, poll_s
+  name, version, tools, poll_s
   start() -> None   (idempotent; raises KitError when the kit cannot start)
   submit(name, params, files, inputs, workflow) -> handle
   status(handle, workflow) -> Status
@@ -48,6 +48,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import kit_params
 import kit_registry
 import paths
 from kit_config import EXECUTORS, _is_number
@@ -234,7 +235,6 @@ class NativeKit:
         self.name = config.name
         self.config = config
         self.client = client
-        self.accepts_lists = config.accepts_lists
         self.poll_s = config.poll_s
         self._pause = pause
 
@@ -510,24 +510,13 @@ class KitSet:
 
 
 def _needs(study, kit_name):
-    """(param names sent, metric keys read, params that carry a profile)
-    for one kit of the study."""
-    settings = set(study.kits.get(kit_name, {}))
-    profiles = set(study.derive["profiles"])
-    steps = [s for s in study.steps if s.kit == kit_name]
-    mappings = [s.params for s in steps]
-    params = set(settings)
-    for s in steps:
-        params |= s.sent_params
-    pre = study.preflight
-    if pre is not None and pre["kit"] == kit_name:
-        params |= set(pre["params"])
-        mappings.append(pre["params"])
-    profile_params = {k for m in mappings for k, v in m.items() if v in profiles}
+    """(param names the kit receives, after the profile split; metric keys
+    read) for one kit of the study."""
     metrics = set()
-    for s in steps:
-        metrics |= metrics_read(study, s.step)
-    return params, metrics, profile_params
+    for s in study.steps:
+        if s.kit == kit_name:
+            metrics |= metrics_read(study, s.step)
+    return kit_params.kit_names(study, kit_name), metrics
 
 
 def kit_step_problems(kit, study, name: str) -> List[str]:
@@ -600,14 +589,13 @@ def launch_problems(study, kits, *, executor: str, parallel,
                                 f"measure_sha could not tell its builds apart")
             described = kit.describe()
             if described is not None:
-                params, metrics, profile_params = _needs(study, name)
-                if described.accepts_lists != kit.accepts_lists:
+                sent, metrics = _needs(study, name)
+                declared = kit_registry.KITS[name].accepts_lists
+                if described.accepts_lists != declared:
                     problems.append(
                         f"kit {name!r}: describe says accepts_lists="
                         f"{described.accepts_lists}, its registry entry says "
-                        f"{kit.accepts_lists}")
-                sent = {f"{p}_0" if p in profile_params and not kit.accepts_lists
-                        else p for p in params}
+                        f"{declared}")
                 unknown = sorted(sent - set(described.params))
                 if unknown:
                     problems.append(f"kit {name!r} does not accept param(s) "

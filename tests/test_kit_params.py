@@ -15,7 +15,9 @@ import kit_params as kp  # noqa: E402
 import kit_registry  # noqa: E402
 import paths  # noqa: E402
 import study as st  # noqa: E402
-from tests.engine_fixtures import ENGINE_STUDIES, TmpCase, write_study  # noqa: E402
+from study import Step  # noqa: E402
+from tests.engine_fixtures import (ENGINE_STUDIES, TmpCase,  # noqa: E402
+                                   fake_decls, plain_study, write_study)
 
 BRANIN = json.loads((ENGINE_STUDIES / "branin.json").read_text())
 PTG4BL = json.loads((ROOT / "mode_specs" / "ptg4bl.json").read_text())
@@ -204,6 +206,109 @@ class TestBuild(_Case):
             kp.build(s, kp.sender_of(s.steps[0]),
                      {"x1": 1.0, "prof": [0.1, 0.2, 0.3]}, {})
         self.assertIn("exactly one source", str(cm.exception))
+
+
+def fake_step(name, params=None, fixed=None, params_from=None, kit="fake"):
+    return Step(name, kit, None, (), (), dict(params or {}),
+                dict(params_from or {}), dict(fixed or {}))
+
+
+class TestBuildRows(unittest.TestCase):
+    """The rows tests/test_scheduler.py held for a step's and the
+    preflight's params, on a hand-built study and a made-up kit."""
+
+    def setUp(self):
+        patcher = mock.patch.dict(kit_registry.KITS, fake_decls("fake"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def build(self, study, env, upstream=None, sender=None):
+        return kp.build(study, sender or kp.sender_of(study.steps[0]), env,
+                        upstream or {})
+
+    def test_a_params_from_value_may_not_replace_a_split_profile_element(self):
+        s = plain_study(fake_step("b", params={"r": "prof"},
+                                  params_from={"r_1": "a.v"}),
+                        profile_counts={"prof": 3})
+        with self.assertRaises(ValueError) as cm:
+            self.build(s, {"prof": [1.0, 2.0, 3.0]},
+                       {"a": {"metrics": {"v": 99.0}}})
+        self.assertIn("'r_1'", str(cm.exception))
+        self.assertIn("params_from.r_1", str(cm.exception))
+
+    def test_a_params_from_value_joins_the_mapped_params(self):
+        s = plain_study(fake_step("b", params={"p": "x"},
+                                  params_from={"r": "a.rate"}))
+        self.assertEqual(self.build(s, {"x": 1.5},
+                                    {"a": {"metrics": {"rate": 2.0}}}),
+                         {"p": 1.5, "r": 2.0})
+
+    def test_a_fixed_value_may_not_share_a_name_with_a_setting(self):
+        s = plain_study(fake_step("a", fixed={"mode": "fast"}),
+                        kits={"fake": {"mode": "slow"}})
+        with self.assertRaises(ValueError) as cm:
+            self.build(s, {})
+        self.assertIn("'mode'", str(cm.exception))
+        self.assertIn("exactly one source", str(cm.exception))
+
+    def test_values_come_in_names_order(self):
+        s = plain_study(fake_step("a", params={"p": "x"}, fixed={"n": 3},
+                                  params_from={"r": "u.v"}),
+                        kits={"fake": {"tag": "t"}})
+        params = self.build(s, {"x": 1.5}, {"u": {"metrics": {"v": 2.0}}})
+        self.assertEqual(list(params), ["p", "r", "tag", "n"])
+        self.assertEqual(params, {"p": 1.5, "r": 2.0, "tag": "t", "n": 3})
+
+    def test_a_profile_is_split_for_a_kit_without_lists(self):
+        s = plain_study(fake_step("a", params={"r": "prof"}),
+                        profile_counts={"prof": 2})
+        env = {"prof": [1.0, 2.0]}
+        self.assertEqual(self.build(s, env), {"r_0": 1.0, "r_1": 2.0})
+        with mock.patch.dict(kit_registry.KITS,
+                             fake_decls("fake", accepts_lists=True)):
+            self.assertEqual(self.build(s, env), {"r": [1.0, 2.0]})
+
+    def test_a_mapped_param_may_not_clash_with_a_fixed_value(self):
+        s = plain_study(fake_step("a", params={"n": "x"}, fixed={"n": 3}))
+        with self.assertRaises(ValueError) as cm:
+            self.build(s, {"x": 1.0})
+        self.assertIn("'n'", str(cm.exception))
+        self.assertIn("exactly one source", str(cm.exception))
+
+    def test_the_preflight_shares_the_clash_rule(self):
+        s = plain_study(preflight={"kit": "fake", "params": {"p": "x"},
+                                   "files": []},
+                        kits={"fake": {"tag": "t"}})
+        self.assertEqual(self.build(s, {"x": 1.5},
+                                    sender=kp.preflight_sender(s)),
+                         {"p": 1.5, "tag": "t"})
+        s = plain_study(preflight={"kit": "fake",
+                                   "params": {"function": "x"}, "files": []},
+                        kits={"fake": {"function": "branin_currin"}})
+        with self.assertRaises(ValueError) as cm:
+            self.build(s, {"x": 1.0}, sender=kp.preflight_sender(s))
+        for needle in ("preflight", "'function'", "exactly one source"):
+            self.assertIn(needle, str(cm.exception))
+
+
+class TestEntry(_Case):
+    def demo(self):
+        s = self.load(DEMO)
+        return s, next(x for x in s.steps if x.step == "mubeam")
+
+    def test_an_entry_kit_gets_the_resolved_template(self):
+        s, mubeam = self.demo()
+        params = kp.build(s, kp.sender_of(mubeam), {}, {})
+        self.assertEqual(params["entry"], s.entry_template("mubeam"))
+        self.assertEqual(params["quorum"], 0.8)
+
+    def test_entry_is_reserved_for_an_entry_kit(self):
+        s, mubeam = self.demo()
+        clash = dataclasses.replace(mubeam, fixed=dict(mubeam.fixed, entry=1))
+        with self.assertRaises(ValueError) as cm:
+            kp.build(s, kp.sender_of(clash), {}, {})
+        self.assertIn("'entry'", str(cm.exception))
+        self.assertIn("the stage template (entry)", str(cm.exception))
 
 
 class TestNestedPaths(unittest.TestCase):

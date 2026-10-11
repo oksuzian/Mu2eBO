@@ -12,11 +12,11 @@ import hashlib
 import json
 import math
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import kit_params
 import kit_registry
 import paths
 from leaderboard import V2_META
@@ -42,7 +42,6 @@ _WRITERS = ("offline_simpleconfig",)
 _RENDERED_FILES = ("geom",)
 _DIRECTIONS = ("max", "min")
 _TRANSFORMS = ("none", "log10")
-_ARTIFACT_TOKEN = "${ARTIFACT}/"
 
 
 @dataclass(frozen=True)
@@ -288,22 +287,6 @@ def _number(v, where):
     return f
 
 
-def expand_artifact(value, where):
-    """Only '${ARTIFACT}/' is supported; a bare personal user area is
-    refused (it would run only for that account)."""
-    if not isinstance(value, str):
-        return value
-    if value.startswith(_ARTIFACT_TOKEN):
-        return str(paths.artifact(value[len(_ARTIFACT_TOKEN):]))
-    if "${" in value:
-        raise ValueError(f"{where}: unknown variable in {value!r}; the only "
-                         f"supported token is '${{ARTIFACT}}/'")
-    if re.match(r"^/exp/mu2e/(app|data)/users/[^/]+/", value):
-        raise ValueError(f"{where}: {value!r} hardcodes a personal user "
-                         f"area; use '${{ARTIFACT}}/<rest-of-path>'")
-    return value
-
-
 def _metric(v, steps, where):
     if not isinstance(v, str) or v.count(".") != 1 or not all(v.split(".")):
         raise ValueError(f"{where}: metric must be 'step.key', got {v!r}")
@@ -424,10 +407,10 @@ def _steps(raw, has_geom, names, where):
                                       f"{sw}[fixed]", required=False)
         # A fixed path follows the kit-settings rule ('${ARTIFACT}/' only,
         # never a personal user area), checked here. It is expanded where
-        # the step's params are built (scheduler.step_params), so Step.fixed
+        # the step's params are built (kit_params.build), so Step.fixed
         # -- and so measure_basis -- keep the raw value.
         for key, value in fixed.items():
-            expand_artifact(value, f"{sw}[fixed][{key}]")
+            kit_params.expand_artifact(value, f"{sw}[fixed][{key}]")
         missing = sorted(decl.required_fixed - set(fixed))
         if missing:
             raise ValueError(f"{sw}[fixed]: kit {kit!r} needs {missing} in "
@@ -500,7 +483,7 @@ def _kits_and_preflight(doc, steps, has_geom, names, where):
         checked = kit_registry.validate(
             kit, settings, kit_registry.KITS[kit].study_keys, kw,
             required=True)
-        kits[kit] = {k: expand_artifact(v, f"{kw}[{k}]")
+        kits[kit] = {k: kit_params.expand_artifact(v, f"{kw}[{k}]")
                      for k, v in checked.items()}
     for kit in sorted(used):
         if kit_registry.KITS[kit].study_keys and kit not in kits:
@@ -657,7 +640,7 @@ def _check_steps_used(steps, objectives, metrics, where):
 def _check_mapped_params(steps, kits, where):
     """A mapped param (params or params_from) is set in one place only: not
     in the other mapping, the step's fixed values or its kit's settings. A
-    fixed value may still override a kit setting. scheduler.merge_params
+    fixed value may still override a kit setting. kit_params.build
     applies the same rule at run time; this refuses the study up front."""
     for s in steps:
         params, params_from = set(s.params), set(s.params_from)

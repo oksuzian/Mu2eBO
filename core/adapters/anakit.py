@@ -30,13 +30,15 @@ from functools import partial
 from pathlib import Path
 
 import kit_config
+import kit_params
 import kit_registry
 import paths
 from adapters import prodtools_entry as pe
 from contract import ContractError, make_status, parse_results
 from kits import KitClient, KitError
 from point_dir import write_atomic
-from study import expand_artifact, metrics_read
+from kit_params import expand_artifact
+from study import metrics_read
 
 # The kit's version, hand-bumped (2026-10-05): bump when a step would
 # measure anew, INCLUDING a checkout change that alters what an analysis
@@ -147,7 +149,6 @@ class AnakitKit:
     one step each; each submit has its own server and step directory."""
 
     name = "anakit"
-    accepts_lists = False
     poll_s = (1.0, 5.0)
 
     def __init__(self, campaign, *, executor="grid", parallel=None,
@@ -353,7 +354,11 @@ class AnakitKit:
                     f"{analysis!r} has input_kind {spec['input_kind']!r}; "
                     f"known kinds {list(INPUT_KINDS)}"]
         declared = spec.get("parameters", {})
-        sent = set(step.sent_params) - set(OWN_PARAMS)
+        # the names the analysis receives, a profile split as it is sent
+        found = kit_params.names(study, kit_params.sender_of(step))
+        sent = {n for n, origins in found.items()
+                if origins[0].kind in ("point", "profile", "params_from",
+                                       "fixed")} - set(OWN_PARAMS)
         unknown = sorted(sent - set(declared))
         if unknown:
             problems.append(f"{where}: {analysis} does not take {unknown} "

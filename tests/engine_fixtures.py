@@ -76,6 +76,35 @@ def engine_env(data_root, study_dir):
     return env
 
 
+def plain_study(*steps, kits=None, preflight=None, profile_counts=None,
+                entry_template=None, **extra):
+    """A hand-built study for code that reads only what kit_params reads:
+    its steps, kit settings, preflight and profile counts (plus entry
+    templates for a kit that takes them, and any `extra` attribute)."""
+    import types
+    return types.SimpleNamespace(
+        steps=tuple(steps), kits=dict(kits or {}), preflight=preflight,
+        profile_counts=dict(profile_counts or {}),
+        entry_template=entry_template, **extra)
+
+
+def fake_decls(*names, accepts_lists=False):
+    """KitDecls for kit names the tests make up ("fake", "ka", ...), to put
+    in kit_registry.KITS with mock.patch.dict: no keys, no entries, no
+    jobs, no name rules."""
+    _core()
+    import kit_registry
+    return {name: kit_registry.KitDecl(
+        name, study_keys={}, fixed_keys={}, required_fixed=frozenset(),
+        uses_entries=False, step_kit=True, check_kit=True,
+        executors=("grid", "local"), launch_stagger_s=0.0,
+        requires_kerberos=False, names_runs_after_config=False, factory=None,
+        reserved_params=frozenset(), jobs_of=kit_registry.no_jobs,
+        accepts_lists=accepts_lists, passes_on=frozenset(),
+        inner_params_setting=None, param_name_pattern=None)
+        for name in names}
+
+
 def toy_pre(name="toystudy", **kits):
     """toy_doc with a toykit pre-check, plus any toykit setting overrides
     (e.g. function="reject")."""

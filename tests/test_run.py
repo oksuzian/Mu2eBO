@@ -142,7 +142,8 @@ class TestFailedPoints(_Point):
             d["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
                               "files": []}
         s = self.add_study(clash)
-        self.assertBroken(self.run_point(s), "preflight", "['function']")
+        self.assertBroken(self.run_point(s), "preflight", "'function'",
+                          "exactly one source")
         self.assertEqual(self.submits(), [])
         self.assertEqual(self.board_rows(s), [])
 

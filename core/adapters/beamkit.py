@@ -184,7 +184,6 @@ class BeamkitKit:
     """One campaign child's handle on beamkit; run_steps' threads share it."""
 
     name = "beamkit"
-    accepts_lists = False
     poll_s = (30.0, 300.0)
 
     def __init__(self, campaign, *, executor="grid", parallel=None,

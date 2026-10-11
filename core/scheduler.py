@@ -36,12 +36,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-import kit_registry
+import kit_params
 import measure
 from contract import ContractError
 from kits import KitError
 from point_dir import PointDir
-from study import expand_artifact
 
 
 @dataclass(frozen=True)
@@ -50,87 +49,6 @@ class StepOutcome:
     ok: bool
     message: str
     record: Optional[Dict[str, Any]]    # the <step>_results.json content
-
-
-def map_params(mapping: Dict[str, str], env: Dict[str, Any],
-               accepts_lists: bool) -> Dict[str, Any]:
-    """Kit param name -> the value of the knob, const, expr or profile it
-    names. A profile goes to a kit that takes no lists flattened as
-    <param>_0 ... <param>_{N-1}."""
-    out: Dict[str, Any] = {}
-    for key, name in mapping.items():
-        value = env[name]
-        if isinstance(value, list) and not accepts_lists:
-            out.update({f"{key}_{i}": v for i, v in enumerate(value)})
-        else:
-            out[key] = list(value) if isinstance(value, list) else value
-    return out
-
-
-def params_from_values(step, upstream: Dict[str, Dict[str, Any]]
-                       ) -> Dict[str, float]:
-    """Kit param -> the metric of an earlier step that its params_from names,
-    read from that step's record as it is. A missing metric, or one that is
-    not a finite number, is a ValueError: there is no default."""
-    out: Dict[str, float] = {}
-    for param, source in sorted(step.params_from.items()):
-        up, key = source.split(".", 1)
-        metrics = upstream[up]["metrics"]
-        if key not in metrics:
-            raise ValueError(f"params_from {param}={source!r}: step {up!r} "
-                             f"returned no metric {key!r} (it returned "
-                             f"{sorted(metrics)})")
-        value = metrics[key]
-        if (isinstance(value, bool) or not isinstance(value, (int, float))
-                or not math.isfinite(value)):
-            raise ValueError(f"params_from {param}={source!r}: step {up!r} "
-                             f"returned {value!r}, not a finite number")
-        out[param] = value
-    return out
-
-
-def merge_params(owner: str, mapped: Dict[str, Any],
-                 constant: Dict[str, Any]) -> Dict[str, Any]:
-    """The mapped params plus the constant ones (kit settings, a step's
-    fixed values). The one clash rule for a step and the preflight: a mapped
-    param may not share a name with a constant one, which would silently
-    replace the point's value."""
-    clash = sorted(set(mapped) & set(constant))
-    if clash:
-        raise ValueError(f"{owner}: param(s) {clash} are both mapped from the "
-                         f"point and set in kits/fixed; a mapped param may "
-                         f"not share a name with a kit setting or a fixed "
-                         f"value")
-    return {**mapped, **constant}
-
-
-def step_params(study, step, env, accepts_lists, upstream) -> Dict[str, Any]:
-    """The mapped params (the point's, then the params_from values read from
-    `upstream`, {step: its record}), then the study's settings for the step's
-    kit, then
-    the step's fixed values, which win over the settings. A mapped param may
-    not share a name with a setting or a fixed value. A kit that takes stage
-    templates also gets the step's resolved template as `entry`. A fixed
-    '${ARTIFACT}/' value is expanded here (the study keeps it raw)."""
-    fixed = {k: expand_artifact(v, f"step {step.step!r} fixed[{k}]")
-             for k, v in step.fixed.items()}
-    mapped = map_params(step.params, env, accepts_lists)
-    taken = params_from_values(step, upstream)
-    clash = sorted(set(mapped) & set(taken))
-    if clash:
-        # e.g. a profile flattened to r_0.. and a params_from r_1
-        raise ValueError(f"step {step.step!r}: param(s) {clash} come from "
-                         f"both the point (params) and params_from")
-    params = merge_params(f"step {step.step!r}", {**mapped, **taken},
-                          {**study.kits.get(step.kit, {}), **fixed})
-    decl = kit_registry.KITS.get(step.kit)
-    if decl is not None and decl.uses_entries:
-        if "entry" in params:
-            raise ValueError(f"step {step.step!r}: 'entry' is reserved for "
-                             f"kit {step.kit!r}, which receives the step's "
-                             f"stage template under that name")
-        params["entry"] = study.entry_template(step.step)
-    return params
 
 
 def run_steps(study, *, config: str, state_dir: Path, env, files, kits,
@@ -247,11 +165,11 @@ def _run_one(study, step, config, state_dir, env, files, kits, upstream,
 
     try:
         kit = kits.get(step.kit)
-        accepts_lists = kit.accepts_lists
     except (KitError, ContractError) as exc:
         return failed(exc)
     try:
-        params = step_params(study, step, env, accepts_lists, upstream)
+        params = kit_params.build(study, kit_params.sender_of(step), env,
+                                  upstream)
         step_files = [files[f] for f in step.files]
         inputs = [ref for up in step.files_from for ref in upstream[up]["files"]]
     except (KeyError, ValueError) as exc:

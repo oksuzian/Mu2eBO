@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
 
 # Not modes, nor run (which imports it): importing modes loads every study,
 # so one broken file would crash this check instead of being reported.
+import kit_params  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
 import study as st  # noqa: E402
@@ -176,11 +177,11 @@ def check_artifacts(path: Path) -> Check:
     miss would otherwise surface only when a kit opens it."""
     problems, seen = [], 0
     for where, value in _strings(json.loads(Path(path).read_text()), ""):
-        if not value.startswith(st._ARTIFACT_TOKEN):
+        if not value.startswith(kit_params.ARTIFACT_TOKEN):
             continue
         seen += 1
         try:
-            expanded = st.expand_artifact(value, where)
+            expanded = kit_params.expand_artifact(value, where)
         except (ValueError, paths.PathsError) as exc:
             problems.append(f"{where}: {exc}")
             continue

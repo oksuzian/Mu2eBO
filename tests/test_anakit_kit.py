@@ -2,6 +2,7 @@
 a contract kit, run on a Musing (wiki/external/anakit.md). Unit tests
 drive the adapter with a fake client; one test drives it through the real
 KitClient against tests/fakeanakit.py over stdio."""
+import copy
 import json
 import os
 import subprocess
@@ -485,15 +486,17 @@ class TestStatusAndResults(_Kit):
 
 class TestStepProblems(_Kit):
     def study(self, fixed, metric="sob.stops_per_pot", params_from=None,
-              others=(), files_from=("mubeam",), musing=MUSING):
+              others=(), files_from=("mubeam",), musing=MUSING, params=None,
+              profile_counts=None):
         kits = {"anakit": {"musing": musing}} if musing is not None \
             else {"anakit": {}}
-        step = Step("sob", "anakit", None, (), tuple(files_from), {},
-                    dict(params_from or {}), fixed)
+        step = Step("sob", "anakit", None, (), tuple(files_from),
+                    dict(params or {}), dict(params_from or {}), fixed)
         study = types.SimpleNamespace(
             kits=kits, steps=(step,) + tuple(others),
             objectives=(types.SimpleNamespace(metric=metric),),
-            extra_metrics=())
+            extra_metrics=(), preflight=None,
+            profile_counts=dict(profile_counts or {}))
         return study, step
 
     GOOD = {"analysis": "muon_stop_rate", "upstream_eff": 0.01278168}
@@ -519,6 +522,24 @@ class TestStepProblems(_Kit):
             with self.subTest(needle=needle):
                 problems = self.kit().step_problems(study, step)
                 self.assertTrue(any(needle in p for p in problems), problems)
+
+    def test_a_split_profile_is_checked_by_its_split_names(self):
+        study, step = self.study(self.GOOD, params={"eff": "prof"},
+                                 profile_counts={"prof": 3})
+
+        def catalogue(*names):
+            spec = copy.deepcopy(CATALOGUE["muon_stop_rate"])
+            spec["parameters"].update(
+                {n: {"required": False, "default": None, "kind": "number",
+                     "minimum": None, "maximum": None} for n in names})
+            return {**CATALOGUE, "muon_stop_rate": spec}
+
+        split = self.kit(catalogue=catalogue("eff_0", "eff_1", "eff_2"))
+        self.assertEqual(split.step_problems(study, step), [])
+        whole = self.kit(catalogue=catalogue("eff"))
+        problems = whole.step_problems(study, step)
+        self.assertTrue(any("does not take" in p and "eff_0" in p
+                            for p in problems), problems)
 
     def test_a_params_from_param_satisfies_a_required_parameter(self):
         study, step = self.study({"analysis": "muon_stop_rate"},

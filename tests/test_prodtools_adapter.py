@@ -717,7 +717,7 @@ class TestWithRunSteps(_Kit):
                         dict(fixed)),
                    Step("mustops_ce", "prodtools", "mustops_ce", ("geom",),
                         ("mubeam",), {}, {}, dict(fixed))),
-            kits={"prodtools": settings},
+            kits={"prodtools": settings}, preflight=None, profile_counts={},
             entry_template=lambda step: copy.deepcopy(entries[step]))
 
         class Kits:
