@@ -3,7 +3,7 @@ type: driver
 title: Contract engine
 description: 'The only runner — studies as JSON, kits over MCP (prodtools, offline_preflight, anakit, beamkit), run_steps, measure_sha boards, graph.run / graph.closed_loop, check_study, params_from'
 status: active
-timestamp: '2026-10-08'
+timestamp: '2026-10-11'
 ---
 
 # Contract engine
@@ -54,9 +54,11 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   kit not in `kit_registry.KITS` (`"unknown kit"`), stops every command
   for every study.
 - **`${ARTIFACT}/` paths:** a kit setting or a step's `fixed` value may
-  hold a path only as `${ARTIFACT}/...` (`core/study.py:expand_artifact`).
-  It stays raw at load, so `measure_sha` hashes the same string for every
-  operator; it is expanded only where a step's params are built.
+  hold a path only as `${ARTIFACT}/...` (`core/kit_params.py:expand_artifact`),
+  and only as the whole value: a path nested in a dict or list is refused
+  (`refuse_nested_paths`). A kit setting is expanded at load; a `fixed`
+  value stays raw in the `Step`, so `measure_sha` hashes the same string
+  for every operator, and is expanded only in `kit_params.build`.
 - **Load rules worth knowing:** a knob, objective or metric may not be
   named after a column the board adds (`config`, `handles`, `spec_sha`,
   `measure_sha`, `time`); two steps of a `uses_entries` kit may not
@@ -97,10 +99,15 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   `fixed_keys`, `required_fixed`, `uses_entries`, `step_kit`,
   `check_kit`, `executors`, `launch_stagger_s`, `requires_kerberos`,
   `names_runs_after_config`, `factory` (`"adapters.prodtools:ProdtoolsKit"`,
-  relative to `core/`; `None` for a native kit), `reserved_params` and
-  `jobs_of` (how a step counts grid jobs for the dry-run budget:
-  `kit_registry.step_jobs`). A
-  name clash between native and declared kits raises at import.
+  relative to `core/`; `None` for a native kit), `reserved_params` (names
+  the kit's worker sets itself), `jobs_of` (how a step counts grid jobs for
+  the dry-run budget: `kit_registry.step_jobs`, always an int), and the
+  kit-params facts: `accepts_lists`, `passes_on` (fixed keys sent on to the
+  server), `inner_params_setting` (beamkit `deck_params`) and
+  `param_name_pattern`; `own_params` is derived from them (`entry` for a
+  `uses_entries` kit, the settings, the fixed keys not passed on). A name
+  clash between native and declared kits, or a key that is both a setting
+  and a fixed key, raises at import.
   `contract.load_factory` imports the factory when the kit opens.
 - **`env_passthrough` exists because** the MCP SDK passes a child only a
   short allowlist of variables. A kit that needs `KRB5CCNAME`, a token
@@ -182,9 +189,10 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
 - An unexpected exception in a step is logged at once, recorded in
   `broken.txt`, and re-raised only after running siblings finish, so the
   child exits non-zero without killing in-flight grid work.
-- Step params (`merge_params`, shared with the pre-check): a param mapped
-  from the point may not share a name with a kit setting or a fixed
-  value; a clash breaks the point rather than silently replacing a value.
+- Step params (`kit_params.build`, shared with the pre-check): each name
+  has one origin, so nothing replaces anything. The loader refuses a
+  clash (`kit_params.problems`); `build` refuses one too, for a study
+  built by hand.
 
 ### A broken point is terminal
 - `graph.run` refuses (exit 2) a config whose `state/broken.txt` exists,
@@ -313,12 +321,12 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   `"params_from": {"<param>": "<step>.<metric>"}` (required key, `{}`
   when unused). The engine copies the value as it is and computes
   nothing; physics stays in the kit.
-- `Step.sent_params` and `core/study.py:metrics_read(study, step)` are
-  the one answer to "what does a step send / what is read from it"
-  (`contract._needs`, `anakit.step_problems`). A mapped param may not
-  share a name with another param of the step; `fixed` may still
-  override a kit setting.
-- Run time (`scheduler.params_from_values`): a missing metric, a bool,
+- `kit_params.names(study, sender)` and `core/study.py:metrics_read(study,
+  step)` are the one answer to "what does a step send / what is read from
+  it" (`contract._needs` through `kit_params.kit_names`,
+  `anakit.step_problems`): the names after the profile split, each with
+  every origin. One origin per name; nothing overrides (ADR-0003).
+- Run time (`kit_params.build`): a missing metric, a bool,
   text, NaN or ±inf fails the step, naming the param; an adopted producer
   passes its recorded value.
 
@@ -357,7 +365,7 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   `submit_once`, `run_local`, `run_status` and `cancel_run` come from that
   checkout (cvmfs v3.2.0 and v3.3.4 lack them). Every tool it calls needs a
   timeout in kits.toml, or the kit refuses to start.
-- **The entry:** `step_params` hands the step's stage template as
+- **The entry:** `kit_params.build` hands the step's stage template as
   `params["entry"]` to a `uses_entries` kit; `prodtools_entry.entry_for_step`
   fills `{cfg}`/`{geom}` and builds the json2jobdef entry. The run label
   is `kits.prodtools.dsconf` (holds `{cfg}`).
@@ -471,8 +479,9 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
 - **Settings:** `kits.beamkit` `deck_url`, `deck_ref` (40-hex sha),
   `main_input`, `deck_params`; fixed per step `njobs`, `events_per_job`,
   `quorum`, `plane`, `pdg`. Every other step param is a deck param
-  (`key=value` on the g4bl command line); names of adapter settings or
-  beamkit worker params are refused (`KitDecl.reserved_params`).
+  (`key=value` on the g4bl command line); a mapped name may not be an
+  adapter setting (`own_params`), a beamkit worker param
+  (`reserved_params`) or a `deck_params` key (one origin per name).
 - **`[servers.beamkit]`** runs `${AUTORESEARCH_BEAMKIT}/.venv/bin/beamkit-mcp`
   with `BEAMKIT_PRODTOOLS_ROOT=${AUTORESEARCH_PRODTOOLS}` (the cvmfs
   prodtools has no MCP venv) and passes jobsub's `OTEL_EXPORTER_JAEGER_*`:

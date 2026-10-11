@@ -5,6 +5,14 @@ heading at the TOP (create it if absent). One bullet per change:
 `<verb> <what changed> — <page>`; verbs: created, updated, merged,
 superseded, linted.
 
+## 2026-10-11
+- **updated** [contract-engine](/drivers/contract-engine.md), [service](/drivers/service.md),
+  [tests](/drivers/tests.md), [engine-deepening-review-2026-10](/concepts/engine-deepening-review-2026-10.md):
+  kit params (review candidate 3) — `core/kit_params.py` decides the names a step or the preflight
+  sends its kit, after the profile split, with one origin per name; the loader refuses a clash, a
+  mapping of a name the kit reads itself, and a path inside a nested value; the dry-run budget drops
+  `jobs_vary` (a mapped `njobs` is refused). ADR-0003; `mode_specs/README.md` rules updated.
+
 ## 2026-10-09
 - **updated** QUICKSTART.md, [tests](/drivers/tests.md): a fresh-eyes walkthrough (local ce_chain point,
   grid dry run, sandboxed) found the how-to silent on running a grid campaign; new "On the grid" section

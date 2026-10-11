@@ -1,10 +1,10 @@
 ---
 type: concept
 title: Engine deepening review (2026-10)
-description: 'architecture review of the contract engine after the PR #36 cleanup (2026-10-08): 7 candidates, each reproduced in a sandbox and re-rated; 4 small fixes landed the same day (pool drain, beamkit run identity, per-kit job count, submit record); the step-params module is the next deepening; refuted claims listed so they are not re-proposed'
+description: 'architecture review of the contract engine after the PR #36 cleanup (2026-10-08): 7 candidates, each reproduced in a sandbox and re-rated; 4 small fixes landed the same day (pool drain, beamkit run identity, per-kit job count, submit record); C3 done 2026-10-11 as core/kit_params.py (ADR-0003); refuted claims listed so they are not re-proposed'
 status: active
-status_note: 4 small fixes landed 2026-10-08; C3, C6 step record, C2 rest and C5 board pin not started
-timestamp: '2026-10-08'
+status_note: 4 small fixes landed 2026-10-08; C3 done 2026-10-11 (kit params); C6 step record, C2 rest and C5 board pin not started
+timestamp: '2026-10-11'
 ---
 
 # Engine deepening review (2026-10)
@@ -65,6 +65,14 @@ re-propose.
 
   Three review fixes (`015ac2d`, `9923d64`, `1b3db4a`) each patched one
   site, and the first three divergences are the sibling sites they missed.
+  **Done 2026-10-11** (branch `kit-params`): `core/kit_params.py` lists
+  every name a kit receives, after the split, with every origin, and the
+  loader, the launch check and the run all ask it; one origin per name,
+  nothing overrides (ADR-0003). The design found an eighth case: `params:
+  {"r": <profile>, "r_1": <knob>}` loaded and one value replaced the other
+  by JSON key order. A mapped `njobs` is now refused at load (the
+  2026-10-08 feature is removed), and a golden test pins what every live
+  study sends.
 - **C6, a step-record module (M).** These prodtools fixes never reached
   beamkit:
   - wait out stage-out lag: beamkit fails at once with 17 of 20 files and
@@ -128,5 +136,5 @@ re-propose.
   `core/point_dir.py`
 
 ## Open questions / TODO
-- C3, the C6 step-record module, the rest of C2, and C5's board pin are
-  not started.
+- The C6 step-record module, the rest of C2, and C5's board pin are not
+  started.

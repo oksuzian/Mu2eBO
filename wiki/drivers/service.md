@@ -3,7 +3,7 @@ type: driver
 title: autoresearch MCP server (study and campaign tools)
 description: '`service/` = the `autoresearch` MCP server: check a study (start_check/check_result), run and follow campaigns (start_campaign dry run first), leaderboard, and a live dashboard'
 status: active
-timestamp: '2026-10-08'
+timestamp: '2026-10-11'
 ---
 
 # autoresearch MCP server (study and campaign tools)
@@ -93,8 +93,8 @@ Code: `service/campaigns.py` (`CampaignService`), `service/jobs.py`
     `kit_registry.step_jobs`): prodtools and beamkit count `njobs`, else
     the stage template's; analysis and pre-check kits count 0.
     `foilspfbpz_ax` gives 130 per point (15 + 15 + 100), `ptg4bl` 20. A
-    step whose `njobs` comes from the point gives `null` counts and is
-    named in `jobs_vary`. A count no kit can give (no `njobs` in the step
+    step's `njobs` is never taken from the point (refused at load since
+    2026-10-11), so the counts are always numbers. A count no kit can give (no `njobs` in the step
     or its template) is a dry-run problem (`ok=false`), with the check's
     own output kept. Until 2026-10-08 only prodtools steps counted,
     so the ptg5k01/ptg5k02 dry runs showed 0 jobs (they ran 180 and 400).

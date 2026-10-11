@@ -100,7 +100,8 @@ has no geometry writer (`geom: null`): its knobs are deck parameters, given
 on the g4bl command line by mapping them in the step's `params`. The deck
 must declare each one `param -unset` (a plain `param` line overrides the
 command line), on a deck branch pinned by `kits.beamkit.deck_ref` (a full
-sha) at `deck_url`. Fixed deck values go in `kits.beamkit.deck_params`.
+sha) at `deck_url`. Fixed deck values go in `kits.beamkit.deck_params`;
+a name is either mapped or a `deck_params` key, never both.
 Example: `ptg4bl.json` and the deck branch `ptarget-polycone`; the job log
 echoes every command with its values, which shows what reached the deck.
 A `beamkit` study runs on the grid only, and campaigns use
@@ -121,8 +122,17 @@ stopping rate a `muon_stop_rate` step measured, and its files from an
                "cosmic_rate_per_s_per_mev": 0.0018181818181818182}}
 
 - The source must be another step of the study, never the step itself.
-- A mapped param (`params` or `params_from`) is set in one place only: not
-  also in the other mapping, `fixed` or the kit's settings.
+- Every name a kit receives has exactly one source, and nothing overrides
+  anything: a mapped param (`params` or `params_from`) is not also in the
+  other mapping, `fixed` or the kit's settings, and a fixed value does not
+  repeat a setting. The rule counts the names the kit receives: a profile
+  sent to a kit that takes no lists arrives as `<p>_0 .. <p>_{N-1}`, so
+  `"params": {"r": "<profile>", "r_1": "x"}` is refused, and so is a beamkit
+  `deck_params` key that a mapped name repeats. The preflight's `params`
+  follow the same rule.
+- A mapping may not name a setting the kit reads itself (prodtools `entry`,
+  `njobs`, `events_per_job`, `memory_mb`, `quorum`; beamkit's own settings
+  and the names its worker sets); these are fixed values or settings.
 - The step waits for its sources as for `files_from`, and a cycle through
   either is refused. A step read only through `params_from` counts as used.
 - The launch check refuses a source step whose kit does not return the
@@ -153,7 +163,9 @@ hashes it), so the layout is for readable diffs.
   his `main` only on purpose, and read the diff first).
 - A prodtools step must set `quorum` in `fixed` (below it the step
   fails) and at most 200 `njobs`; `kits.prodtools.fatal_log_codes` lists
-  the log codes that fail a step (foilspf: `GeomSolids1001`).
+  the log codes that fail a step (foilspf: `GeomSolids1001`). A step's job
+  count is a fixed value (or its stage template's), never taken from a knob
+  or an earlier step, so the dry run's budget is always one number.
 - A stage template (`stage_entries/<entry>.json`) names its prodtools
   `desc_fmt` (`{cfg}` and `{geom}` are substituted). The run label is
   `kits.prodtools.dsconf`: it must contain `{cfg}` and, filled in, hold
@@ -198,6 +210,9 @@ stay in `leaderboards/` as plain files.
   the `backing` link for anything not built locally
   (`./setup.sh --backing <path>`). A bare absolute path under a user area is
   rejected at load: it would make the study runnable by exactly one account.
+  A path inside a nested value (a `deck_params` entry, a list, an inline
+  stage template) is refused too: a nested value is sent as written, so an
+  expanded local path would not exist on a grid worker.
 
 ## Why not `modes/`?
 
