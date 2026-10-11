@@ -1,7 +1,7 @@
 ---
 type: driver
 title: Self-tests (`tests/`)
-description: '`tests/` regression suite (47 files, 967 tests OK, 4 skipped), no grid contact; `PYTHONPATH= "$AUTORESEARCH_PYTHON" -m unittest discover -s tests -t .`'
+description: '`tests/` regression suite (47 files, 968 tests OK, 4 skipped), no grid contact; `PYTHONPATH= "$AUTORESEARCH_PYTHON" -m unittest discover -s tests -t .`'
 status: active
 timestamp: '2026-10-11'
 ---
@@ -10,7 +10,7 @@ timestamp: '2026-10-11'
 
 ## Summary
 Regression tests for the engine, the kit adapters, the service and the
-surrogate. **47 `test_*.py` files, 967 tests OK (skipped=4)** after the
+surrogate. **47 `test_*.py` files, 968 tests OK (skipped=4)** after the
 kit-params change (2026-10-11), about 9 minutes under `ana 2.8.0`. No grid
 contact: everything runs on mocks, temp dirs, fake kits
 (`tests/toykit.py`, `tests/fakeanakit.py`, `tests/fakebeamkit.py`), or a
