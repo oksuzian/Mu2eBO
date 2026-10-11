@@ -189,6 +189,14 @@ class Study:
     def consts(self) -> Dict[str, Any]:
         return dict(self.derive["consts"])
 
+    @property
+    def profile_counts(self) -> Dict[str, int]:
+        """Profile name -> its element count, a const count resolved."""
+        consts = self.derive["consts"]
+        return {name: consts[p["count"]] if isinstance(p["count"], str)
+                else p["count"]
+                for name, p in self.derive["profiles"].items()}
+
     def entry_template(self, step: str) -> Dict[str, Any]:
         """The step's stage template as the study resolved it at load (the
         one measure_sha hashed), deep-copied so a kit cannot alter it."""
