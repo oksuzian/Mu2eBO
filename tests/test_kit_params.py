@@ -148,7 +148,7 @@ class TestRules(_Case):
                             "files": []}
         s = self.load_unchecked(doc)
         self.assertProblem(s, "[preflight.params.function]",
-                           "kits.toykit.function")
+                           "a toykit setting, not a param to map")
 
     def test_e1_a_split_profile_element_and_a_deck_param(self):
         s = self.load_unchecked(ptg_profile_doc())
@@ -167,6 +167,18 @@ class TestRules(_Case):
         s = self.load_unchecked(doc)
         self.assertProblem(s, "[evaluate.mubeam.params.njobs]",
                            "a prodtools setting, not a param to map")
+
+    def test_a_mapped_setting_is_reported_once_as_a_setting(self):
+        """Every beamkit fixed key is required, so its clash message would
+        send the author to a refusal ("needs ... in every step's fixed"):
+        the name is reported only as one the kit reads itself."""
+        doc = copy.deepcopy(PTG4BL)
+        doc["evaluate"][0]["params"]["pdg"] = "Tlength"
+        found = [p for p in kp.problems(self.load_unchecked(doc))
+                 if "pdg" in p]
+        self.assertEqual(len(found), 1, found)
+        self.assertIn("[evaluate.g4bl.params.pdg]: a beamkit setting",
+                      found[0])
 
     def test_a_clean_study_has_no_problems(self):
         for doc in (BRANIN, PTG4BL, DEMO,
@@ -201,7 +213,7 @@ class TestTheLoaderRefuses(_Case):
         doc["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
                             "files": []}
         self.assertRefused(doc, "[preflight.params.function]",
-                           "kits.toykit.function")
+                           "a toykit setting, not a param to map")
 
     def test_e1(self):
         self.assertRefused(ptg_profile_doc(),

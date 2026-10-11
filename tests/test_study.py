@@ -449,8 +449,7 @@ class TestSteps(_Tmp):
             # receives under that name.
             ("entry as a param",
              lambda d: _step(d, "mubeam")["params"].update(entry="a"),
-             "[evaluate.mubeam.params.entry]", "the stage template (entry)",
-             "exactly one source"),
+             "[evaluate.mubeam.params.entry]", "a prodtools setting"),
             ("entry as a fixed value", fixed("mubeam", entry=1),
              "[evaluate[0]][fixed]", "unknown key(s) ['entry']"),
             ("entry as a kit setting",
@@ -777,21 +776,25 @@ class TestParamsFrom(_Tmp):
               for bad in ("SimJob/MDC2025ay", "SimJob  MDC2025ay",
                           " SimJob MDC2025ay", "SimJob",
                           "SimJob MDC2025ay extra", 3)],
-            # A name sent twice: params_from, params, fixed, kit settings.
-            *[(label, _clash(params_from, params),
-               "evaluate.sob", f"'{name}'", "exactly one source")
-              for label, params_from, params, name in (
+            # A name sent twice: params_from, params, fixed, kit settings. A
+            # mapped name the kit reads itself is reported as that, since
+            # removing its other source would not make the study load.
+            *[(label, _clash(params_from, params), "evaluate.sob", name,
+               needle)
+              for label, params_from, params, name, needle in (
                   ("params_from vs fixed", {"analysis": "flash.v"}, {},
-                   "analysis"),
+                   "analysis", "an anakit setting"),
                   ("params_from vs setting", {"musing": "flash.v"}, {},
-                   "musing"),
-                  ("params_from vs params", {"k": "flash.v"}, {"k": "a"}, "k"),
-                  ("params vs fixed", {}, {"analysis": "a"}, "analysis"))],
+                   "musing", "an anakit setting"),
+                  ("params_from vs params", {"k": "flash.v"}, {"k": "a"},
+                   "'k'", "exactly one source"),
+                  ("params vs fixed", {}, {"analysis": "a"}, "analysis",
+                   "an anakit setting"))],
             ("a cycle through params_from",
              _params_from("mubeam", {"x": "mustops_ce.v"}), "cycle"),
             ("a reserved name in params_from",
              _params_from("mubeam", {"entry": "elebeam_flash.v"}),
-             "params_from.entry", "exactly one source"),
+             "params_from.entry", "a prodtools setting"),
         ])
 
     def test_a_step_read_only_by_params_from_is_used(self):

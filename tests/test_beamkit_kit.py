@@ -101,8 +101,8 @@ class TestRegistry(_Tmp):
         self.assertIn("quorum", str(cm.exception))
 
     def test_a_knob_named_like_a_setting_is_refused(self):
-        for name, needle in (("njobs", "exactly one source"),
-                             ("plane", "exactly one source"),
+        for name, needle in (("njobs", "a beamkit setting"),
+                             ("plane", "a beamkit setting"),
                              ("Num_Events", "a beamkit setting")):
             doc = ptg_doc()
             doc["evaluate"][0]["params"] = {name: "Tlength", "R_up": "R_up",

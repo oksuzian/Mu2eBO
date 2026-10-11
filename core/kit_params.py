@@ -18,7 +18,8 @@ The rules (ADR-0003):
   1. One origin per name. Nothing overrides anything.
   2. A mapping (`params`, `params_from`) may not name what the kit reads
      itself (KitDecl.own_params, KitDecl.reserved_params), and must match
-     the kit's name pattern when it has one.
+     the kit's name pattern when it has one. A name broken both ways is
+     reported under this rule only.
   3. No '${...}' or personal user area inside a nested value
      (refuse_nested_paths, beside expand_artifact).
 
@@ -170,9 +171,11 @@ def _says(o: Origin) -> str:
     return o.ref        # a setting, a fixed value, a key inside a setting
 
 
-def _clashes(study, sender, found) -> List[str]:
+def _clashes(study, sender, found, skip=frozenset()) -> List[str]:
     """Rule 1 for one sender: every name with more than one origin,
-    counting the keys of the kit's inner-params setting."""
+    counting the keys of the kit's inner-params setting. A name produced
+    by a mapping key in `skip` is left out (problems() reports it under
+    rule 2)."""
     decl = kit_registry.KITS[sender.kit]
     inner = {}
     if decl.inner_params_setting is not None:
@@ -181,6 +184,9 @@ def _clashes(study, sender, found) -> List[str]:
             inner = value
     out = []
     for name, origins in found.items():
+        if any(o.kind in ("point", "profile", "params_from")
+               and o.ref.split(".", 1)[1] in skip for o in origins):
+            continue
         if name in inner:
             origins = origins + (Origin(
                 "inner", f"kits.{sender.kit}.{decl.inner_params_setting}."
@@ -195,19 +201,27 @@ def _clashes(study, sender, found) -> List[str]:
 
 
 def problems(study) -> List[str]:
-    """Every broken rule, per sender: rule 1, then rule 2, then the name
-    pattern. The loader raises the first, prefixed with the file path."""
+    """Every broken rule, per sender: rule 2, then rule 1, then the name
+    pattern. The loader raises the first, prefixed with the file path. A
+    mapped name the kit reads itself is reported only under rule 2: most
+    such names are required settings or fixed values, so the clash's other
+    source cannot be removed, and the mapping is what must go."""
     out: List[str] = []
     for sender in senders(study):
         decl = kit_registry.KITS[sender.kit]
-        out += _clashes(study, sender, names(study, sender))
         banned = set(decl.own_params) | set(decl.reserved_params)
+        article = "an" if sender.kit[0] in "aeiou" else "a"
+        mapped_banned = set()
         for part in ("params", "params_from"):
             for key in getattr(sender, part):
                 if key in banned:
-                    out.append(f"[{sender.at}.{part}.{key}]: a {sender.kit} "
-                               f"setting, not a param to map; kit "
-                               f"{sender.kit!r} or its worker sets it itself")
+                    mapped_banned.add(key)
+                    out.append(f"[{sender.at}.{part}.{key}]: {article} "
+                               f"{sender.kit} setting, not a param to map; "
+                               f"kit {sender.kit!r} or its worker sets it "
+                               f"itself")
+        out += _clashes(study, sender, names(study, sender),
+                        frozenset(mapped_banned))
         if decl.param_name_pattern is not None:
             for part in ("params", "params_from"):
                 bad = sorted(k for k in getattr(sender, part)

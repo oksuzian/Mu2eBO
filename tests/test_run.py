@@ -171,8 +171,8 @@ class TestRefusals(_Point):
         s = self.add_study(clash)
         r = self.run_point(s)
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
-        for needle in ("[preflight.params.function]", "'function'",
-                       "exactly one source"):
+        for needle in ("[preflight.params.function]",
+                       "a toykit setting, not a param to map"):
             self.assertIn(needle, r.stdout + r.stderr)
         self.assertEqual(self.submits(), [])
         self.assertEqual(self.board_rows(s), [])
