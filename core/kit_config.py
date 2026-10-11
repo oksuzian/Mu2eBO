@@ -173,6 +173,9 @@ def _entry(name: str, raw, where: str) -> KitConfig:
         for k, t in table.items():
             _need(t in VALUE_TYPES, f"{where}.{key}.{k}",
                   f"must be one of {list(VALUE_TYPES)}, got {t!r}")
+    both = set(raw["study_keys"]) & set(raw["fixed_keys"])
+    _need(not both, f"{where}",
+          f"{sorted(both)} in both study_keys and fixed_keys")
     for key in ("accepts_lists", "check"):
         _need(isinstance(raw[key], bool), f"{where}.{key}",
               "must be true or false")

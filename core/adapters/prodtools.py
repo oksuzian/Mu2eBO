@@ -35,8 +35,7 @@ from kits import KitClient, KitError, KitToolError
 from point_dir import write_atomic
 
 VERSION = "prodtools-adapter/1"      # bump when a step would measure anew
-PARAMS = ("entry", "code_tarball", "dsconf", "fatal_log_codes", "njobs",
-          "events_per_job", "memory_mb", "quorum")
+PARAMS = kit_registry.KITS["prodtools"].own_params
 METRICS = ("njobs", "njobs_ok")
 DEFAULT_PARALLEL = 4
 UNKNOWN_LIMIT_S = 6 * 3600

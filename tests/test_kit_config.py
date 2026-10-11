@@ -75,6 +75,13 @@ class TestLoad(_Toml):
             with self.subTest(label):
                 self.assertRejects(text, *needles)
 
+    def test_a_key_in_both_tables_is_refused(self):
+        text = GOOD.replace('study_keys = { mode = "string" }',
+                            'study_keys = { a = "string" }').replace(
+            'fixed_keys = { n = "positive_int" }',
+            'fixed_keys = { a = "number" }')
+        self.assertRejects(text, "[demo]", "'a'", "study_keys and fixed_keys")
+
 
 class TestResolve(_Toml):
     def test_tokens(self):

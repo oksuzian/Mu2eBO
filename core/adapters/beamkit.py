@@ -256,9 +256,10 @@ class BeamkitKit:
         config, step = split_handle(name)
         path = self._record_path(config, step)
         tag = tag_for(name)
-        own = {k: params[k] for k in kit_registry.BEAMKIT_OWN if k in params}
+        own_params = kit_registry.KITS["beamkit"].own_params
+        own = {k: params[k] for k in own_params if k in params}
         deck = {k: repr(float(v)) for k, v in params.items()
-                if k not in kit_registry.BEAMKIT_OWN}
+                if k not in own_params}
         deck.update({k: str(v) for k, v in own["deck_params"].items()})
         sent = {"params": deck, "njobs": int(own["njobs"]),
                 "events_per_job": int(own["events_per_job"])}

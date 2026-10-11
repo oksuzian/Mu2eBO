@@ -249,6 +249,22 @@ class KitDecl:
     reserved_params: FrozenSet[str]   # names a step's params may not map
     jobs_of: Callable                 # (study, step) -> jobs per point, or
                                       # why none is fixed (no_jobs, njobs_of)
+    accepts_lists: bool               # a profile goes whole, not as <p>_i
+    passes_on: FrozenSet[str]         # fixed keys sent on to the server,
+                                      # not read by the adapter itself
+    inner_params_setting: Optional[str]   # the setting whose keys the kit
+                                          # also receives as params
+    param_name_pattern: Optional["re.Pattern"]  # what a mapped name must
+                                                # match; None: any name
+
+    @property
+    def own_params(self) -> Tuple[str, ...]:
+        """The params the kit (its adapter) reads itself rather than
+        receiving them from the point: `entry` for a kit of stage
+        templates, its settings, and its fixed keys it does not pass on."""
+        return ((("entry",) if self.uses_entries else ())
+                + tuple(self.study_keys)
+                + tuple(k for k in self.fixed_keys if k not in self.passes_on))
 
 
 KITS: Dict[str, KitDecl] = {d.name: d for d in (
@@ -262,7 +278,9 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             executors=("grid", "local"), launch_stagger_s=90.0,
             requires_kerberos=True, names_runs_after_config=True,
             factory="adapters.prodtools:ProdtoolsKit",
-            reserved_params=frozenset(), jobs_of=njobs_of),
+            reserved_params=frozenset(), jobs_of=njobs_of,
+            accepts_lists=False, passes_on=frozenset(),
+            inner_params_setting=None, param_name_pattern=None),
     # The pre-check runs one event on this node, before any step.
     KitDecl("offline_preflight",
             study_keys={"code_tarball": _path, "dumps_gdml": _flag,
@@ -274,7 +292,9 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             executors=("grid", "local"), launch_stagger_s=0.0,
             requires_kerberos=False, names_runs_after_config=True,
             factory="adapters.offline_preflight:OfflinePreflightKit",
-            reserved_params=frozenset(), jobs_of=no_jobs),
+            reserved_params=frozenset(), jobs_of=no_jobs,
+            accepts_lists=False, passes_on=frozenset(),
+            inner_params_setting=None, param_name_pattern=None),
     # An analysis reads an earlier step's files; its mu2e jobs run where
     # the analysis server runs, not as grid jobs.
     KitDecl("anakit",
@@ -287,7 +307,11 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             executors=("grid", "local"), launch_stagger_s=0.0,
             requires_kerberos=False, names_runs_after_config=False,
             factory="adapters.anakit:AnakitKit",
-            reserved_params=frozenset(), jobs_of=no_jobs),
+            reserved_params=frozenset(), jobs_of=no_jobs,
+            accepts_lists=False,
+            passes_on=frozenset({"upstream_eff", "cosmic_rate_per_s_per_mev",
+                                 "trigger_paths"}),
+            inner_params_setting=None, param_name_pattern=None),
     # G4beamline through the beamkit MCP server (core/adapters/beamkit.py).
     # Knobs reach the deck as command-line params, so a step's params name
     # deck params; the adapter's own settings and beamkit's worker params
@@ -309,7 +333,9 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             requires_kerberos=True, names_runs_after_config=True,
             factory="adapters.beamkit:BeamkitKit",
             reserved_params=frozenset(BEAMKIT_OWN + BEAMKIT_RESERVED),
-            jobs_of=njobs_of),
+            jobs_of=njobs_of, accepts_lists=False, passes_on=frozenset(),
+            inner_params_setting="deck_params",
+            param_name_pattern=_DECK_PARAM),
 )}
 
 for _decl in KITS.values():
@@ -408,7 +434,9 @@ def _native_decl(cfg) -> KitDecl:
                    launch_stagger_s=cfg.launch_stagger_s,
                    requires_kerberos=False, names_runs_after_config=False,
                    factory=None, reserved_params=frozenset(),
-                   jobs_of=no_jobs)
+                   jobs_of=no_jobs, accepts_lists=cfg.accepts_lists,
+                   passes_on=frozenset(cfg.fixed_keys),
+                   inner_params_setting=None, param_name_pattern=None)
 
 
 _clash = sorted(set(NATIVE) & set(KITS))
@@ -416,6 +444,12 @@ if _clash:
     raise ValueError(f"kits.toml declares {_clash}, which core/kit_registry.py "
                      f"already declares as adapter kits")
 KITS.update({name: _native_decl(cfg) for name, cfg in NATIVE.items()})
+
+for _decl in KITS.values():
+    _both = set(_decl.study_keys) & set(_decl.fixed_keys)
+    if _both:
+        raise ValueError(f"kit {_decl.name!r}: {sorted(_both)} are both "
+                         f"settings and fixed keys; a param has one source")
 
 
 def kits_of(study) -> set:

@@ -62,7 +62,7 @@ CALL_MARGIN_S = 300
 # The input_kind values list_analyses may report; "art_files" is a mu2e
 # job over art files, "root_file" a Python analysis.
 INPUT_KINDS = ("art_files", "root_file")
-OWN_PARAMS = ("musing", "analysis")  # read here, never sent to anakit
+OWN_PARAMS = kit_registry.KITS["anakit"].own_params  # read here, never sent
 # Where published Musings live: <root>/<Musing>/<version> (anakit's own
 # tools/mu2e_env.py MUSINGS_ROOT). Read to refuse an unpublished Musing at
 # launch; never searched.
