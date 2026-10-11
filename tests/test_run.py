@@ -135,18 +135,6 @@ class TestFailedPoints(_Point):
         verdict = json.loads((self.state() / "preflight_verdict.json").read_text())
         self.assertFalse(verdict["ok"])
 
-    def test_a_preflight_param_may_not_clash_with_a_kit_setting(self):
-        """The same clash rule as a step's params: the kit setting
-        `function` must not silently replace the mapped value."""
-        def clash(d):
-            d["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
-                              "files": []}
-        s = self.add_study(clash)
-        self.assertBroken(self.run_point(s), "preflight", "'function'",
-                          "exactly one source")
-        self.assertEqual(self.submits(), [])
-        self.assertEqual(self.board_rows(s), [])
-
     def test_a_board_measured_another_way_refuses_the_launch(self):
         s = self.add_study()
         self.assertEqual(self.run_point(s).returncode, 0)
@@ -171,6 +159,23 @@ class TestRefusals(_Point):
     def test_x_of_the_wrong_length(self):
         self.assertRefused(self.run_point(self.add_study(), x=(1.0,)),
                            "2 knobs")
+
+    def test_a_preflight_param_clashing_with_a_kit_setting_is_refused_at_load(self):
+        """The same clash rule as a step's params: the kit setting
+        `function` must not silently replace the mapped value. The study
+        no longer loads, and a study that does not load stops the runner
+        at import, as any loader error does, before anything is submitted."""
+        def clash(d):
+            d["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
+                              "files": []}
+        s = self.add_study(clash)
+        r = self.run_point(s)
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        for needle in ("[preflight.params.function]", "'function'",
+                       "exactly one source"):
+            self.assertIn(needle, r.stdout + r.stderr)
+        self.assertEqual(self.submits(), [])
+        self.assertEqual(self.board_rows(s), [])
 
     def test_a_broken_point_is_not_rerun(self):
         s = self.add_study(lambda d: d["evaluate"][0]["fixed"].update(fail="failed"))

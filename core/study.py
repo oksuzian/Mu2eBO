@@ -73,12 +73,6 @@ class Step:
                    for k in sorted(self.params_from)]
         return tuple(dict.fromkeys(list(self.files_from) + sources))
 
-    @property
-    def sent_params(self) -> frozenset:
-        """The param names this step sends its kit, besides the kit's own
-        settings: the mapped ones (params, params_from) and the fixed ones."""
-        return frozenset(self.params) | frozenset(self.params_from) | frozenset(
-            self.fixed)
 
 
 @dataclass(frozen=True)
@@ -382,13 +376,6 @@ def _steps(raw, has_geom, names, where):
         step = _name(s["step"], f"{sw}[step]")
         kit = _kit(s["kit"], "step_kit", f"{sw}[kit]")
         decl = kit_registry.KITS[kit]
-        if decl.uses_entries:
-            for part in ("params", "fixed", "params_from"):
-                if isinstance(s[part], dict) and "entry" in s[part]:
-                    raise ValueError(
-                        f"{sw}[{part}.entry]: 'entry' is reserved for kit "
-                        f"{kit!r}, which receives the step's stage template "
-                        f"under that name")
         entry = s["entry"]
         if decl.uses_entries and not (isinstance(entry, dict)
                                       or (isinstance(entry, str) and entry)):
@@ -396,21 +383,18 @@ def _steps(raw, has_geom, names, where):
                              f"name or an inline template object")
         if not decl.uses_entries and entry is not None:
             raise ValueError(f"{sw}[entry]: kit {kit!r} takes no entry; use null")
+        kit_params.refuse_nested_paths(entry, f"{sw}[entry]")
         params_from = _dict(s["params_from"], f"{sw}[params_from]")
-        for part in ("params", "params_from"):
-            if isinstance(s[part], dict):
-                for name in sorted(set(s[part]) & decl.reserved_params):
-                    raise ValueError(f"{sw}[{part}.{name}]: a {kit} setting, "
-                                     f"not a deck param; kit {kit!r} reads it "
-                                     f"itself")
         fixed = kit_registry.validate(kit, s["fixed"], decl.fixed_keys,
                                       f"{sw}[fixed]", required=False)
         # A fixed path follows the kit-settings rule ('${ARTIFACT}/' only,
-        # never a personal user area), checked here. It is expanded where
-        # the step's params are built (kit_params.build), so Step.fixed
-        # -- and so measure_basis -- keep the raw value.
+        # never a personal user area, and never inside a nested value),
+        # checked here. It is expanded where the step's params are built
+        # (kit_params.build), so Step.fixed -- and so measure_basis -- keep
+        # the raw value.
         for key, value in fixed.items():
             kit_params.expand_artifact(value, f"{sw}[fixed][{key}]")
+            kit_params.refuse_nested_paths(value, f"{sw}[fixed][{key}]")
         missing = sorted(decl.required_fixed - set(fixed))
         if missing:
             raise ValueError(f"{sw}[fixed]: kit {kit!r} needs {missing} in "
@@ -475,14 +459,11 @@ def _kits_and_preflight(doc, steps, has_geom, names, where):
         if kit not in used:
             raise ValueError(f"{kw}: kit {kit!r} is configured but unused by "
                              f"any step or the preflight")
-        if (kit_registry.KITS[kit].uses_entries and isinstance(settings, dict)
-                and "entry" in settings):
-            raise ValueError(f"{kw}[entry]: 'entry' is reserved for kit "
-                             f"{kit!r}, which receives each step's stage "
-                             f"template under that name")
         checked = kit_registry.validate(
             kit, settings, kit_registry.KITS[kit].study_keys, kw,
             required=True)
+        for k, v in checked.items():
+            kit_params.refuse_nested_paths(v, f"{kw}[{k}]")
         kits[kit] = {k: kit_params.expand_artifact(v, f"{kw}[{k}]")
                      for k, v in checked.items()}
     for kit in sorted(used):
@@ -492,7 +473,6 @@ def _kits_and_preflight(doc, steps, has_geom, names, where):
                              f"{sorted(kit_registry.KITS[kit].study_keys)}")
     kit_registry.check_matching_settings(kits_raw, where)
     kit_registry.check_offline_preflight_overlap_policy(kits_raw, where)
-    kit_registry.check_deck_params_shadowing(kits_raw, steps, where)
     return kits, pre
 
 
@@ -637,23 +617,6 @@ def _check_steps_used(steps, objectives, metrics, where):
                          f"or add an extra metric from it")
 
 
-def _check_mapped_params(steps, kits, where):
-    """A mapped param (params or params_from) is set in one place only: not
-    in the other mapping, the step's fixed values or its kit's settings. A
-    fixed value may still override a kit setting. kit_params.build
-    applies the same rule at run time; this refuses the study up front."""
-    for s in steps:
-        params, params_from = set(s.params), set(s.params_from)
-        constant = set(s.fixed) | set(kits.get(s.kit) or {})
-        clash = sorted((params & params_from)
-                       | ((params | params_from) & constant))
-        if clash:
-            raise ValueError(f"{where}[evaluate.{s.step}]: param(s) {clash} "
-                             f"are set more than once (params, params_from, "
-                             f"fixed, kits.{s.kit}); a mapped param may not "
-                             f"share a name with another param of the step")
-
-
 def metrics_read(study, step_name: str) -> frozenset:
     """The metric keys read from step `step_name`: by an objective, an extra
     metric or another step's params_from. Reads only study.objectives,
@@ -779,10 +742,9 @@ def load_study_file(path: Path) -> Study:
                                context, where)
     _check_columns(knobs, objectives, metrics, columns, context, where)
     _check_steps_used(steps, objectives, metrics, where)
-    _check_mapped_params(steps, kits, where)
     sha = hashlib.sha256(json.dumps(doc, sort_keys=True,
                                     separators=(",", ":")).encode()).hexdigest()
-    return Study(path=path, name=_name(doc["name"], f"{where}[name]"),
+    study = Study(path=path, name=_name(doc["name"], f"{where}[name]"),
                  note=doc["note"], knobs=knobs, derive=derive, geom=geom,
                  kits=kits, preflight=preflight,
                  steps=steps, objectives=objectives, constraints=constraints,
@@ -790,6 +752,13 @@ def load_study_file(path: Path) -> Study:
                  leaderboard_rel=rel, layout=layout, context=context,
                  spec_sha=sha,
                  measure_basis=_measure_basis(doc, steps, where))
+    # The kit-params rules run on the names each kit receives, after the
+    # profile split: one origin per name, and no mapping of a name the kit
+    # reads itself (core/kit_params.py, ADR-0003).
+    found = kit_params.problems(study)
+    if found:
+        raise ValueError(f"{where}{found[0]}")
+    return study
 
 
 def study_files(primary: Path, extra: Optional[str]) -> List[Path]:

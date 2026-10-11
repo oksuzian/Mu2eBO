@@ -441,7 +441,7 @@ class TestBudget(_Camp):
                          {"grid_jobs_per_point": 0, "grid_jobs_total": 0,
                           "jobs_vary": []})
 
-    def test_a_mapped_job_count_is_no_one_number(self):
+    def test_a_mapped_job_count_is_refused_at_load(self):
         def from_knob(doc, s):
             doc["knobs"] = [{"name": "nj", "type": "int", "min": 1,
                              "max": 50, "unit": "", "fmt": "{:.0f}"}]
@@ -454,19 +454,13 @@ class TestBudget(_Camp):
 
         svc = self.with_studies(self.smoke("knobnjobs", from_knob),
                                 self.smoke("stepnjobs", from_step))
-        for name, step, source in (("knobnjobs", "mubeam", "'nj'"),
-                                   ("stepnjobs", "mustops_ce",
-                                    "'mubeam.njobs_ok'")):
+        for name in ("knobnjobs", "stepnjobs"):
             with self.subTest(name):
-                out = svc.budget(name, 10, "grid")
-                self.assertIsNone(out["grid_jobs_per_point"], out)
-                self.assertIsNone(out["grid_jobs_total"], out)
-                self.assertEqual(len(out["jobs_vary"]), 1, out)
-                self.assertIn(repr(step), out["jobs_vary"][0])
-                self.assertIn(source, out["jobs_vary"][0])
-                local = svc.budget(name, 10, "local")
-                self.assertIsNone(local["local_jobs_per_point"], local)
-                self.assertEqual(local["grid_jobs_total"], 0, local)
+                self.assertIsNone(svc.budget(name, 10, "grid"))
+                with self.assertRaises(ValueError) as cm:
+                    svc.load_study(name)
+                self.assertIn("njobs", str(cm.exception))
+                self.assertIn("a prodtools setting", str(cm.exception))
 
     def test_a_job_count_set_nowhere_is_an_error(self):
         def no_njobs(doc, s):

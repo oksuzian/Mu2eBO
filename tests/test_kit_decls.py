@@ -33,7 +33,12 @@ class TestKitDecls(unittest.TestCase):
     def test_the_adapters_read_their_own_params(self):
         self.assertEqual(prodtools.PARAMS, KITS["prodtools"].own_params)
         self.assertEqual(anakit.OWN_PARAMS, KITS["anakit"].own_params)
-        self.assertEqual(kit_registry.BEAMKIT_OWN, KITS["beamkit"].own_params)
+        # beamkit's deck_params may not hold a name the adapter reads
+        for name in KITS["beamkit"].own_params:
+            with self.subTest(name=name), self.assertRaises(ValueError) as cm:
+                kit_registry._deck_params({name: 1}, "w")
+            self.assertIn("set by beamkit's worker or the adapter",
+                          str(cm.exception))
 
     def test_no_kit_shares_a_settings_and_a_fixed_key(self):
         for name, decl in KITS.items():

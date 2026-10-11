@@ -168,9 +168,6 @@ def _int_list(v, where):
 # Names beamkit's worker sets on the g4bl command line itself (beamkit
 # compose.py): a study may not pass them.
 BEAMKIT_RESERVED = ("First_Event", "Num_Events", "histoFile", "viewer")
-# The beamkit adapter's own settings: every other step param is a deck param.
-BEAMKIT_OWN = ("deck_url", "deck_ref", "main_input", "deck_params", "njobs",
-               "events_per_job", "quorum", "plane", "pdg")
 _DECK_PARAM = re.compile(r"[A-Za-z_]\w*")
 
 
@@ -184,7 +181,8 @@ def _deck_params(v, where):
             raise ValueError(f"{where}[{name!r}]: a deck parameter name is "
                              f"letters, digits and _, not starting with a "
                              f"digit")
-        if name in BEAMKIT_RESERVED or name in BEAMKIT_OWN:
+        # KITS is built below this function, so it is read here, at load.
+        if name in BEAMKIT_RESERVED or name in KITS["beamkit"].own_params:
             raise ValueError(f"{where}[{name!r}]: set by beamkit's worker or "
                              f"the adapter, not by a study")
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
@@ -246,7 +244,7 @@ class KitDecl:
     names_runs_after_config: bool     # the config name goes into run names
     factory: Optional[str]            # "module.path:Name" relative to core/;
                                       # None for a native (kits.toml) kit
-    reserved_params: FrozenSet[str]   # names a step's params may not map
+    reserved_params: FrozenSet[str]   # names the worker sets itself
     jobs_of: Callable                 # (study, step) -> jobs per point, or
                                       # why none is fixed (no_jobs, njobs_of)
     accepts_lists: bool               # a profile goes whole, not as <p>_i
@@ -332,7 +330,7 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             executors=("grid",), launch_stagger_s=90.0,
             requires_kerberos=True, names_runs_after_config=True,
             factory="adapters.beamkit:BeamkitKit",
-            reserved_params=frozenset(BEAMKIT_OWN + BEAMKIT_RESERVED),
+            reserved_params=frozenset(BEAMKIT_RESERVED),
             jobs_of=njobs_of, accepts_lists=False, passes_on=frozenset(),
             inner_params_setting="deck_params",
             param_name_pattern=_DECK_PARAM),
@@ -366,33 +364,6 @@ def check_matching_settings(kits: dict, where: str) -> None:
                     f"{where}[kits.{kit}.{key}]: {mine!r} differs from "
                     f"kits.{other}.{other_key} {theirs!r}; the two must "
                     f"name the same file: {why}")
-
-
-def check_deck_params_shadowing(kits: dict, steps, where: str) -> None:
-    """Refuse a beamkit step whose knob-mapped deck param is also a fixed
-    kits.beamkit.deck_params value: the adapter would send the fixed value
-    while the board records the knob's."""
-    fixed = (kits.get("beamkit") or {}).get("deck_params")
-    if not isinstance(fixed, dict):
-        return
-    for step in steps:
-        if step.kit != "beamkit":
-            continue
-        # A params_from deck param is mapped too (from an earlier step's
-        # metric), so the same two rules hold for it.
-        for part in ("params", "params_from"):
-            names = getattr(step, part)
-            clash = sorted(set(names) & set(fixed))
-            if clash:
-                raise ValueError(
-                    f"{where}[evaluate.{step.step}.{part}]: {clash} also set "
-                    f"in kits.beamkit.deck_params; a deck param is either "
-                    f"mapped or fixed, not both")
-            bad = sorted(n for n in names if not _DECK_PARAM.fullmatch(n))
-            if bad:
-                raise ValueError(
-                    f"{where}[evaluate.{step.step}.{part}]: {bad} cannot be "
-                    f"g4bl deck parameter names (letters, digits and _)")
 
 
 def check_offline_preflight_overlap_policy(kits: dict, where: str) -> None:

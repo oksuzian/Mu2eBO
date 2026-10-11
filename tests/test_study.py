@@ -445,15 +445,17 @@ class TestSteps(_Tmp):
             # True.
             *[(f"njobs={bad!r}", fixed("mubeam", njobs=bad),
                "njobs", "positive int") for bad in (True, 15.5, "20", 0)],
-            # `entry` is reserved for a kit that takes templates.
+            # `entry` is the stage template, which a kit of templates
+            # receives under that name.
             ("entry as a param",
              lambda d: _step(d, "mubeam")["params"].update(entry="a"),
-             "[evaluate[0]][params.entry]", "reserved"),
+             "[evaluate.mubeam.params.entry]", "the stage template (entry)",
+             "exactly one source"),
             ("entry as a fixed value", fixed("mubeam", entry=1),
-             "[evaluate[0]][fixed.entry]", "reserved"),
+             "[evaluate[0]][fixed]", "unknown key(s) ['entry']"),
             ("entry as a kit setting",
              lambda d: d["kits"]["prodtools"].update(entry="x"),
-             "[kits.prodtools][entry]", "reserved"),
+             "[kits.prodtools]", "unknown key(s) ['entry']"),
         ])
 
     def test_an_extra_metric_makes_a_step_used(self):
@@ -777,7 +779,7 @@ class TestParamsFrom(_Tmp):
                           "SimJob MDC2025ay extra", 3)],
             # A name sent twice: params_from, params, fixed, kit settings.
             *[(label, _clash(params_from, params),
-               "evaluate.sob", f"['{name}']", "more than once")
+               "evaluate.sob", f"'{name}'", "exactly one source")
               for label, params_from, params, name in (
                   ("params_from vs fixed", {"analysis": "flash.v"}, {},
                    "analysis"),
@@ -789,7 +791,7 @@ class TestParamsFrom(_Tmp):
              _params_from("mubeam", {"x": "mustops_ce.v"}), "cycle"),
             ("a reserved name in params_from",
              _params_from("mubeam", {"entry": "elebeam_flash.v"}),
-             "params_from.entry", "'entry' is reserved"),
+             "params_from.entry", "exactly one source"),
         ])
 
     def test_a_step_read_only_by_params_from_is_used(self):
@@ -805,8 +807,8 @@ class TestParamsFrom(_Tmp):
         # The demo doc's case ('entry') is in test_refusals.
         g4bl = json.loads((ROOT / "mode_specs" / "ptg4bl.json").read_text())
         cases = (("Num_Events", "a beamkit setting"),
-                 ("epsMax", "deck_params"),
-                 ("bad-name", "deck parameter names"))
+                 ("epsMax", "kits.beamkit.deck_params.epsMax"),
+                 ("bad-name", "param names"))
         for name, needle in cases:
             with self.subTest(name=name):
                 doc = json.loads(json.dumps(g4bl))
@@ -815,11 +817,10 @@ class TestParamsFrom(_Tmp):
                 doc["evaluate"][1]["params_from"] = {name: "pre.v"}
                 self.assertRejects(doc, name, needle)
 
-    def test_upstream_and_sent_params(self):
+    def test_upstream(self):
         s = st.Step("c", "toykit", None, (), ("a",), {"p": "x"},
                     {"z": "b.m", "y": "d.n", "w": "a.k"}, {"f": 1})
         self.assertEqual(s.upstream, ("a", "d", "b"))
-        self.assertEqual(s.sent_params, frozenset({"p", "z", "y", "w", "f"}))
 
     def test_metrics_read(self):
         doc = _doc()

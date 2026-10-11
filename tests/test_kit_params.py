@@ -72,6 +72,12 @@ class _Case(TmpCase):
     def load(self, doc):
         return st.load_study_file(write_study(doc, self.tmp / "studies"))
 
+    def load_unchecked(self, doc):
+        """A study the loader would refuse, built with its kit_params
+        check switched off, for the tests of problems() and build()."""
+        with mock.patch.object(kp, "problems", return_value=[]):
+            return self.load(doc)
+
     def assertProblem(self, study, *needles):
         found = kp.problems(study)
         self.assertTrue(any(all(n in p for n in needles) for p in found),
@@ -123,14 +129,14 @@ class TestNames(_Case):
 
 class TestRules(_Case):
     def test_e8_a_profile_element_and_a_knob_send_one_name(self):
-        s = self.load(profile_doc(toy_step(params={"r": "prof",
+        s = self.load_unchecked(profile_doc(toy_step(params={"r": "prof",
                                                    "r_1": "x1"})))
         self.assertProblem(s, "'r_1'", "exactly one source",
                            "profile 'prof' element 1 (params.r)",
                            "params.r_1 = 'x1'")
 
     def test_e2_a_profile_element_and_params_from_send_one_name(self):
-        s = self.load(profile_doc(
+        s = self.load_unchecked(profile_doc(
             toy_step("up"),
             toy_step("toy", params={"r": "prof"},
                      params_from={"r_1": "up.branin"})))
@@ -140,16 +146,16 @@ class TestRules(_Case):
         doc = copy.deepcopy(BRANIN)
         doc["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
                             "files": []}
-        s = self.load(doc)
+        s = self.load_unchecked(doc)
         self.assertProblem(s, "[preflight.params.function]",
                            "kits.toykit.function")
 
     def test_e1_a_split_profile_element_and_a_deck_param(self):
-        s = self.load(ptg_profile_doc())
+        s = self.load_unchecked(ptg_profile_doc())
         self.assertProblem(s, "'R_1'", "kits.beamkit.deck_params.R_1")
 
     def test_a_split_name_is_reported_at_its_json_key(self):
-        s = self.load(ptg_profile_doc())
+        s = self.load_unchecked(ptg_profile_doc())
         p = self.assertProblem(s, "'R_1'")
         self.assertTrue(p.startswith(
             "[evaluate.g4bl.params.R]: profile 'Rp' element 1"), p)
@@ -158,7 +164,7 @@ class TestRules(_Case):
         doc = copy.deepcopy(DEMO)
         doc["evaluate"][0]["params"] = {"njobs": "a"}
         del doc["evaluate"][0]["fixed"]["njobs"]
-        s = self.load(doc)
+        s = self.load_unchecked(doc)
         self.assertProblem(s, "[evaluate.mubeam.params.njobs]",
                            "a prodtools setting, not a param to map")
 
@@ -167,6 +173,61 @@ class TestRules(_Case):
                     profile_doc(toy_step(params={"r": "prof"}))):
             with self.subTest(study=doc["name"]):
                 self.assertEqual(kp.problems(self.load(doc)), [])
+
+
+class TestTheLoaderRefuses(_Case):
+    """The loader raises the first problem, prefixed with the file path."""
+
+    def assertRefused(self, doc, *needles):
+        with self.assertRaises(ValueError) as cm:
+            self.load(doc)
+        for needle in needles:
+            self.assertIn(needle, str(cm.exception))
+        self.assertIn(f"{doc['name']}.json[", str(cm.exception))
+
+    def test_e8(self):
+        self.assertRefused(profile_doc(toy_step(params={"r": "prof",
+                                                        "r_1": "x1"})),
+                           "'r_1'", "exactly one source")
+
+    def test_e2(self):
+        self.assertRefused(profile_doc(
+            toy_step("up"), toy_step("toy", params={"r": "prof"},
+                                     params_from={"r_1": "up.branin"})),
+            "'r_1'", "params_from.r_1")
+
+    def test_e3(self):
+        doc = copy.deepcopy(BRANIN)
+        doc["preflight"] = {"kit": "toykit", "params": {"function": "x1"},
+                            "files": []}
+        self.assertRefused(doc, "[preflight.params.function]",
+                           "kits.toykit.function")
+
+    def test_e1(self):
+        self.assertRefused(ptg_profile_doc(),
+                           "[evaluate.g4bl.params.R]: profile 'Rp' element 1",
+                           "kits.beamkit.deck_params.R_1")
+
+    def test_e6(self):
+        doc = copy.deepcopy(DEMO)
+        doc["evaluate"][0]["params"] = {"njobs": "a"}
+        del doc["evaluate"][0]["fixed"]["njobs"]
+        self.assertRefused(doc, "[evaluate.mubeam.params.njobs]",
+                           "a prodtools setting, not a param to map")
+
+    def test_e7_a_path_inside_deck_params(self):
+        doc = copy.deepcopy(PTG4BL)
+        doc["kits"]["beamkit"]["deck_params"]["fieldmap"] = \
+            "${ARTIFACT}/c/f.txt"
+        self.assertRefused(doc, "[deck_params][fieldmap]", "nested")
+
+    def test_e7_a_user_area_inside_an_inline_entry(self):
+        doc = copy.deepcopy(DEMO)
+        entry = json.loads((ROOT / "stage_entries" / "mubeam.json")
+                           .read_text())
+        entry["inloc"] = "/exp/mu2e/app/users/someone/x"  # personal-path-ok: a refused value under test
+        doc["evaluate"][0]["entry"] = entry
+        self.assertRefused(doc, "[evaluate[0]][entry][inloc]", "nested")
 
 
 class TestBuild(_Case):
@@ -200,7 +261,7 @@ class TestBuild(_Case):
                 self.assertIn(needle, str(cm.exception))
 
     def test_build_refuses_a_name_with_two_origins(self):
-        s = self.load(profile_doc(toy_step(params={"r": "prof",
+        s = self.load_unchecked(profile_doc(toy_step(params={"r": "prof",
                                                    "r_1": "x1"})))
         with self.assertRaises(ValueError) as cm:
             kp.build(s, kp.sender_of(s.steps[0]),

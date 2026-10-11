@@ -5,7 +5,7 @@
 beamkit (the MCP server in $AUTORESEARCH_BEAMKIT) runs a pinned
 G4BeamlineScripts deck through prodtools. A step's params are deck params:
 the knobs, given on the g4bl command line, which wins only over a deck's
-`param -unset` lines. The adapter's own settings (BEAMKIT_OWN) say which
+`param -unset` lines. The adapter's own params (its KitDecl.own_params) say which
 deck, how many jobs, and what to count.
 
 - submit: run_beamline as run_as="self", outputs to scratch, under the

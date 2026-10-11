@@ -101,14 +101,15 @@ class TestRegistry(_Tmp):
         self.assertIn("quorum", str(cm.exception))
 
     def test_a_knob_named_like_a_setting_is_refused(self):
-        for name in ("njobs", "plane", "Num_Events"):
+        for name, needle in (("njobs", "exactly one source"),
+                             ("plane", "exactly one source"),
+                             ("Num_Events", "a beamkit setting")):
             doc = ptg_doc()
             doc["evaluate"][0]["params"] = {name: "Tlength", "R_up": "R_up",
                                             "R_mid": "R_mid", "R_dn": "R_dn"}
             with self.subTest(name=name), self.assertRaises(ValueError) as cm:
                 self.load(doc)
-            self.assertIn("a beamkit setting, not a deck param",
-                          str(cm.exception))
+            self.assertIn(needle, str(cm.exception))
 
     def test_deck_params_may_not_shadow_a_knob(self):
         doc = ptg_doc()
