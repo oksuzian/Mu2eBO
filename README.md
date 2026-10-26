@@ -26,7 +26,8 @@ run a point and a campaign, follow it, read the results.
   - `beamkit` — G4beamline jobs for `ptg4bl`.
 - **Runners** — `graph.run` evaluates one point; `graph.closed_loop` runs a
   campaign (a pool of points, a picker per replacement); `graph.check_study`
-  checks a study without submitting anything.
+  checks a study without submitting anything; `graph.draw_study <study>`
+  draws its workflow (knobs, geometry, steps, objectives) as a PDF or PNG.
 - **Leaderboard** — one TSV per study. Each row carries `measure_sha`, and
   a board holds one measurement only.
 
@@ -35,7 +36,7 @@ run a point and a campaign, follow it, read the results.
 | path | what |
 |---|---|
 | `core/` | study loader, engine (contract, scheduler, score), boards, adapters |
-| `graph/` | the runners: `run`, `closed_loop`, `check_study` |
+| `graph/` | the runners: `run`, `closed_loop`, `check_study`; `draw_study` |
 | `service/` | the `autoresearch` MCP server (study and campaign tools) and the dashboard |
 | `surrogate/` | the `surrogate` MCP server (GP fit, predict, suggest over the boards) |
 | `mode_specs/` | the studies |
