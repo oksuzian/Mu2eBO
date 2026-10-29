@@ -14,6 +14,7 @@ from tests.engine_fixtures import TmpCase, toy_study, write_board  # noqa: E402
 BASIS = {
     "ce_chain": "3a300aecbea8dba8d289c4f78c4a941b01ec18c2293a14a793b86f7263e59189",
     "foilsflash_ax": "b96e6c99648c677b5046f7f223df5477eba156dc27ecb15aaed57d31e6b904bd",
+    "foilsflash_col5bf_ax": "5f8b6b10891e123e563aafcfad07d16a9c2620cb8fac97c6de0d12da70223e58",
     "foilspf_nominal": "f0a9aa00d9d06eeb8235281fc035ad78b0852b4cdf3e487c919412e247539310",
     "foilspfbpz_ax": "fa84cd6e195e4ef865d62c42f8085deb24a81213197a814e23aab49f8856c570",
     "ptg4bl": "b52fce7c37525597cae53862efe0f272af28f766c6deaefa22b71f08a6861689",

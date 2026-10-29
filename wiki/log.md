@@ -5,6 +5,12 @@ heading at the TOP (create it if absent). One bullet per change:
 `<verb> <what changed> — <page>`; verbs: created, updated, merged,
 superseded, linted.
 
+## 2026-10-29
+- **created** [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md): per-map field scale
+  keys in the geometry file (GeometryService patch, Code_mdc2025ax_bfscale.tar.bz2), validated with
+  BFieldPlotter; drives `mode_specs/foilsflash_col5bf_ax.json` (extra foils + COL5 rIn + DS/TSd
+  field scales 0.75–1.1); Offline PR Mu2e/Offline#2079.
+
 ## 2026-10-09
 - **updated** QUICKSTART.md, [tests](/drivers/tests.md): a fresh-eyes walkthrough (local ce_chain point,
   grid dry run, sandboxed) found the how-to silent on running a grid campaign; new "On the grid" section

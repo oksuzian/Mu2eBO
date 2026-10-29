@@ -20,6 +20,7 @@ See [CLAUDE](/CLAUDE.md) for the schema and maintenance contract.
 - [bo-prodtarget](/projects/bo-prodtarget.md) — proposed ~11D profile-mode BO over Stickman PS production target (rOut, plateThickness, plateLugThickness as K=3 quadratic profiles + N_plates); pure config (no source patch); design only as of 2026-06-06
 
 ## Concepts (physics + software)
+- [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) — GeometryService patch that scales single field maps (DS, TSd, ...) from geometry-file keys `bfield.mapScale.<map>`; shipped in Code_mdc2025ax_bfscale.tar.bz2
 - [tsda](/concepts/tsda.md) — TS downstream Absorber; dominant variance knob in mmackenz sweep
 - [col5-shield](/concepts/col5-shield.md) — TS COL5 polyethylene shield categorical
 - [degrader](/concepts/degrader.md) — pion degrader Al plate; topology toggle (in-beam vs parked)

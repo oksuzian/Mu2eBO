@@ -22,6 +22,12 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   `flash` (`edep` on `elebeam_flash`). `flash_edep` is MeV per generated
   beam electron; the factor to the per-POT budget is in
   `wiki/external/anakit.md`.
+- `foilsflash_col5bf_ax` — `foilsflash_ax` plus the COL5 inner radius
+  (`ts.coll5.Radius1`) and scale factors on the DS and downstream-TS fields
+  (`bfield.mapScale.DSMap`/`DSExtension` and `TSdMap`, 0.75–1.1). The scale
+  keys need a patched GeometryService (`Code_mdc2025ax_bfscale.tar.bz2`,
+  Mu2e/Offline#2079); stock Offline ignores them. See
+  `wiki/concepts/bfield-map-scale-patch.md`.
 - `foilspf_nominal` — the deployed target (37 foils, no knobs) in
   `foilspfbpz_ax`'s geometry and environment. Its board holds the baseline
   sob and the flash damage budget.

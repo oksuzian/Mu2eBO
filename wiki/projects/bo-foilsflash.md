@@ -26,7 +26,7 @@ status_note: '**CHAMPION: foilsflash11R00_07 (sob 3.31, flash 5.976e-7), 2026-07
   **1.3σ** at σ_sob 0.4% → needs a 400-job confirm re-eval before champion status
   (same flat-top-tie discipline as the 3.31 flash champion). Line is **near-saturated,
   not saturated**.'
-timestamp: '2026-08-01'
+timestamp: '2026-10-29'
 updated_note: 'Run1Bak→Run1Bap +5% sob shift MECHANISM ISOLATED + MAGNITUDE CONFIRMED
   (2026-08-01): PrimaryFilter (DetectorStepFilter) gained two calo-acceptance relaxations
   between the releases (Offline PR#1819 + Production PR#539), confirmed jointly (not
@@ -699,7 +699,7 @@ half-thickness; writes `docs/foilsflash_predicted_cloud.png`). Render:
 No commit/push (operator reviews, like foils/ipa).
 
 ## Cross-links
-- Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
+- Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) (2026-10-29 extension `foilsflash_col5bf_ax`: + COL5 rIn, DS and TSd field scales), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
 - Source files: `bo_driver.py` (FoilsFlashMode),
   `pipeline_templates/elebeam_flash/template.fcl`, `pipeline.py` (STAGES + Step 7),
   `graph/config.py` (chain/musing/targets), `mmackenz_table_plots/gp_predict_foilsflash.py`

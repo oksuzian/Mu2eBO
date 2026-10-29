@@ -19,8 +19,8 @@ import modes  # noqa: E402
 # TestStudyDirectoryWiring pins the directory to exactly these -- adding a
 # name here is a conscious act, which is exactly the review checkpoint we
 # want.
-SHIPPED = ("ce_chain", "foilsflash_ax", "foilspf_nominal", "foilspfbpz_ax",
-           "ptg4bl")
+SHIPPED = ("ce_chain", "foilsflash_ax", "foilsflash_col5bf_ax",
+           "foilspf_nominal", "foilspfbpz_ax", "ptg4bl")
 # Retired names that must never load (see mode_specs/README.md):
 # the seven original foilspf studies (their files were deleted on
 # 2026-10-08; git history keeps them) and the four schema-1 files in
