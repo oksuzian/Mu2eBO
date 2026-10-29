@@ -21,6 +21,7 @@ analysis runs again.
 from __future__ import annotations
 
 import dataclasses
+import fnmatch
 import json
 import os
 import shutil
@@ -63,6 +64,9 @@ CALL_MARGIN_S = 300
 # job over art files, "root_file" a Python analysis.
 INPUT_KINDS = ("art_files", "root_file")
 OWN_PARAMS = ("musing", "analysis")  # read here, never sent to anakit
+# Optional, also read here and never sent: input_glob keeps only the upstream
+# files whose names match it (one step may produce several kinds of file).
+OPTIONAL_OWN_PARAMS = ("input_glob",)
 # Where published Musings live: <root>/<Musing>/<version> (anakit's own
 # tools/mu2e_env.py MUSINGS_ROOT). Read to refuse an unpublished Musing at
 # launch; never searched.
@@ -214,6 +218,14 @@ class AnakitKit:
             if not params.get(key):
                 raise ValueError(f"anakit: param {key!r} is missing")
         musing, analysis = params.pop("musing"), params.pop("analysis")
+        input_glob = params.pop("input_glob", None)
+        if input_glob is not None:
+            kept = [r for r in inputs if fnmatch.fnmatch(r["name"], input_glob)]
+            if inputs and not kept:
+                raise ValueError(f"anakit: input_glob {input_glob!r} matches "
+                                 f"none of {name}'s {len(inputs)} input "
+                                 f"files, e.g. {inputs[0]['name']!r}")
+            inputs = kept
         if not inputs:
             raise ValueError(f"anakit: {name} has no input files (its "
                              f"files_from steps gave none)")
@@ -353,7 +365,8 @@ class AnakitKit:
                     f"{analysis!r} has input_kind {spec['input_kind']!r}; "
                     f"known kinds {list(INPUT_KINDS)}"]
         declared = spec.get("parameters", {})
-        sent = set(step.sent_params) - set(OWN_PARAMS)
+        sent = (set(step.sent_params) - set(OWN_PARAMS)
+                - set(OPTIONAL_OWN_PARAMS))
         unknown = sorted(sent - set(declared))
         if unknown:
             problems.append(f"{where}: {analysis} does not take {unknown} "
@@ -368,7 +381,8 @@ class AnakitKit:
         # the adapter stays physics-free. step.params values are knob names
         # resolved only at run time, so only fixed values can be checked here.
         for pname, value in sorted(step.fixed.items()):
-            if pname in OWN_PARAMS or pname not in declared:
+            if (pname in OWN_PARAMS or pname in OPTIONAL_OWN_PARAMS
+                    or pname not in declared):
                 continue
             decl = declared[pname]
             if decl.get("kind") == "text":

@@ -333,6 +333,7 @@ class ProdtoolsKit:
         geom_name = f"autoresearch_{config}_geom.txt" if geom else None
         template = params["entry"]
         staged = None
+        inputs = pe.select_inputs(inputs, template)
         if inputs:
             sources = [pe.local_path(ref, "prodtools: input")
                        for ref in inputs]
@@ -490,7 +491,9 @@ class ProdtoolsKit:
         files = [{"name": Path(p).name, "uri": Path(p).absolute().as_uri(),
                   "kind": Path(p).suffix.lstrip(".") or "file"}
                  for p in sorted(every)
-                 if fnmatch.fnmatch(Path(p).name, rec["output_glob"])]
+                 if any(fnmatch.fnmatch(Path(p).name, g)
+                        for g in pe.output_globs(rec["output_glob"],
+                                                 "output_glob"))]
         if not files:
             return self._decide(
                 sdir, rec, "failed",

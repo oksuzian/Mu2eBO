@@ -281,7 +281,7 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             study_keys={"musing": _musing},
             fixed_keys={"analysis": _string, "upstream_eff": _number,
                         "cosmic_rate_per_s_per_mev": _number,
-                        "trigger_paths": _string},
+                        "trigger_paths": _string, "input_glob": _string},
             required_fixed=frozenset({"analysis"}), uses_entries=False,
             step_kit=True, check_kit=False,
             executors=("grid", "local"), launch_stagger_s=0.0,

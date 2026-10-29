@@ -227,6 +227,23 @@ class TestSubmit(_Kit):
         self.assertEqual(self.run_call()[1]["parameters"],
                          {"upstream_eff": 0.01278168})
 
+    def test_input_glob_picks_the_inputs_and_is_not_sent(self):
+        flash = self.tmp / "in" / "dts.t.EarlyMuBeamFlash.c.0.art"
+        flash.write_text("")
+        inputs = self.inputs + [{"name": flash.name, "uri": flash.as_uri(),
+                                 "kind": "art"}]
+        params = self.params(input_glob="dts.*.EarlyMuBeamFlash.*.art")
+        self.kit().submit("cfg1.stops", params, [], inputs, "w")
+        args = self.run_call()[1]
+        self.assertEqual(args["data_files"], [str(flash)])
+        self.assertEqual(args["parameters"], {"upstream_eff": 0.01278168})
+
+    def test_an_input_glob_matching_nothing_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.kit().submit("cfg1.stops", self.params(input_glob="x*"), [],
+                              self.inputs, "w")
+        self.assertIn("matches none", str(cm.exception))
+
     def test_the_result_records_the_musing(self):
         kit = self.kit()
         kit.submit("cfg1.stops", self.params(), [], self.inputs, "w")

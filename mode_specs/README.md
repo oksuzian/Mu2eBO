@@ -27,7 +27,12 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   (`bfield.mapScale.DSMap`/`DSExtension` and `TSdMap`, 0.75–1.1). The scale
   keys need a patched GeometryService (`Code_mdc2025ax_bfscale.tar.bz2`,
   Mu2e/Offline#2079); stock Offline ignores them. See
-  `wiki/concepts/bfield-map-scale-patch.md`.
+  `wiki/concepts/bfield-map-scale-patch.md`. Besides the two objectives it
+  measures the muon-beam early flash (`muflash`) and the muon-stop pileup
+  (stage `mustops_pileup`, step `pileup`) with `edep`; their deposition is
+  an extra metric and the `*_per_pot` columns sum the three sources per
+  POT. edep's step counts (an occupancy estimate) need Offline PR #2067,
+  in no published Musing yet.
 - `foilspf_nominal` — the deployed target (37 foils, no knobs) in
   `foilspfbpz_ax`'s geometry and environment. Its board holds the baseline
   sob and the flash damage budget.
@@ -165,6 +170,11 @@ hashes it), so the layout is for readable diffs.
   `kits.prodtools.dsconf`: it must contain `{cfg}` and, filled in, hold
   only letters, digits and `_` (the `_ax` studies say `MDC2025ax_{cfg}`).
   A template still carrying `dsconf_fmt` is refused.
+- A stage template's `output_glob` is one pattern or a list of them; when a
+  step makes more than one kind of output, each downstream step names the
+  files it reads with `input_glob` (in its stage template for prodtools, in
+  `fixed` for anakit). Example: `foilsflash_col5bf_ax`'s mubeam feeds
+  target stops to mustops_ce and its early flash to the `muflash` edep step.
 - `"preflight": {"kit": "offline_preflight", ...}` gates each point on
   `mu2e -n 1` with G4's surface check, run on this node from
   `kits.offline_preflight.code_tarball`, which must equal

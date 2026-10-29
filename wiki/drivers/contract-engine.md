@@ -3,7 +3,7 @@ type: driver
 title: Contract engine
 description: 'The only runner — studies as JSON, kits over MCP (prodtools, offline_preflight, anakit, beamkit), run_steps, measure_sha boards, graph.run / graph.closed_loop, check_study, params_from'
 status: active
-timestamp: '2026-10-08'
+timestamp: '2026-10-29'
 ---
 
 # Contract engine
@@ -357,6 +357,14 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   `submit_once`, `run_local`, `run_status` and `cancel_run` come from that
   checkout (cvmfs v3.2.0 and v3.3.4 lack them). Every tool it calls needs a
   timeout in kits.toml, or the kit refuses to start.
+- **Several outputs, chosen per consumer (2026-10-29):** a template's
+  `output_glob` may be a list (`mubeam_earlyflash1` keeps TargetStops and
+  EarlyMuBeamFlash); every match is a result file. A consumer picks its
+  inputs with `input_glob`: a key of its stage template for a prodtools
+  step (`pe.select_inputs`, before staging), a `fixed` key for an anakit
+  step (read by the adapter, never sent). A glob that keeps none of the
+  inputs is an error. Without the keys nothing changes, so neither adapter
+  VERSION moved.
 - **The entry:** `step_params` hands the step's stage template as
   `params["entry"]` to a `uses_entries` kit; `prodtools_entry.entry_for_step`
   fills `{cfg}`/`{geom}` and builds the json2jobdef entry. The run label

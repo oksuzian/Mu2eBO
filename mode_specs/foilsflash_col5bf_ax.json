@@ -1,7 +1,7 @@
 {
  "schema": 2,
  "name": "foilsflash_col5bf_ax",
- "note": "foilsflash_ax (2026-10-29) widened from the extra foils to three beamline knobs: the TS5 collimator (COL5) poly inner radius ts.coll5.Radius1 (nominal 128 mm, bounds as col5_foilrout), and scale factors on the DS field (maps DSMap and DSExtension) and the downstream-TS field (map TSdMap, TS3 downstream half, TS4, TS5), each at most 1.1. The scales are geometry-file keys bfield.mapScale.<map>, read by a GeometryService patch (wiki/concepts/bfield-map-scale-patch.md) shipped in Code_mdc2025ax_bfscale.tar.bz2; stock Offline ignores the keys, so the code tarball and the preflight must both be the patched one. Scaling a map region scales the total field computed there, not one coil: where the TSd and DS maps meet (z = 3071 mm) the field jumps when the two factors differ. The beam samples are recorded entering TS3Vacuum, upstream of COL5 and of the TSd map (x < 0), so every scaled region is resimulated and the stops upstream_eff is unchanged. Same analyses, objectives and flash budget as foilsflash_ax, and the same statistics, but mubeam and mustops_ce run as 30 half-length jobs (2026-10-29: about 30-35 min each instead of 55-70 on the foilspfbpz_ax optchk points); mustops_ce uses stage entry mustops_ce_skip4000 because each mubeam file then holds only about 9k stops. mubeam uses entry mubeam_earlyflash1 (early muon-beam flash unprescaled, like the electron flash), so the muon-beam flash can be measured at full statistics. A new board.",
+ "note": "foilsflash_ax (2026-10-29) widened from the extra foils to three beamline knobs: the TS5 collimator (COL5) poly inner radius ts.coll5.Radius1 (nominal 128 mm, bounds as col5_foilrout), and scale factors on the DS field (maps DSMap and DSExtension) and the downstream-TS field (map TSdMap, TS3 downstream half, TS4, TS5), each at most 1.1. The scales are geometry-file keys bfield.mapScale.<map>, read by a GeometryService patch (wiki/concepts/bfield-map-scale-patch.md) shipped in Code_mdc2025ax_bfscale.tar.bz2; stock Offline ignores the keys, so the code tarball and the preflight must both be the patched one. Scaling a map region scales the total field computed there, not one coil: where the TSd and DS maps meet (z = 3071 mm) the field jumps when the two factors differ. The beam samples are recorded entering TS3Vacuum, upstream of COL5 and of the TSd map (x < 0), so every scaled region is resimulated and the stops upstream_eff is unchanged. Same objectives and flash budget as foilsflash_ax and the same statistics, but mubeam and mustops_ce run as 50 jobs (60k and 22.5k events; 2026-10-29), with entries mubeam_earlyflash1 (early muon-beam flash unprescaled and kept as a second output) and mustops_ce_skip2000 (skip below the ~5-6k stops per mubeam file). Extra measurements, not objectives: the muon-beam early flash (step muflash) and the muon-stop pileup (stage mustops_pileup, 50 x 20k stops, step pileup) through edep, recorded as extra metrics per generated event (beam electron, MuBeamCat event, muon stop) with the electron flash's calo edep. The *_per_pot columns sum the three sources per POT: 11.5367 POT per beam electron, 0.01278168 MuBeamCat events per POT, stops_per_pot stops per POT. Step counts (edep's occupancy estimate) need EdepAna from Offline PR #2067, in no published Musing as of 2026-10-29; add them with a kits.anakit.musing bump (a new board) once one has it. A new board.",
  "knobs": [
   {"name": "extra_rOut_up", "type": "real", "min": 50.0, "max": 250.0, "unit": "", "fmt": "{:.4f}"},
   {"name": "extra_rOut_dn", "type": "real", "min": 50.0, "max": 250.0, "unit": "", "fmt": "{:.4f}"},
@@ -14,7 +14,7 @@
   {"name": "tsd_bscale", "type": "real", "min": 0.75, "max": 1.1, "unit": "", "fmt": "{:.4f}"}
  ],
  "derive": {
-  "consts": {"n_up": 6, "n_dn": 6, "base_n": 37, "base_rOut": 75.0, "base_hT": 0.0528, "base_hole": 21.5},
+  "consts": {"n_up": 6, "n_dn": 6, "base_n": 37, "base_rOut": 75.0, "base_hT": 0.0528, "base_hole": 21.5, "pot_per_ebeam_event": 11.536718606512062, "mubeam_events_per_pot": 0.01278168},
   "exprs": {"rIn_up": "extra_f_up * extra_rOut_up", "rIn_dn": "extra_f_dn * extra_rOut_dn"},
   "profiles": {}
  },
@@ -64,13 +64,16 @@
  },
  "preflight": {"kit": "offline_preflight", "params": {}, "files": ["geom"]},
  "evaluate": [
-  {"step": "mubeam", "kit": "prodtools", "entry": "mubeam_earlyflash1", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 30, "events_per_job": 100000, "memory_mb": 2000, "quorum": 0.8}},
-  {"step": "mustops_ce", "kit": "prodtools", "entry": "mustops_ce_skip4000", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 30, "events_per_job": 37500, "memory_mb": 2000, "quorum": 0.8}},
+  {"step": "mubeam", "kit": "prodtools", "entry": "mubeam_earlyflash1", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 60000, "memory_mb": 2000, "quorum": 0.8}},
+  {"step": "mustops_ce", "kit": "prodtools", "entry": "mustops_ce_skip2000", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 22500, "memory_mb": 2000, "quorum": 0.8}},
+  {"step": "mustops_pileup", "kit": "prodtools", "entry": "mustops_pileup", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 20000, "memory_mb": 2000, "quorum": 0.8}},
   {"step": "elebeam_flash", "kit": "prodtools", "entry": "elebeam_flash", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 100, "events_per_job": 110000, "memory_mb": 2000, "quorum": 0.8}},
-  {"step": "stops", "kit": "anakit", "entry": null, "files": [], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"analysis": "muon_stop_rate", "upstream_eff": 0.01278168}},
+  {"step": "stops", "kit": "anakit", "entry": null, "files": [], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"analysis": "muon_stop_rate", "upstream_eff": 0.01278168, "input_glob": "sim.*.TargetStops.*.art"}},
   {"step": "ce_edep", "kit": "anakit", "entry": null, "files": [], "files_from": ["mustops_ce"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}},
   {"step": "sob", "kit": "anakit", "entry": null, "files": [], "files_from": ["ce_edep"], "params": {}, "params_from": {"stops_per_pot": "stops.stops_per_pot"}, "fixed": {"analysis": "approx_ce_sensitivity", "cosmic_rate_per_s_per_mev": 0.0018181818181818182}},
-  {"step": "flash", "kit": "anakit", "entry": null, "files": [], "files_from": ["elebeam_flash"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}}
+  {"step": "flash", "kit": "anakit", "entry": null, "files": [], "files_from": ["elebeam_flash"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}},
+  {"step": "muflash", "kit": "anakit", "entry": null, "files": [], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep", "input_glob": "dts.*.EarlyMuBeamFlash.*.art"}},
+  {"step": "pileup", "kit": "anakit", "entry": null, "files": [], "files_from": ["mustops_pileup"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}}
  ],
  "objectives": [
   {"name": "sob", "metric": "sob.sensitivity", "direction": "max", "transform": "none", "noise": 0.0021, "fmt": "{:.5f}"},
@@ -79,10 +82,19 @@
  "constraints": [
   {"name": "flash_edep", "max": 7.506758e-06, "k_sigma": 1.0}
  ],
- "extra_metrics": [],
+ "extra_metrics": [
+  {"name": "flash_calo_edep", "metric": "flash.avg_calo_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "muflash_trk_edep", "metric": "muflash.avg_trk_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "muflash_calo_edep", "metric": "muflash.avg_calo_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "pileup_trk_edep", "metric": "pileup.avg_trk_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "pileup_calo_edep", "metric": "pileup.avg_calo_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "stops_per_pot", "metric": "stops.stops_per_pot", "fmt": "{:.6e}"}
+ ],
  "extra_columns": [
   {"name": "alpha", "expr": "alpha", "fmt": "{:.3f}"},
-  {"name": "obj", "expr": "sob - alpha * flash_edep", "fmt": "{:.5f}"}
+  {"name": "obj", "expr": "sob - alpha * flash_edep", "fmt": "{:.5f}"},
+  {"name": "trk_edep_per_pot", "expr": "flash_edep / pot_per_ebeam_event + muflash_trk_edep * mubeam_events_per_pot + pileup_trk_edep * stops_per_pot", "fmt": "{:.5e}"},
+  {"name": "calo_edep_per_pot", "expr": "flash_calo_edep / pot_per_ebeam_event + muflash_calo_edep * mubeam_events_per_pot + pileup_calo_edep * stops_per_pot", "fmt": "{:.5e}"}
  ],
  "leaderboard": {"file": "leaderboards/leaderboard_foilsflash_col5bf_ax.tsv", "layout": "v2", "context": ["alpha"]}
 }

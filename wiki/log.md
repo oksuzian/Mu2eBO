@@ -6,6 +6,13 @@ heading at the TOP (create it if absent). One bullet per change:
 superseded, linted.
 
 ## 2026-10-29
+- **updated** [bo-foilsflash](/projects/bo-foilsflash.md): edep/occupancy by component at optchk04 — e-beam
+  flash 61% of tracker edep but 14% of tracker steps at t >= 500 ns; mu-stop pileup 84% of those.
+- **updated** [contract-engine](/drivers/contract-engine.md): prodtools `output_glob` may be a list;
+  `input_glob` (prodtools template / anakit fixed) picks a consumer's inputs. `foilsflash_col5bf_ax`: 50-job
+  mubeam/mustops_ce (skip 2000), new `mustops_pileup` stage (23 ms/stop, 1.7% leave steps), muflash/pileup
+  edep steps; per-source edep as extra metrics, per-POT totals as columns. edep step counts (PR #2067)
+  are in no published Musing yet (v13_41_01 lacks them), so they are not recorded.
 - **created** [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md): per-map field scale
   keys in the geometry file (GeometryService patch, Code_mdc2025ax_bfscale.tar.bz2), validated with
   BFieldPlotter; drives `mode_specs/foilsflash_col5bf_ax.json` (extra foils + COL5 rIn + DS/TSd

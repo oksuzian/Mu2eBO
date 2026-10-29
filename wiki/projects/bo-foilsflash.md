@@ -709,6 +709,17 @@ No commit/push (operator reviews, like foils/ipa).
   Per point ~99 CPU-h: mubeam 14, mustops_ce 17, elebeam_flash 68; rare CPU-bound events make
   5-10 h jobs (75k-event mustops_ce jobs worst).
 
+- **Edep and occupancy by pileup component (2026-10-29, optchk04 geometry).** EdepAna from Offline
+  main (PR #2067 step counts; built locally, in no published Musing yet), per POT, shares of the total:
+  tracker edep (all t) e-beam flash 61% / mu-beam flash 5% / mu-stop pileup 34%; tracker steps
+  (>0.5 keV) all t 83/4/13%, but at t >= 500 ns 14/2/84%; calo steps (>0.5 MeV) at t >= 500 ns
+  7/12/81%. Totals at t >= 500 ns: 3.1e-5 tracker and 2.1e-5 calo steps per POT (~490 / ~330 per
+  1.6e7-POT microbunch). Raw G4 times, no microbunch folding; steps are not hits. Samples: 11M
+  electrons (100 files), 3M mu-beam events at prescale 30 (15 files), 50k stops (10 local jobs,
+  11 ms CPU per stop, 1.6% leave steps). Work dir /exp/mu2e/data/users/mmackenz/flash_compare_optchk04/.
+  So the e-beam flash dominates the prompt deposition (the flash objective), and the mu-stop pileup
+  dominates the in-window occupancy.
+
 ## Cross-links
 - Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) (2026-10-29 extension `foilsflash_col5bf_ax`: + COL5 rIn, DS and TSd field scales), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
 - Source files: `bo_driver.py` (FoilsFlashMode),
