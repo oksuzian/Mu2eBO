@@ -40,7 +40,20 @@ class TestFoilsflashCol5bf(unittest.TestCase):
                          NEW_KNOBS)
 
     def test_same_measurement_as_foilsflash_ax(self):
-        self.assertEqual(self.s.steps, self.base.steps)
+        """Same analyses; mubeam and mustops_ce split into twice the jobs
+        at half the events, so the statistics are unchanged."""
+        mine = {s.step: s for s in self.s.steps}
+        base = {s.step: s for s in self.base.steps}
+        self.assertEqual(list(mine), list(base))
+        for name in ("elebeam_flash", "stops", "ce_edep", "sob", "flash"):
+            self.assertEqual(mine[name], base[name], name)
+        for name in ("mubeam", "mustops_ce"):
+            m, b = mine[name].fixed, base[name].fixed
+            self.assertEqual(m["njobs"], 2 * b["njobs"], name)
+            self.assertEqual(m["njobs"] * m["events_per_job"],
+                             b["njobs"] * b["events_per_job"], name)
+        self.assertEqual(mine["mustops_ce"].entry, "mustops_ce_skip4000")
+        self.assertEqual(mine["mubeam"].entry, "mubeam_earlyflash1")
         self.assertEqual(self.s.objectives, self.base.objectives)
         self.assertEqual(self.s.constraints, self.base.constraints)
         self.assertNotEqual(self.s.leaderboard_rel, self.base.leaderboard_rel)

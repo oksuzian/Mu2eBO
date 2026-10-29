@@ -698,6 +698,17 @@ half-thickness; writes `docs/foilsflash_predicted_cloud.png`). Render:
 @marp-team/marp-cli@latest --html --allow-local-files foilsflash_talk.md -o foilsflash_talk.html`.
 No commit/push (operator reviews, like foils/ipa).
 
+- **E-beam vs mu-beam early flash, and per-point precision (2026-10-29, foilspfbpz_ax optchk04).**
+  Per POT (11.537 POT per resampled electron; 78.24 per MuBeamCat event, i.e. upstream_eff 0.01278168):
+  tracker edep e-beam 5.98e-7 (+-4%) vs mu-beam 5.1e-8 MeV/POT (+-26%), so the e-beam is 92%; calo
+  1.90e-4 vs 3.1e-5, 86%. The mu-beam number used the EarlyMuBeamFlash stream at its default prescale
+  30 (138 events); `foilsflash_col5bf_ax` runs it at 1 (entry `mubeam_earlyflash1`). Both are all-time
+  sums and exclude stopped-muon daughters (FlashFilter vetoes them). Job-level jackknife over the
+  optchk01-08 points: flash 2.7-4.2% per point (100 x 110k electrons), above the 2.3% the `_ax`
+  studies assume; sob ~0.24% (stops 0.18% + CE box efficiency 0.15%), above the assumed 0.0021.
+  Per point ~99 CPU-h: mubeam 14, mustops_ce 17, elebeam_flash 68; rare CPU-bound events make
+  5-10 h jobs (75k-event mustops_ce jobs worst).
+
 ## Cross-links
 - Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) (2026-10-29 extension `foilsflash_col5bf_ax`: + COL5 rIn, DS and TSd field scales), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
 - Source files: `bo_driver.py` (FoilsFlashMode),

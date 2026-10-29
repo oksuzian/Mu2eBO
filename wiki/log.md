@@ -10,6 +10,9 @@ superseded, linted.
   keys in the geometry file (GeometryService patch, Code_mdc2025ax_bfscale.tar.bz2), validated with
   BFieldPlotter; drives `mode_specs/foilsflash_col5bf_ax.json` (extra foils + COL5 rIn + DS/TSd
   field scales 0.75–1.1); Offline PR Mu2e/Offline#2079.
+- **updated** [bo-foilsflash](/projects/bo-foilsflash.md): optchk01-08 job audit (foilspfbpz_ax). Per point
+  ~99 CPU-h, 68 of them elebeam_flash; flash jackknife error 2.7-4.2% (> the 2.3% noise); sob ~0.24%.
+  E-beam early flash is 92% of tracker / 86% of calo early-flash edep per POT vs the mu-beam's (optchk04).
 
 ## 2026-10-09
 - **updated** QUICKSTART.md, [tests](/drivers/tests.md): a fresh-eyes walkthrough (local ce_chain point,
