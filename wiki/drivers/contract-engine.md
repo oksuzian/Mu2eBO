@@ -445,6 +445,10 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   suite). The server starts with `--musing <kits.anakit.musing>` (`"SimJob
   MDC2025ay"`). Details, the per-electron flash factor and history:
   [anakit](/external/anakit.md).
+- **Analyses that read no file (2026-10-29):** anakit's input_kind
+  `"parameters"` (e.g. `total_edep_per_pot`) computes from its parameters
+  alone. Such a step has no `files_from`; its inputs come through
+  `params_from`, and the launch check and submit refuse files for it.
 - **One server per step:** anakit runs one analysis at a time, so
   `submit` starts a fresh server, runs the analysis to the end, writes
   `<GRID_DATA_ROOT>/<config>/anakit/<step>/anakit_result.json` and closes

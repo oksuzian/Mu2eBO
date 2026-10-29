@@ -31,9 +31,16 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   measures the muon-beam early flash (`muflash`) and the muon-stop pileup
   (stage `mustops_pileup`, step `pileup`) with `edep`; their deposition and
   step counts (the edep-based occupancy estimate) are extra metrics, and
-  the `*_per_pot` columns sum the three sources per POT. The step counts
-  need EdepAna from Offline PR #2067: before launching, point
-  `kits.anakit.musing` at a Musing that has it (none is published yet).
+  the `*_per_pot` columns sum the three sources per POT. Its dose
+  objective is the total tracker deposition per POT from the three
+  sources, summed by anakit's `total_edep_per_pot` (step `dose`, fed only
+  through `params_from`). The step counts need EdepAna from Offline PR
+  #2067: before launching, point `kits.anakit.musing` at a Musing that has
+  it (none is published yet).
+- `foilsflash_col5bf_nominal` — the deployed target (no knobs) in
+  `foilsflash_col5bf_ax`'s environment and steps. Its dose is that study's
+  total-dose budget: run it, then set `foilsflash_col5bf_ax`'s constraint
+  to it (it has none until then).
 - `foilspf_nominal` — the deployed target (37 foils, no knobs) in
   `foilspfbpz_ax`'s geometry and environment. Its board holds the baseline
   sob and the flash damage budget.

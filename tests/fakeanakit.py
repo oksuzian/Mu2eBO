@@ -41,6 +41,20 @@ CATALOGUE = {
         "parameters": {
             "selection": _p(False, "text",
                             default="event_calo_edep_vis > 50")}},
+    "total_edep_per_pot": {
+        "input_kind": "parameters", "takes_data_files": False,
+        "metrics": ["total_edep_per_pot_mev", "ebeam_edep_per_pot_mev",
+                    "mubeam_edep_per_pot_mev", "mustop_edep_per_pot_mev",
+                    "ebeam_fraction", "mubeam_fraction", "mustop_fraction"],
+        "parameters": {
+            "ebeam_edep_per_gen_event_mev": _p(True, minimum=0.0),
+            "pot_per_ebeam_event": _p(False, minimum=0.0,
+                                      default=11.536718606512062),
+            "mubeam_edep_per_gen_event_mev": _p(True, minimum=0.0),
+            "mubeam_events_per_pot": _p(False, minimum=0.0,
+                                        default=0.01278168),
+            "mustop_edep_per_gen_event_mev": _p(True, minimum=0.0),
+            "stops_per_pot": _p(True, minimum=0.0)}},
     "approx_ce_sensitivity": {
         "input_kind": "root_file", "takes_data_files": False,
         "metrics": ["sensitivity", "signal_box_low_mev",

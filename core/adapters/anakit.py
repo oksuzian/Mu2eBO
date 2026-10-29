@@ -61,8 +61,10 @@ RESULT_NAME = "anakit_result.json"
 RUN_TIMEOUT_S = 3000
 CALL_MARGIN_S = 300
 # The input_kind values list_analyses may report; "art_files" is a mu2e
-# job over art files, "root_file" a Python analysis.
-INPUT_KINDS = ("art_files", "root_file")
+# job over art files, "root_file" a Python analysis, "parameters" one that
+# reads no file (its inputs are earlier steps' metrics, via params_from).
+INPUT_KINDS = ("art_files", "root_file", "parameters")
+NO_FILE_KIND = "parameters"
 OWN_PARAMS = ("musing", "analysis")  # read here, never sent to anakit
 # Optional, also read here and never sent: input_glob keeps only the upstream
 # files whose names match it (one step may produce several kinds of file).
@@ -226,9 +228,6 @@ class AnakitKit:
                                  f"none of {name}'s {len(inputs)} input "
                                  f"files, e.g. {inputs[0]['name']!r}")
             inputs = kept
-        if not inputs:
-            raise ValueError(f"anakit: {name} has no input files (its "
-                             f"files_from steps gave none)")
         data = [str(pe.local_path(ref, "anakit: input")) for ref in inputs]
         sdir = self._step_dir(config, step)
         # GRID_DATA_ROOT sits on a quota-limited volume (EDQUOT has
@@ -261,7 +260,14 @@ class AnakitKit:
                              f"{list(INPUT_KINDS)}")
             args = {"analysis": analysis, "output_dir": str(sdir),
                     "parameters": params, "timeout_s": RUN_TIMEOUT_S}
-            if spec["takes_data_files"]:
+            if spec["input_kind"] == NO_FILE_KIND:
+                if data:
+                    raise ValueError(f"anakit: {analysis} reads no files, "
+                                     f"but {name} got {len(data)}")
+            elif not data:
+                raise ValueError(f"anakit: {name} has no input files (its "
+                                 f"files_from steps gave none)")
+            elif spec["takes_data_files"]:
                 args["data_files"] = data
             elif len(data) == 1:
                 args["data_file"] = data[0]
@@ -342,12 +348,6 @@ class AnakitKit:
             return [f"{where}: Musing {musing!r} is not published (no "
                     f"{published})"]
         problems = []
-        if not step.files_from:
-            # submit refuses a step with no input files; say so before any
-            # upstream step runs
-            problems.append(f"{where}: anakit runs an analysis on input "
-                            f"files, and this step has no files_from (a "
-                            f"params_from value is not an input file)")
         analyses = self._catalogue(musing,
                                    f"{self.campaign}/launch/{self.name}")
         analysis = step.fixed.get("analysis")
@@ -364,6 +364,17 @@ class AnakitKit:
             return [f"{where}: anakit's list_analyses reply for analysis "
                     f"{analysis!r} has input_kind {spec['input_kind']!r}; "
                     f"known kinds {list(INPUT_KINDS)}"]
+        # submit refuses a file analysis with no input files, and a
+        # parameters analysis with some; say so before any upstream step runs
+        if spec["input_kind"] == NO_FILE_KIND:
+            if step.files_from:
+                problems.append(f"{where}: {analysis} reads no files, so "
+                                f"this step takes no files_from (its inputs "
+                                f"come through params_from)")
+        elif not step.files_from:
+            problems.append(f"{where}: anakit runs an analysis on input "
+                            f"files, and this step has no files_from (a "
+                            f"params_from value is not an input file)")
         declared = spec.get("parameters", {})
         sent = (set(step.sent_params) - set(OWN_PARAMS)
                 - set(OPTIONAL_OWN_PARAMS))

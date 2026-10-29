@@ -1,7 +1,7 @@
 {
  "schema": 2,
  "name": "foilsflash_col5bf_ax",
- "note": "foilsflash_ax (2026-10-29) widened from the extra foils to three beamline knobs: the TS5 collimator (COL5) poly inner radius ts.coll5.Radius1 (nominal 128 mm, bounds as col5_foilrout), and scale factors on the DS field (maps DSMap and DSExtension) and the downstream-TS field (map TSdMap, TS3 downstream half, TS4, TS5), each at most 1.1. The scales are geometry-file keys bfield.mapScale.<map>, read by a GeometryService patch (wiki/concepts/bfield-map-scale-patch.md) shipped in Code_mdc2025ax_bfscale.tar.bz2; stock Offline ignores the keys, so the code tarball and the preflight must both be the patched one. Scaling a map region scales the total field computed there, not one coil: where the TSd and DS maps meet (z = 3071 mm) the field jumps when the two factors differ. The beam samples are recorded entering TS3Vacuum, upstream of COL5 and of the TSd map (x < 0), so every scaled region is resimulated and the stops upstream_eff is unchanged. Same objectives and flash budget as foilsflash_ax and the same statistics, but mubeam and mustops_ce run as 50 jobs (60k and 22.5k events; 2026-10-29), with entries mubeam_earlyflash1 (early muon-beam flash unprescaled and kept as a second output) and mustops_ce_skip2000 (skip below the ~5-6k stops per mubeam file). Extra measurements, not objectives: the muon-beam early flash (step muflash) and the muon-stop pileup (stage mustops_pileup, 50 x 20k stops, step pileup) through edep, recorded as extra metrics per generated event (beam electron, MuBeamCat event, muon stop) with the electron flash's calo edep and step counts; the step counts (E + t cut: tracker steps above 0.5 keV, calo steps above 0.5 MeV, raw G4 time >= 500 ns) are the edep-based occupancy estimate. The *_per_pot columns sum the three sources per POT: 11.5367 POT per beam electron, 0.01278168 MuBeamCat events per POT, stops_per_pot stops per POT. The step counts need EdepAna from Offline PR #2067, in no published Musing as of 2026-10-29: kits.anakit.musing must name a Musing that has it before this study is launched. A new board.",
+ "note": "foilsflash_ax (2026-10-29) widened from the extra foils to three beamline knobs: the TS5 collimator (COL5) poly inner radius ts.coll5.Radius1 (nominal 128 mm, bounds as col5_foilrout), and scale factors on the DS field (maps DSMap and DSExtension) and the downstream-TS field (map TSdMap, TS3 downstream half, TS4, TS5), each at most 1.1. The scales are geometry-file keys bfield.mapScale.<map>, read by a GeometryService patch (wiki/concepts/bfield-map-scale-patch.md) shipped in Code_mdc2025ax_bfscale.tar.bz2; stock Offline ignores the keys, so the code tarball and the preflight must both be the patched one. Scaling a map region scales the total field computed there, not one coil: where the TSd and DS maps meet (z = 3071 mm) the field jumps when the two factors differ. The beam samples are recorded entering TS3Vacuum, upstream of COL5 and of the TSd map (x < 0), so every scaled region is resimulated and the stops upstream_eff is unchanged. The same sob and statistics as foilsflash_ax, but mubeam and mustops_ce run as 50 jobs (60k and 22.5k events; 2026-10-29), with entries mubeam_earlyflash1 (early muon-beam flash unprescaled and kept as a second output) and mustops_ce_skip2000 (skip below the ~5-6k stops per mubeam file). Extra measurements, not objectives: the muon-beam early flash (step muflash) and the muon-stop pileup (stage mustops_pileup, 50 x 20k stops, step pileup) through edep, recorded as extra metrics per generated event (beam electron, MuBeamCat event, muon stop) with the electron flash's calo edep and step counts; the step counts (E + t cut: tracker steps above 0.5 keV, calo steps above 0.5 MeV, raw G4 time >= 500 ns) are the edep-based occupancy estimate. The dose objective (2026-10-29) is the total tracker deposition per POT from all three sources, summed by anakit's total_edep_per_pot (step dose) instead of the electron flash alone; flash_edep is kept as an extra metric. No constraint yet: the electron-flash budget does not apply to the total, and the total-dose budget is foilsflash_col5bf_nominal's dose (run it, then set constraints to it). alpha in the obj column now multiplies MeV per POT. The *_per_pot columns sum the three sources per POT: 11.5367 POT per beam electron, 0.01278168 MuBeamCat events per POT, stops_per_pot stops per POT. The step counts need EdepAna from Offline PR #2067, in no published Musing as of 2026-10-29: kits.anakit.musing must name a Musing that has it before this study is launched. A new board.",
  "knobs": [
   {"name": "extra_rOut_up", "type": "real", "min": 50.0, "max": 250.0, "unit": "", "fmt": "{:.4f}"},
   {"name": "extra_rOut_dn", "type": "real", "min": 50.0, "max": 250.0, "unit": "", "fmt": "{:.4f}"},
@@ -73,16 +73,19 @@
   {"step": "sob", "kit": "anakit", "entry": null, "files": [], "files_from": ["ce_edep"], "params": {}, "params_from": {"stops_per_pot": "stops.stops_per_pot"}, "fixed": {"analysis": "approx_ce_sensitivity", "cosmic_rate_per_s_per_mev": 0.0018181818181818182}},
   {"step": "flash", "kit": "anakit", "entry": null, "files": [], "files_from": ["elebeam_flash"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}},
   {"step": "muflash", "kit": "anakit", "entry": null, "files": [], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep", "input_glob": "dts.*.EarlyMuBeamFlash.*.art"}},
-  {"step": "pileup", "kit": "anakit", "entry": null, "files": [], "files_from": ["mustops_pileup"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}}
+  {"step": "pileup", "kit": "anakit", "entry": null, "files": [], "files_from": ["mustops_pileup"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}},
+  {"step": "dose", "kit": "anakit", "entry": null, "files": [], "files_from": [], "params": {}, "params_from": {"ebeam_edep_per_gen_event_mev": "flash.avg_trk_edep_per_gen_event_mev", "mubeam_edep_per_gen_event_mev": "muflash.avg_trk_edep_per_gen_event_mev", "mustop_edep_per_gen_event_mev": "pileup.avg_trk_edep_per_gen_event_mev", "stops_per_pot": "stops.stops_per_pot"}, "fixed": {"analysis": "total_edep_per_pot"}}
  ],
  "objectives": [
   {"name": "sob", "metric": "sob.sensitivity", "direction": "max", "transform": "none", "noise": 0.0021, "fmt": "{:.5f}"},
-  {"name": "flash_edep", "metric": "flash.avg_trk_edep_per_gen_event_mev", "direction": "min", "transform": "log10", "noise": 0.01, "fmt": "{:.5e}"}
+  {"name": "dose", "metric": "dose.total_edep_per_pot_mev", "direction": "min", "transform": "log10", "noise": 0.015, "fmt": "{:.5e}"}
  ],
- "constraints": [
-  {"name": "flash_edep", "max": 7.506758e-06, "k_sigma": 1.0}
- ],
+ "constraints": [],
  "extra_metrics": [
+  {"name": "flash_edep", "metric": "flash.avg_trk_edep_per_gen_event_mev", "fmt": "{:.5e}"},
+  {"name": "dose_ebeam_fraction", "metric": "dose.ebeam_fraction", "fmt": "{:.4f}"},
+  {"name": "dose_mubeam_fraction", "metric": "dose.mubeam_fraction", "fmt": "{:.4f}"},
+  {"name": "dose_mustop_fraction", "metric": "dose.mustop_fraction", "fmt": "{:.4f}"},
   {"name": "flash_calo_edep", "metric": "flash.avg_calo_edep_per_gen_event_mev", "fmt": "{:.5e}"},
   {"name": "muflash_trk_edep", "metric": "muflash.avg_trk_edep_per_gen_event_mev", "fmt": "{:.5e}"},
   {"name": "muflash_calo_edep", "metric": "muflash.avg_calo_edep_per_gen_event_mev", "fmt": "{:.5e}"},
@@ -98,8 +101,7 @@
  ],
  "extra_columns": [
   {"name": "alpha", "expr": "alpha", "fmt": "{:.3f}"},
-  {"name": "obj", "expr": "sob - alpha * flash_edep", "fmt": "{:.5f}"},
-  {"name": "trk_edep_per_pot", "expr": "flash_edep / pot_per_ebeam_event + muflash_trk_edep * mubeam_events_per_pot + pileup_trk_edep * stops_per_pot", "fmt": "{:.5e}"},
+  {"name": "obj", "expr": "sob - alpha * dose", "fmt": "{:.5f}"},
   {"name": "calo_edep_per_pot", "expr": "flash_calo_edep / pot_per_ebeam_event + muflash_calo_edep * mubeam_events_per_pot + pileup_calo_edep * stops_per_pot", "fmt": "{:.5e}"},
   {"name": "trk_steps_per_pot", "expr": "flash_trk_steps / pot_per_ebeam_event + muflash_trk_steps * mubeam_events_per_pot + pileup_trk_steps * stops_per_pot", "fmt": "{:.5e}"},
   {"name": "calo_steps_per_pot", "expr": "flash_calo_steps / pot_per_ebeam_event + muflash_calo_steps * mubeam_events_per_pot + pileup_calo_steps * stops_per_pot", "fmt": "{:.5e}"}

@@ -244,6 +244,23 @@ class TestSubmit(_Kit):
                               self.inputs, "w")
         self.assertIn("matches none", str(cm.exception))
 
+    DOSE = {"musing": MUSING, "analysis": "total_edep_per_pot",
+            "ebeam_edep_per_gen_event_mev": 6.9e-6,
+            "mubeam_edep_per_gen_event_mev": 1.3e-7,
+            "mustop_edep_per_gen_event_mev": 2.8e-4, "stops_per_pot": 1.15e-3}
+
+    def test_a_parameters_analysis_runs_with_no_input_files(self):
+        self.kit().submit("cfg1.dose", self.DOSE, [], [], "w")
+        args = self.run_call()[1]
+        self.assertNotIn("data_files", args)
+        self.assertNotIn("data_file", args)
+        self.assertEqual(args["parameters"]["stops_per_pot"], 1.15e-3)
+
+    def test_a_parameters_analysis_given_input_files_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.kit().submit("cfg1.dose", self.DOSE, [], self.inputs, "w")
+        self.assertIn("reads no files", str(cm.exception))
+
     def test_the_result_records_the_musing(self):
         kit = self.kit()
         kit.submit("cfg1.stops", self.params(), [], self.inputs, "w")
@@ -551,6 +568,27 @@ class TestStepProblems(_Kit):
                                  files_from=())
         problems = self.kit().step_problems(study, step)
         self.assertTrue(any("no files_from" in p for p in problems), problems)
+
+    DOSE_FROM = {"ebeam_edep_per_gen_event_mev":
+                 "flash.avg_trk_edep_per_gen_event_mev",
+                 "mubeam_edep_per_gen_event_mev":
+                 "muflash.avg_trk_edep_per_gen_event_mev",
+                 "mustop_edep_per_gen_event_mev":
+                 "pileup.avg_trk_edep_per_gen_event_mev",
+                 "stops_per_pot": "stops.stops_per_pot"}
+
+    def test_a_parameters_analysis_needs_no_files_from(self):
+        study, step = self.study({"analysis": "total_edep_per_pot"},
+                                 metric="sob.total_edep_per_pot_mev",
+                                 params_from=self.DOSE_FROM, files_from=())
+        self.assertEqual(self.kit().step_problems(study, step), [])
+
+    def test_a_parameters_analysis_with_files_from_is_refused(self):
+        study, step = self.study({"analysis": "total_edep_per_pot"},
+                                 metric="sob.total_edep_per_pot_mev",
+                                 params_from=self.DOSE_FROM)
+        problems = self.kit().step_problems(study, step)
+        self.assertTrue(any("reads no files" in p for p in problems), problems)
 
     def test_a_params_from_param_the_analysis_does_not_take(self):
         study, step = self.study(self.GOOD,

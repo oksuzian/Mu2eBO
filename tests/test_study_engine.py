@@ -159,13 +159,14 @@ class TestLoadedStudies(TmpCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         # mode_specs/ ships ce_chain, the two foilspf engine twins
         # (foilsflash_ax, foilspfbpz_ax), foilsflash_col5bf_ax (foilsflash_ax
-        # + COL5 rIn + DS/TSd field scales), the deployed-target baseline
+        # + COL5 rIn + DS/TSd field scales) and its deployed-target
+        # baseline foilsflash_col5bf_nominal, the deployed-target baseline
         # foilspf_nominal and ptg4bl (G4beamline through beamkit), and
         # ENGINE_STUDIES holds branin, prodtools_smoke and the C2b local
         # acceptance fixture foilspfbpz_local.
         self.assertEqual(r.stdout.strip().splitlines()[-1],
                          "['branin', 'ce_chain', 'foilsflash_ax', "
-                         "'foilsflash_col5bf_ax', "
+                         "'foilsflash_col5bf_ax', 'foilsflash_col5bf_nominal', "
                          "'foilspf_nominal', 'foilspfbpz_ax', "
                          "'foilspfbpz_local', 'prodtools_smoke', 'ptg4bl']")
 

@@ -6,6 +6,10 @@ heading at the TOP (create it if absent). One bullet per change:
 superseded, linted.
 
 ## 2026-10-29
+- **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md): anakit
+  `total_edep_per_pot` (PR #9, input_kind `parameters`) and adapter support for file-less analyses;
+  `foilsflash_col5bf_ax`'s dose objective is now the total tracker edep per POT (e-beam + mu-beam flash
+  + mu-stop pileup); new zero-knob `foilsflash_col5bf_nominal` holds the total-dose budget (to measure).
 - **updated** [bo-foilsflash](/projects/bo-foilsflash.md): edep/occupancy by component at optchk04 — e-beam
   flash 61% of tracker edep but 14% of tracker steps at t >= 500 ns; mu-stop pileup 84% of those.
 - **updated** [contract-engine](/drivers/contract-engine.md): prodtools `output_glob` may be a list;

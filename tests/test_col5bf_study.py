@@ -39,14 +39,16 @@ class TestFoilsflashCol5bf(unittest.TestCase):
         self.assertEqual({n: (lo, hi) for n, lo, hi in mine[len(base):]},
                          NEW_KNOBS)
 
-    def test_same_objectives_as_foilsflash_ax(self):
-        """Same objective steps and statistics; mubeam and mustops_ce run as
-        50 shorter jobs with the same total events."""
+    def test_the_steps(self):
+        """foilsflash_ax's steps and statistics; mubeam and mustops_ce run as
+        50 shorter jobs with the same total events; then the mu-beam flash,
+        the mu-stop pileup and their sum with the e-beam flash."""
         mine = {s.step: s for s in self.s.steps}
         base = {s.step: s for s in self.base.steps}
         self.assertEqual(list(mine), ["mubeam", "mustops_ce", "mustops_pileup",
                                       "elebeam_flash", "stops", "ce_edep",
-                                      "sob", "flash", "muflash", "pileup"])
+                                      "sob", "flash", "muflash", "pileup",
+                                      "dose"])
         for name in ("elebeam_flash", "ce_edep", "sob", "flash"):
             self.assertEqual(mine[name], base[name], name)
         stops = dict(mine["stops"].fixed)
@@ -93,11 +95,32 @@ class TestFoilsflashCol5bf(unittest.TestCase):
                 self.assertEqual(metrics[f"{src}_{q}"], f"{src}.{key}")
         self.assertEqual(metrics["stops_per_pot"], "stops.stops_per_pot")
         self.assertEqual({c.name for c in self.s.extra_columns} - {"alpha", "obj"},
-                         {"trk_edep_per_pot", "calo_edep_per_pot",
-                          "trk_steps_per_pot", "calo_steps_per_pot"})
+                         {"calo_edep_per_pot", "trk_steps_per_pot",
+                          "calo_steps_per_pot"})
+        self.assertEqual(metrics["flash_edep"],
+                         "flash.avg_trk_edep_per_gen_event_mev")
 
-        self.assertEqual(self.s.objectives, self.base.objectives)
-        self.assertEqual(self.s.constraints, self.base.constraints)
+    def test_the_dose_objective_is_the_total_per_pot(self):
+        """sob as in foilsflash_ax; the dose is anakit's sum of the three
+        sources' tracker deposition per POT, fed by params_from only."""
+        base = {o.name: o for o in self.base.objectives}
+        mine = {o.name: o for o in self.s.objectives}
+        self.assertEqual(list(mine), ["sob", "dose"])
+        self.assertEqual(mine["sob"], base["sob"])
+        self.assertEqual((mine["dose"].metric, mine["dose"].direction,
+                          mine["dose"].transform),
+                         ("dose.total_edep_per_pot_mev", "min", "log10"))
+        dose = {s.step: s for s in self.s.steps}["dose"]
+        self.assertEqual(dose.fixed, {"analysis": "total_edep_per_pot"})
+        self.assertEqual(dose.files_from, ())
+        self.assertEqual(dose.params_from, {
+            "ebeam_edep_per_gen_event_mev": "flash.avg_trk_edep_per_gen_event_mev",
+            "mubeam_edep_per_gen_event_mev": "muflash.avg_trk_edep_per_gen_event_mev",
+            "mustop_edep_per_gen_event_mev": "pileup.avg_trk_edep_per_gen_event_mev",
+            "stops_per_pot": "stops.stops_per_pot"})
+        # the e-beam-only budget does not bound the total: none until
+        # foilsflash_col5bf_nominal has measured the deployed target's dose
+        self.assertEqual(self.s.constraints, ())
         self.assertNotEqual(self.s.leaderboard_rel, self.base.leaderboard_rel)
 
     def test_the_geometry_adds_col5_and_the_field_scales(self):
@@ -110,6 +133,37 @@ class TestFoilsflashCol5bf(unittest.TestCase):
             "double bfield.mapScale.DSMap = 0.800000;",
             "double bfield.mapScale.DSExtension = 0.800000;",
             "double bfield.mapScale.TSdMap = 1.050000;"]))
+
+
+class TestFoilsflashCol5bfNominal(unittest.TestCase):
+    """The deployed target in foilsflash_col5bf_ax's environment: its dose
+    is the total-dose budget."""
+
+    def setUp(self):
+        self.s = modes.STUDIES["foilsflash_col5bf_nominal"]
+        self.study = modes.STUDIES["foilsflash_col5bf_ax"]
+
+    def test_it_measures_what_the_study_measures(self):
+        self.assertEqual(self.s.knobs, ())
+        for field in ("steps", "objectives", "extra_metrics", "kits",
+                      "preflight"):
+            self.assertEqual(getattr(self.s, field),
+                             getattr(self.study, field), field)
+        self.assertEqual([c.expr for c in self.s.extra_columns],
+                         [c.expr for c in self.study.extra_columns])
+        self.assertNotEqual(self.s.leaderboard_rel, self.study.leaderboard_rel)
+
+    def test_the_geometry_is_the_deployed_target_at_nominal_fields(self):
+        lines = _geom_lines(self.s.geom.render([]))
+        for want in ("double ts.coll5.Radius1 = 128.0;",
+                     "double bfield.mapScale.DSMap = 1.0;",
+                     "double bfield.mapScale.DSExtension = 1.0;",
+                     "double bfield.mapScale.TSdMap = 1.0;"):
+            self.assertIn(want, lines)
+        radii = next(ln for ln in lines if "stoppingTarget.radii" in ln)
+        self.assertEqual(radii.count("75.0000"), 37)
+        nominal = _geom_lines(modes.STUDIES["foilspf_nominal"].geom.render([]))
+        self.assertTrue(set(nominal) <= set(lines))
 
 
 if __name__ == "__main__":

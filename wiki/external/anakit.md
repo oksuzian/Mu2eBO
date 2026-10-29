@@ -3,7 +3,7 @@ type: external
 title: anakit — M. MacKenzie's analysis MCP server
 description: 'M. MacKenzie''s analysis MCP server, checkout of his main pinned at 3ba8d23, run on the SimJob MDC2025ay Musing; feeds the _ax studies and ce_chain; needs mcp<2 (ana 2.7.0, -P)'
 status: active
-timestamp: '2026-10-08'
+timestamp: '2026-10-29'
 ---
 
 # anakit — M. MacKenzie's analysis MCP server
@@ -81,6 +81,11 @@ with three analyses of our own; a short history is kept below.
   `{"stops_per_pot": "stops.stops_per_pot"}`, `cosmic_rate_per_s_per_mev`
   0.0018181818181818182 (the macro's 2e4/1.1e7, 141.8x his default).
   Objective `sob.sensitivity`.
+- `total_edep_per_pot` (2026-10-29, analysis-mcp-server PR #9; input_kind
+  `"parameters"`, no files): electron flash / 11.5367 + muon-beam flash ×
+  0.01278168 + muon-stop pileup × stops_per_pot, per POT, with each share.
+  `foilsflash_col5bf_ax`'s dose objective. Needs the anakit pin bumped past
+  PR #9 once it merges.
 - `flash`: `edep` on `elebeam_flash`. Objective
   `flash.avg_trk_edep_per_gen_event_mev` is MeV per generated beam
   electron, not per POT (the engine does no arithmetic), so the budget is
