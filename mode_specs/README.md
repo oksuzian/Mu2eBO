@@ -29,10 +29,11 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   Mu2e/Offline#2079); stock Offline ignores them. See
   `wiki/concepts/bfield-map-scale-patch.md`. Besides the two objectives it
   measures the muon-beam early flash (`muflash`) and the muon-stop pileup
-  (stage `mustops_pileup`, step `pileup`) with `edep`; their deposition is
-  an extra metric and the `*_per_pot` columns sum the three sources per
-  POT. edep's step counts (an occupancy estimate) need Offline PR #2067,
-  in no published Musing yet.
+  (stage `mustops_pileup`, step `pileup`) with `edep`; their deposition and
+  step counts (the edep-based occupancy estimate) are extra metrics, and
+  the `*_per_pot` columns sum the three sources per POT. The step counts
+  need EdepAna from Offline PR #2067: before launching, point
+  `kits.anakit.musing` at a Musing that has it (none is published yet).
 - `foilspf_nominal` — the deployed target (37 foils, no knobs) in
   `foilspfbpz_ax`'s geometry and environment. Its board holds the baseline
   sob and the flash damage budget.

@@ -76,8 +76,8 @@ class TestFoilsflashCol5bf(unittest.TestCase):
 
     def test_the_extra_measurements(self):
         """The mu-beam flash and the muon-stop pileup are measured, not
-        optimized: each source's edep is an extra metric. (Step counts wait
-        for a Musing with Offline PR #2067.)"""
+        optimized: each source's edep and step counts (the edep-based
+        occupancy estimate) are extra metrics."""
         mine = {s.step: s for s in self.s.steps}
         self.assertEqual(mine["muflash"].fixed,
                          {"analysis": "edep",
@@ -86,11 +86,15 @@ class TestFoilsflashCol5bf(unittest.TestCase):
         metrics = {m.name: m.metric for m in self.s.extra_metrics}
         for src in ("muflash", "pileup"):
             for q, key in (("trk_edep", "avg_trk_edep_per_gen_event_mev"),
-                           ("calo_edep", "avg_calo_edep_per_gen_event_mev")):
+                           ("calo_edep", "avg_calo_edep_per_gen_event_mev"),
+                           ("trk_steps", "trk_nsteps_ecut_tcut_per_gen_event"),
+                           ("calo_steps",
+                            "calo_nsteps_ecut_tcut_per_gen_event")):
                 self.assertEqual(metrics[f"{src}_{q}"], f"{src}.{key}")
         self.assertEqual(metrics["stops_per_pot"], "stops.stops_per_pot")
         self.assertEqual({c.name for c in self.s.extra_columns} - {"alpha", "obj"},
-                         {"trk_edep_per_pot", "calo_edep_per_pot"})
+                         {"trk_edep_per_pot", "calo_edep_per_pot",
+                          "trk_steps_per_pot", "calo_steps_per_pot"})
 
         self.assertEqual(self.s.objectives, self.base.objectives)
         self.assertEqual(self.s.constraints, self.base.constraints)
