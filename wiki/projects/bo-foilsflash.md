@@ -719,6 +719,11 @@ No commit/push (operator reviews, like foils/ipa).
   11 ms CPU per stop, 1.6% leave steps). Work dir /exp/mu2e/data/users/mmackenz/flash_compare_optchk04/.
   So the e-beam flash dominates the prompt deposition (the flash objective), and the mu-stop pileup
   dominates the in-window occupancy.
+- **`foilsflash_col5bf_ax` pileup statistics (2026-10-30, PR #42 review).** Each `mustops_pileup`
+  job draws 20k stops from one 60k-event mubeam file holding ~5.3k (0.088 stops/event);
+  `TargetStopResampler` has `wrapFiles: true`, so each stop is reused ~3.8 times with fresh
+  capture/decay products. Per-stop averages are unbiased, but the 50 x 20k = 1M "stops" are
+  ~265k independent stop positions; quote that where pileup statistics are given.
 
 ## Cross-links
 - Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) (2026-10-29 extension `foilsflash_col5bf_ax`: + COL5 rIn, DS and TSd field scales), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)

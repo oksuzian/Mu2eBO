@@ -5,6 +5,12 @@ heading at the TOP (create it if absent). One bullet per change:
 `<verb> <what changed> — <page>`; verbs: created, updated, merged,
 superseded, linted.
 
+## 2026-10-30
+- **updated** [contract-engine](/drivers/contract-engine.md), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md),
+  [bo-foilsflash](/projects/bo-foilsflash.md): PR #42 review — prodtools `fixed.required_log_lines` (each successful
+  job's log must hold each line); `foilsflash_col5bf_*` require the per-map `scaled by` lines; anakit runs on
+  `Offline v13_43_00` (has #2067 step counts); anakit `input_glob` may be a list; pileup stop reuse ~3.8x.
+
 ## 2026-10-29
 - **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md): anakit
   `total_edep_per_pot` (PR #9, input_kind `parameters`) and adapter support for file-less analyses;

@@ -36,7 +36,7 @@ from point_dir import write_atomic
 
 VERSION = "prodtools-adapter/1"      # bump when a step would measure anew
 PARAMS = ("entry", "code_tarball", "dsconf", "fatal_log_codes", "njobs",
-          "events_per_job", "memory_mb", "quorum")
+          "events_per_job", "memory_mb", "quorum", "required_log_lines")
 METRICS = ("njobs", "njobs_ok")
 DEFAULT_PARALLEL = 4
 UNKNOWN_LIMIT_S = 6 * 3600
@@ -126,6 +126,20 @@ def _jobs_without_log(outputs) -> list:
         if job_dir is None or not any(job_dir.glob("*.log")):
             out.append((index, job_dir))
     return out
+
+
+def _missing_log_line(rec, outputs):
+    """Why a successful job's logs lack a required_log_lines string, or
+    None. The opposite of fatal_log_codes: the line a patched build
+    prints, so a stock build fails loudly. Failed jobs are not read."""
+    for line in rec.get("required_log_lines", ()):   # older records: none
+        for index, job_paths in sorted(outputs.items()):
+            job_dir = Path(job_paths[0]).parent
+            if not any(line in log.read_text(errors="replace")
+                       for log in job_dir.glob("*.log")):
+                return (f"job {index}'s log in {job_dir} lacks the required "
+                        f"line {line!r}")
+    return None
 
 
 def _progress(reply):
@@ -368,7 +382,9 @@ class ProdtoolsKit:
                 "events_per_job": facts["events_per_job"],
                 "output_glob": facts["output_glob"],
                 "quorum": params["quorum"],
-                "fatal_log_codes": list(params["fatal_log_codes"])}
+                "fatal_log_codes": list(params["fatal_log_codes"]),
+                "required_log_lines": list(params.get("required_log_lines",
+                                                      ()))}
 
     def _launch(self, rec, workflow) -> None:
         tool, args = self._launch_call(rec)
@@ -484,7 +500,8 @@ class ProdtoolsKit:
                                 f"successful jobs have no .log")
                 return self._working("waiting for stage-out: "
                                      + "; ".join(what), progress)
-        problem = self._scan_logs(rec, reply, unlogged)
+        problem = (self._scan_logs(rec, reply, unlogged)
+                   or _missing_log_line(rec, outputs))
         if problem:
             return self._decide(sdir, rec, "failed", problem,
                                 progress=progress)

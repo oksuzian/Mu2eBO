@@ -562,6 +562,37 @@ class TestStatus(_Kit):
         self.assertEqual(s.state, "failed")
         self.assertIn("GeomSolids1001", s.message)
 
+    def test_a_required_log_line_in_every_successful_job_completes(self):
+        kit, name = self.submitted(required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 0}, log=False)
+        for paths in self.fake.runs[name]["outputs"].values():
+            (Path(paths[0]).parent / "job.log").write_text(
+                "BFieldManagerMaker: map DSMap scaled by 1.05\n")
+        self.assertEqual(self.state(kit).state, "completed")
+
+    def test_a_job_log_without_a_required_line_fails_the_step(self):
+        kit, name = self.submitted(required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 0})
+        s = self.state(kit)
+        self.assertEqual(s.state, "failed")
+        self.assertIn("lacks the required line 'map DSMap scaled'", s.message)
+
+    def test_a_failed_jobs_log_need_not_hold_a_required_line(self):
+        kit, name = self.submitted(quorum=0.5,
+                                   required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 1})        # job 1's log: "ok"
+        paths = self.fake.runs[name]["outputs"]["0"]
+        (Path(paths[0]).parent / "job.log").write_text("map DSMap scaled\n")
+        self.assertEqual(self.state(kit).state, "completed")
+
+    def test_a_record_from_before_required_log_lines_still_completes(self):
+        kit, name = self.submitted()
+        rec = self.record()
+        del rec["required_log_lines"]
+        self.record_path().write_text(json.dumps(rec))
+        self.fake.finish(name, {0: 0, 1: 0})
+        self.assertEqual(self.state(kit).state, "completed")
+
     def test_a_successful_job_without_a_log_waits_then_fails_the_step(self):
         kit, name = self.submitted()
         self.fake.finish(name, {0: 0, 1: 0}, log=False)

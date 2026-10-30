@@ -60,14 +60,14 @@
  "kits": {
   "prodtools": {"code_tarball": "${ARTIFACT}/autoresearch_muse/Code_mdc2025ax_bfscale.tar.bz2", "dsconf": "MDC2025ax_{cfg}", "fatal_log_codes": ["GeomSolids1001"]},
   "offline_preflight": {"code_tarball": "${ARTIFACT}/autoresearch_muse/Code_mdc2025ax_bfscale.tar.bz2", "dumps_gdml": true, "verifies_foil_gdml": true, "checks_managed_overlap": true, "require_zero_overlaps": true},
-  "anakit": {"musing": "SimJob MDC2025ay"}
+  "anakit": {"musing": "Offline v13_43_00"}
  },
  "preflight": {"kit": "offline_preflight", "params": {}, "files": ["geom"]},
  "evaluate": [
-  {"step": "mubeam", "kit": "prodtools", "entry": "mubeam_earlyflash1", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 60000, "memory_mb": 2000, "quorum": 0.8}},
-  {"step": "mustops_ce", "kit": "prodtools", "entry": "mustops_ce_skip2000", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 22500, "memory_mb": 2000, "quorum": 0.8}},
-  {"step": "mustops_pileup", "kit": "prodtools", "entry": "mustops_pileup", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 20000, "memory_mb": 2000, "quorum": 0.8}},
-  {"step": "elebeam_flash", "kit": "prodtools", "entry": "elebeam_flash", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 100, "events_per_job": 110000, "memory_mb": 2000, "quorum": 0.8}},
+  {"step": "mubeam", "kit": "prodtools", "entry": "mubeam_earlyflash1", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 60000, "memory_mb": 2000, "quorum": 0.8, "required_log_lines": ["BFieldManagerMaker: map DSMap scaled by", "BFieldManagerMaker: map DSExtension scaled by", "BFieldManagerMaker: map TSdMap scaled by"]}},
+  {"step": "mustops_ce", "kit": "prodtools", "entry": "mustops_ce_skip2000", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 22500, "memory_mb": 2000, "quorum": 0.8, "required_log_lines": ["BFieldManagerMaker: map DSMap scaled by", "BFieldManagerMaker: map DSExtension scaled by", "BFieldManagerMaker: map TSdMap scaled by"]}},
+  {"step": "mustops_pileup", "kit": "prodtools", "entry": "mustops_pileup", "files": ["geom"], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"njobs": 50, "events_per_job": 20000, "memory_mb": 2000, "quorum": 0.8, "required_log_lines": ["BFieldManagerMaker: map DSMap scaled by", "BFieldManagerMaker: map DSExtension scaled by", "BFieldManagerMaker: map TSdMap scaled by"]}},
+  {"step": "elebeam_flash", "kit": "prodtools", "entry": "elebeam_flash", "files": ["geom"], "files_from": [], "params": {}, "params_from": {}, "fixed": {"njobs": 100, "events_per_job": 110000, "memory_mb": 2000, "quorum": 0.8, "required_log_lines": ["BFieldManagerMaker: map DSMap scaled by", "BFieldManagerMaker: map DSExtension scaled by", "BFieldManagerMaker: map TSdMap scaled by"]}},
   {"step": "stops", "kit": "anakit", "entry": null, "files": [], "files_from": ["mubeam"], "params": {}, "params_from": {}, "fixed": {"analysis": "muon_stop_rate", "upstream_eff": 0.01278168, "input_glob": "sim.*.TargetStops.*.art"}},
   {"step": "ce_edep", "kit": "anakit", "entry": null, "files": [], "files_from": ["mustops_ce"], "params": {}, "params_from": {}, "fixed": {"analysis": "edep"}},
   {"step": "sob", "kit": "anakit", "entry": null, "files": [], "files_from": ["ce_edep"], "params": {}, "params_from": {"stops_per_pot": "stops.stops_per_pot"}, "fixed": {"analysis": "approx_ce_sensitivity", "cosmic_rate_per_s_per_mev": 0.0018181818181818182}},

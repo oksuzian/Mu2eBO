@@ -685,6 +685,11 @@ class TestProdtoolsKeys(_Tmp):
             # fatal_log_codes must be a list of strings
             *[(f"fatal_log_codes={bad!r}", prodtools(fatal_log_codes=bad),
                "fatal_log_codes") for bad in ("GeomSolids1001", [""], [3])],
+            # so must a step's required_log_lines
+            *[(f"required_log_lines={bad!r}",
+               lambda d, bad=bad: _step(d, "mubeam")["fixed"].update(
+                   required_log_lines=bad),
+               "required_log_lines") for bad in ("scaled by", [""], [3])],
             # dsconf holds {cfg} and only name characters
             *[(f"dsconf={bad!r}", prodtools(dsconf=bad),
                "[kits.prodtools][dsconf]", needle)
@@ -712,12 +717,13 @@ class TestProdtoolsKeys(_Tmp):
 # studies were re-pinned on 2026-10-07 for M. MacKenzie's analyses.
 # foilspf_nominal moved here from tests/fixtures/engine_studies/ on
 # 2026-10-08 with its sha unchanged (its board holds the damage budget).
-# foilsflash_col5bf_ax and its nominal pinned at their addition on 2026-10-29.
+# foilsflash_col5bf_ax and its nominal pinned at their addition on 2026-10-29
+# (re-pinned 2026-10-30: required_log_lines, anakit Musing Offline v13_43_00).
 PINNED = {
     "ce_chain": "3a300aecbea8dba8d289c4f78c4a941b01ec18c2293a14a793b86f7263e59189",
     "foilsflash_ax": "b96e6c99648c677b5046f7f223df5477eba156dc27ecb15aaed57d31e6b904bd",
-    "foilsflash_col5bf_ax": "a1360ac17beb5a0b395a410a4cb803f1e1194ac62fe116e7c9e50df3e98972f7",
-    "foilsflash_col5bf_nominal": "81bf0f98b0e7f89ef9bd69732518173f7eece46af374cf553a8c869fcf92204a",
+    "foilsflash_col5bf_ax": "5df01513fc122a92997cae83699ac67e34df1e5e3f8ab5515383feaa546c1909",
+    "foilsflash_col5bf_nominal": "bda9a1cd2276bebf3cc47bf6b10dbac89d81db1e6bad2b965cf2d14ef8ed0efc",
     "foilspf_nominal": "f0a9aa00d9d06eeb8235281fc035ad78b0852b4cdf3e487c919412e247539310",
     "foilspfbpz_ax": "fa84cd6e195e4ef865d62c42f8085deb24a81213197a814e23aab49f8856c570",
     "ptg4bl": "b52fce7c37525597cae53862efe0f272af28f766c6deaefa22b71f08a6861689",

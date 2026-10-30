@@ -12,6 +12,8 @@ sys.path.insert(0, str(ROOT / "core"))
 import modes  # noqa: E402
 
 TARBALL = "${ARTIFACT}/autoresearch_muse/Code_mdc2025ax_bfscale.tar.bz2"
+SCALED_LINES = [f"BFieldManagerMaker: map {m} scaled by"
+                for m in ("DSMap", "DSExtension", "TSdMap")]
 NEW_KNOBS = {"col5_rIn": (80.0, 200.0), "ds_bscale": (0.75, 1.1),
              "tsd_bscale": (0.75, 1.1)}
 
@@ -32,6 +34,25 @@ class TestFoilsflashCol5bf(unittest.TestCase):
         self.assertEqual(kits["prodtools"]["code_tarball"], TARBALL)
         self.assertEqual(kits["offline_preflight"]["code_tarball"], TARBALL)
 
+    def test_every_grid_job_must_print_the_applied_scales(self):
+        """Stock Offline ignores bfield.mapScale.* silently: each prodtools
+        job's log must show the patched build scaled every rendered map."""
+        for step in self.s.steps:
+            if step.kit == "prodtools":
+                self.assertEqual(step.fixed["required_log_lines"],
+                                 SCALED_LINES, step.step)
+        rendered = {ln.split()[1].removeprefix("bfield.mapScale.")
+                    for ln in _geom_lines(self.s.geom.render(
+                        [150.0, 120.0, 0.05, 0.08, 0.3, 0.4, 175.5, 0.8, 1.05]))
+                    if "bfield.mapScale." in ln}
+        self.assertEqual({f"BFieldManagerMaker: map {m} scaled by"
+                          for m in rendered}, set(SCALED_LINES))
+
+    def test_anakit_runs_a_release_with_the_edep_step_counts(self):
+        """The *_steps metrics need EdepAna's step counts (Offline #2067)."""
+        kits = json.loads(self.s.path.read_text())["kits"]
+        self.assertEqual(kits["anakit"]["musing"], "Offline v13_43_00")
+
     def test_knobs_are_foilsflash_ax_plus_three(self):
         base = [(k.name, k.min, k.max) for k in self.base.knobs]
         mine = [(k.name, k.min, k.max) for k in self.s.knobs]
@@ -49,8 +70,11 @@ class TestFoilsflashCol5bf(unittest.TestCase):
                                       "elebeam_flash", "stops", "ce_edep",
                                       "sob", "flash", "muflash", "pileup",
                                       "dose"])
-        for name in ("elebeam_flash", "ce_edep", "sob", "flash"):
+        for name in ("ce_edep", "sob", "flash"):
             self.assertEqual(mine[name], base[name], name)
+        flash = dict(mine["elebeam_flash"].fixed)
+        self.assertEqual(flash.pop("required_log_lines"), SCALED_LINES)
+        self.assertEqual(flash, base["elebeam_flash"].fixed)
         stops = dict(mine["stops"].fixed)
         self.assertEqual(stops.pop("input_glob"), "sim.*.TargetStops.*.art")
         self.assertEqual(stops, base["stops"].fixed)

@@ -66,8 +66,9 @@ CALL_MARGIN_S = 300
 INPUT_KINDS = ("art_files", "root_file", "parameters")
 NO_FILE_KIND = "parameters"
 OWN_PARAMS = ("musing", "analysis")  # read here, never sent to anakit
-# Optional, also read here and never sent: input_glob keeps only the upstream
-# files whose names match it (one step may produce several kinds of file).
+# Optional, also read here and never sent: input_glob (a pattern or a list)
+# keeps only the upstream files whose names match one of its patterns (one
+# step may produce several kinds of file).
 OPTIONAL_OWN_PARAMS = ("input_glob",)
 # Where published Musings live: <root>/<Musing>/<version> (anakit's own
 # tools/mu2e_env.py MUSINGS_ROOT). Read to refuse an unpublished Musing at
@@ -222,7 +223,9 @@ class AnakitKit:
         musing, analysis = params.pop("musing"), params.pop("analysis")
         input_glob = params.pop("input_glob", None)
         if input_glob is not None:
-            kept = [r for r in inputs if fnmatch.fnmatch(r["name"], input_glob)]
+            globs = pe.output_globs(input_glob, "input_glob")
+            kept = [r for r in inputs
+                    if any(fnmatch.fnmatch(r["name"], g) for g in globs)]
             if inputs and not kept:
                 raise ValueError(f"anakit: input_glob {input_glob!r} matches "
                                  f"none of {name}'s {len(inputs)} input "

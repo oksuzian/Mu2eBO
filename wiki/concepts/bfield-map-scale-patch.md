@@ -43,7 +43,14 @@ Upstream: Mu2e/Offline#2079.
   (`BFieldManagerMaker: map DSMap scaled by ...`), so job logs show what ran.
 - **Stock Offline silently ignores the keys.** A study using them must point both
   `kits.prodtools.code_tarball` and `kits.offline_preflight.code_tarball` at
-  the patched tarball.
+  the patched tarball. `foilsflash_col5bf_*` also lists each map's
+  `BFieldManagerMaker: map <name> scaled by` line in every prodtools step's
+  `required_log_lines` (2026-10-30), so a grid job on an unpatched build fails
+  the step. The preflight cannot check this: it loads no maps.
+- **Source of the patch:** Mu2e/Offline#2079 (merged 2026-10-29); it is in
+  Offline v13_43_00. To rebuild the tarball elsewhere, apply #2079's diff
+  (GeometryService.cc, BFieldManagerMaker.cc/.hh) to the MDC2025ax
+  Offline commit (`329c10038`) — `bfield_mapscale.patch` has the same changed lines.
 - Validated 2026-10-29 with BFieldPlotter (y = 0 plane, 250 mm grid), DS 1.1 / TSd 0.9:
   DSMap points ×1.1000, TSdMap ×0.9000, TSu/PS/outer maps ×1.0000.
 - Map extents (Mau13, Mu2e coords): TSdMap x ∈ [-5096, 4], z ∈ [-829, 3071]
@@ -64,8 +71,9 @@ Upstream: Mu2e/Offline#2079.
   `GeometryService/src/BFieldManagerMaker.cc` (`loadG4BL`)
 
 ## Open questions / TODO
-- Upstream: Mu2e/Offline PR #2079 (opened 2026-10-29, branch
-  `michaelmackenzie:bfield-map-scale`). Once a release carries it, point the study at
-  that release's stock tarball and drop Code_mdc2025ax_bfscale.
+- Upstream: Mu2e/Offline PR #2079, merged 2026-10-29 and in Offline v13_43_00. Once
+  a SimJob/MDC Musing on v13_43_00 or later exists, point the study's prodtools and
+  preflight at that release's stock tarball and drop Code_mdc2025ax_bfscale (a new
+  measure basis: the rest of Offline changes too).
 - `approx_ce_sensitivity` assumes a fixed 0.2 MeV tracker resolution, so it does not see
   any resolution change from a scaled DS field.

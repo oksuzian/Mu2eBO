@@ -362,7 +362,8 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   EarlyMuBeamFlash); every match is a result file. A consumer picks its
   inputs with `input_glob`: a key of its stage template for a prodtools
   step (`pe.select_inputs`, before staging), a `fixed` key for an anakit
-  step (read by the adapter, never sent). A glob that keeps none of the
+  step (read by the adapter, never sent). Both take a pattern or a list
+  (anakit's list form since 2026-10-30). A glob that keeps none of the
   inputs is an error. Without the keys nothing changes, so neither adapter
   VERSION moved.
 - **The entry:** `step_params` hands the step's stage template as
@@ -391,6 +392,12 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   fails (`{ok}/{njobs} jobs ok, below quorum`).
 - **Log scan:** every successful job needs a `.log`; every log is grepped
   for `kits.prodtools.fatal_log_codes` (foilspf: `GeomSolids1001`).
+  The opposite check, opt-in per step (2026-10-30): each string in the
+  step's `fixed.required_log_lines` must appear in every successful job's
+  logs, or the step fails (failed jobs' logs are not read). A patched build
+  prints a line no stock build does, so a stock tarball fails loudly
+  (`foilsflash_col5bf_*`: BFieldManagerMaker's `map <name> scaled by`).
+  Absent, nothing changes: no VERSION bump, older records complete.
 - **Timeouts:** `run_status` `unknown` fails after `UNKNOWN_LIMIT_S` 6 h;
   outputs missing after the jobs ended fail after `STAGEOUT_LIMIT_S`
   30 min.

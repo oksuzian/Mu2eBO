@@ -238,6 +238,18 @@ class TestSubmit(_Kit):
         self.assertEqual(args["data_files"], [str(flash)])
         self.assertEqual(args["parameters"], {"upstream_eff": 0.01278168})
 
+    def test_a_list_input_glob_keeps_files_matching_any_pattern(self):
+        flash = self.tmp / "in" / "dts.t.EarlyMuBeamFlash.c.0.art"
+        flash.write_text("")
+        inputs = self.inputs + [{"name": flash.name, "uri": flash.as_uri(),
+                                 "kind": "art"}]
+        params = self.params(input_glob=["dts.*.EarlyMuBeamFlash.*.art",
+                                         inputs[0]["name"]])
+        self.kit().submit("cfg1.stops", params, [], inputs, "w")
+        files = self.run_call()[1]["data_files"]
+        self.assertEqual(len(files), 2)
+        self.assertIn(str(flash), files)
+
     def test_an_input_glob_matching_nothing_is_refused(self):
         with self.assertRaises(ValueError) as cm:
             self.kit().submit("cfg1.stops", self.params(input_glob="x*"), [],
