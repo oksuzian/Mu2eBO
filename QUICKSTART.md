@@ -41,6 +41,9 @@ bash prodtools/mcp/scripts/install.sh       # its MCP venv
 git clone https://github.com/michaelmackenzie/analysis-mcp-server.git analysis-mcp-server
 git -C analysis-mcp-server switch --detach 3ba8d23   # = ANAKIT_PIN_SHA in core/adapters/anakit.py
 
+# mu2ebo-reporter: the reporting agent every campaign runs at loop exit
+git clone https://github.com/RobMina/mu2ebo-reporter.git mu2ebo-reporter
+
 # beamkit: the G4beamline kit for ptg4bl
 git clone -b v1 https://github.com/oksuzian/beamkit.git beamkit
 # its venv needs Python >= 3.10; the system python3 is 3.9
@@ -70,6 +73,15 @@ grid jobs.
 ```bash
 PYTHONPATH= "$AUTORESEARCH_PYTHON" -m unittest discover -s tests -t .
 ```
+
+Campaign reports: when a campaign's loop exits, `graph.closed_loop` starts the reporting
+agent on it. That is a detached job, so it outlives the loop. It writes a number-checked Markdown report to
+`<graph data>/<prefix>/reports/<stamp>-exit/out/report.md`, and `campaign_status` lists it.
+An agent driving a campaign through the MCP server can also ask for an interim report with
+`start_report`. The default model is `gpt-oss:120b` on `vllm.fnal.gov`; set
+`MU2EBO_REPORT_ENDPOINT` / `MU2EBO_REPORT_MODEL` to change it. Without the checkout a campaign
+runs anyway, with a warning that it will end without a report; `--no-report` skips the report and the warning.
+See [wiki/drivers/reporter.md](wiki/drivers/reporter.md).
 
 For Claude Code: `.mcp.json` registers the `autoresearch` server (study
 and campaign tools) and the `surrogate` server (GP predictions). After any

@@ -25,6 +25,12 @@ superseded, linted.
   ~99 CPU-h, 68 of them elebeam_flash; flash jackknife error 2.7-4.2% (> the 2.3% noise); sob ~0.24%.
   E-beam early flash is 92% of tracker / 86% of calo early-flash edep per POT vs the mu-beam's (optchk04).
 
+## 2026-10-15
+- **created** [reporter](/drivers/reporter.md): campaign reports. `graph.closed_loop` starts the reporting agent
+  (`core/report.py`, sibling checkout `mu2ebo-reporter`, `AUTORESEARCH_REPORTER`) at every loop exit, a detached
+  job under `<prefix>/reports/`; the MCP server gains `start_report` / `report` so the driving agent can ask for
+  interim ones, and `campaign_status` lists them. `--no-report` opts out; a missing checkout is a warning, never a refusal.
+
 ## 2026-10-09
 - **updated** QUICKSTART.md, [tests](/drivers/tests.md): a fresh-eyes walkthrough (local ce_chain point,
   grid dry run, sandboxed) found the how-to silent on running a grid campaign; new "On the grid" section

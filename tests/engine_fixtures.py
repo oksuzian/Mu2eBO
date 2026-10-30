@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_STUDIES = Path(__file__).resolve().parent / "fixtures" / "engine_studies"
+# The stand-in reporting agent every engine subprocess gets (never a model).
+FAKE_REPORTER = Path(__file__).resolve().parent / "fixtures" / "fake_reporter"
 
 # A board row's V2_META cells.
 META = {"handles": "toy=c1.toy", "spec_sha": "s" * 64,
@@ -72,7 +74,8 @@ def engine_env(data_root, study_dir):
     import os
     env = dict(os.environ)
     env.update(AUTORESEARCH_DATA_ROOT=str(data_root),
-               AUTORESEARCH_STUDY_PATH=str(study_dir), PYTHONPATH="")
+               AUTORESEARCH_STUDY_PATH=str(study_dir), PYTHONPATH="",
+               AUTORESEARCH_REPORTER=str(FAKE_REPORTER))
     return env
 
 
@@ -147,7 +150,8 @@ class TmpCase(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        td = tempfile.TemporaryDirectory()
+        # A loop-exit report job may still be writing when the test ends.
+        td = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.addCleanup(td.cleanup)
         self.tmp = Path(td.name)
 

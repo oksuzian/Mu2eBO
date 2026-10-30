@@ -122,7 +122,8 @@ class TestKitCheckoutDefaults(unittest.TestCase):
             ["bash", "-c", f"source '{root / 'repo' / 'activate.sh'}' || exit 2\n"
              'echo "A=${AUTORESEARCH_ANAKIT-unset}"\n'
              'echo "P=${AUTORESEARCH_PRODTOOLS-unset}"\n'
-             'echo "B=${AUTORESEARCH_BEAMKIT-unset}"'],
+             'echo "B=${AUTORESEARCH_BEAMKIT-unset}"\n'
+             'echo "R=${AUTORESEARCH_REPORTER-unset}"'],
             env=env, capture_output=True, text=True, timeout=60)
         self.assertEqual(p.returncode, 0, p.stderr)
         return dict(line.split("=", 1) for line in p.stdout.split())
@@ -130,11 +131,12 @@ class TestKitCheckoutDefaults(unittest.TestCase):
     def test_existing_siblings_become_the_defaults(self):
         with TemporaryDirectory() as tmp:
             root = self.layout(tmp, "analysis-mcp-server", "prodtools",
-                               "beamkit")
+                               "beamkit", "mu2ebo-reporter")
             out = self.source(root)
             self.assertEqual(out["A"], str(root / "analysis-mcp-server"))
             self.assertEqual(out["P"], str(root / "prodtools"))
             self.assertEqual(out["B"], str(root / "beamkit"))
+            self.assertEqual(out["R"], str(root / "mu2ebo-reporter"))
 
     def test_prodtools_inside_a_muse_work_area_is_still_found(self):
         with TemporaryDirectory() as tmp:
@@ -151,7 +153,8 @@ class TestKitCheckoutDefaults(unittest.TestCase):
     def test_missing_siblings_stay_unset(self):
         with TemporaryDirectory() as tmp:
             out = self.source(self.layout(tmp))
-            self.assertEqual(out, {"A": "unset", "P": "unset", "B": "unset"})
+            self.assertEqual(out, {"A": "unset", "P": "unset", "B": "unset",
+                                   "R": "unset"})
 
     def test_exported_values_win(self):
         with TemporaryDirectory() as tmp:
@@ -159,9 +162,10 @@ class TestKitCheckoutDefaults(unittest.TestCase):
                                "beamkit")
             out = self.source(root, {"AUTORESEARCH_ANAKIT": "/elsewhere/a",
                                      "AUTORESEARCH_PRODTOOLS": "/elsewhere/p",
-                                     "AUTORESEARCH_BEAMKIT": "/elsewhere/b"})
+                                     "AUTORESEARCH_BEAMKIT": "/elsewhere/b",
+                                     "AUTORESEARCH_REPORTER": "/elsewhere/r"})
             self.assertEqual(out, {"A": "/elsewhere/a", "P": "/elsewhere/p",
-                                   "B": "/elsewhere/b"})
+                                   "B": "/elsewhere/b", "R": "/elsewhere/r"})
 
 
 class TestResolvesThePublishedEnv(unittest.TestCase):

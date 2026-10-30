@@ -14,7 +14,7 @@
 # (default: the repo's sibling directory ../surrokit; see core/paths.py).
 # AUTORESEARCH_ANAKIT / AUTORESEARCH_PRODTOOLS / AUTORESEARCH_BEAMKIT: the kit
 # checkouts; exported here from sibling directories when unset (see the end
-# of this file).
+# of this file). AUTORESEARCH_REPORTER: the mu2ebo-reporter checkout, the same way.
 #
 # Why a published env: a personal /exp venv is one operator's directory, so a
 # second person, a cron job, or a fresh node has nothing to point at.
@@ -106,5 +106,9 @@ if [[ -z "${AUTORESEARCH_PRODTOOLS:-}" ]]; then
 fi
 if [[ -z "${AUTORESEARCH_BEAMKIT:-}" && -d "$_parent/beamkit" ]]; then
     export AUTORESEARCH_BEAMKIT="$_parent/beamkit"
+fi
+# The reporting agent graph.closed_loop starts at loop exit (core/report.py).
+if [[ -z "${AUTORESEARCH_REPORTER:-}" && -d "$_parent/mu2ebo-reporter" ]]; then
+    export AUTORESEARCH_REPORTER="$_parent/mu2ebo-reporter"
 fi
 unset _parent
