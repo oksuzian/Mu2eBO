@@ -69,6 +69,7 @@ See [CLAUDE](/CLAUDE.md) for the schema and maintenance contract.
 - [graph-runner](/drivers/graph-runner.md) — (**deleted 2026-09-28**, Phase C3) LangGraph state-machine orchestrator (Phase 1 mock-grid); Studio + Streamlit overlay
 - [closed-loop-runner](/drivers/closed-loop-runner.md) — (**deleted 2026-09-28**, Phase C3) multi-round Pareto-pick BO driver: wraps q parallel graph-runner children, refits GP between rounds
 - [service](/drivers/service.md) — `service/` = the `autoresearch` MCP server: check a study (start_check/check_result), run and follow campaigns (start_campaign dry run first), leaderboard, and a live dashboard
+- [reporter](/drivers/reporter.md) — campaign reports: `core/report.py` starts the reporting agent (sibling checkout `mu2ebo-reporter`) at every loop exit and on the MCP `start_report` tool; number-checked Markdown under `<prefix>/reports/`
 - [surrogate](/drivers/surrogate.md) — `surrogate/` = the MCP door onto surrokit: `adapter.py` + `mcp_server.py` stdio wrapper; `mcp` 2.0 ships in ana 2.8.0; the plain-Python facade was deleted 2026-09-22
 - [tests](/drivers/tests.md) — `tests/` regression suite (44 files, 935 tests OK, 4 skipped), no grid contact; `PYTHONPATH= "$AUTORESEARCH_PYTHON" -m unittest discover -s tests -t .`
 - [refresh-foils-slides](/drivers/refresh-foils-slides.md) — (**script trio DELETED 2026-07-17** — captions stamper clobbered the live deck footer) now the record of per-deck figure→generator maps; refresh path = refresh-foils-talk skill

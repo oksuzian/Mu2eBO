@@ -135,6 +135,8 @@ class TestCampaignRecord(TmpCase):
                 closed_loop, "launch_problems", return_value=[]))
             stack.enter_context(mock.patch.object(
                 closed_loop, "KitSet", return_value=mock.MagicMock()))
+            stack.enter_context(mock.patch.object(
+                closed_loop, "final_report", return_value=None))
             for name, value in patches.items():
                 stack.enter_context(mock.patch.object(closed_loop, name,
                                                       value))

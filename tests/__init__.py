@@ -31,6 +31,7 @@ This is safe for the runner and for tests that capture output:
 """
 import os
 import sys
+from pathlib import Path
 
 
 class _Discard:
@@ -48,3 +49,9 @@ class _Discard:
 
 if not os.environ.get("AUTORESEARCH_TEST_VERBOSE"):
     sys.stdout = _Discard()
+
+# The reporting agent graph.closed_loop starts at loop exit is the stand-in
+# under tests/fixtures/fake_reporter, always: an operator's real checkout
+# (activate.sh exports it) must never be started on a test campaign.
+os.environ["AUTORESEARCH_REPORTER"] = str(
+    Path(__file__).resolve().parent / "fixtures" / "fake_reporter")

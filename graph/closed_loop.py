@@ -6,6 +6,9 @@ contract.launch_problems must pass before anything launches. To stop
 launching, touch GRAPH_DATA/<name-prefix>/STOP; running children drain.
 --check-only: run every check, print OK, launch nothing (exit 0; a refusal
 is exit 2 as without it).
+At loop exit (done, aborted, or a pool that raised) the campaign starts its
+final report, a detached core/report.py job that outlives this process;
+--no-report skips it. A missing reporter is a warning, never a refusal.
 """
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
 
 import modes as _modes  # noqa: E402
 import paths  # noqa: E402
+import report as _report  # noqa: E402
 from boards import board_for  # noqa: E402
 from campaign_dir import CampaignBusy, CampaignDir  # noqa: E402
 from contract import EXECUTORS, KitSet, launch_problems, launch_stagger  # noqa: E402
@@ -138,6 +142,20 @@ def soft(log=print):
     return wrap
 
 
+def final_report(camp, study_name, rc, log=print):
+    """Start the loop-exit report; a failure is logged, never raised: the
+    campaign's exit code stands."""
+    try:
+        info = _report.start(camp.path, study_name, "exit",
+                             note=f"closed_loop exit code {rc}")
+    except (OSError, ValueError) as exc:
+        log(f"[closed_loop] WARNING: final report not started: {exc}",
+            flush=True)
+        return None
+    log(f"[closed_loop] final report started: {info['dir']}", flush=True)
+    return info
+
+
 def main(argv=None) -> int:
     argv_list = list(sys.argv[1:] if argv is None else argv)
     ap = argparse.ArgumentParser(
@@ -163,6 +181,9 @@ def main(argv=None) -> int:
     ap.add_argument("--parallel", type=int, default=None,
                     help="jobs at once on this node, with --executor local "
                          "only (1..16); passed to every child")
+    ap.add_argument("--no-report", action="store_true",
+                    help="do not start the final campaign report at loop "
+                         "exit (core/report.py)")
     ap.add_argument("--check-only", action="store_true",
                     help="run every launch check, print OK and exit 0 "
                          "without launching anything")
@@ -207,6 +228,10 @@ def main(argv=None) -> int:
         for problem in problems:
             refuse(problem, CL)
         return 2
+    report_warning = None if args.no_report else _report.problem()
+    if report_warning:
+        print(f"[closed_loop] WARNING: no final report at loop exit: "
+              f"{report_warning}", flush=True)
     if args.check_only:
         print(f"[closed_loop] OK: would launch study={study.name} q={args.q} "
               f"max_evals={args.max_evals} prefix={args.name_prefix} "
@@ -219,7 +244,9 @@ def main(argv=None) -> int:
               "args": argv_list, "q": args.q, "max_evals": args.max_evals,
               "picker": args.picker, "executor": args.executor,
               "parallel": args.parallel, "context": list(args.context),
-              "stagger": stagger, "host": socket.gethostname(),
+              "stagger": stagger,
+              "report": not (args.no_report or report_warning),
+              "host": socket.gethostname(),
               "pid": os.getpid(), "started": time.time()}
     with contextlib.ExitStack() as stack:
         try:
@@ -261,6 +288,8 @@ def main(argv=None) -> int:
             return rc
         finally:
             recorded(camp.finish, "finish")(rc)
+            if not (args.no_report or report_warning):
+                final_report(camp, study.name, rc)
 
 
 if __name__ == "__main__":

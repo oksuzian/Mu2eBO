@@ -54,6 +54,17 @@ refused launch spends it, so dry-run again under a new prefix. Follow a
 campaign with campaign_status every few minutes, not seconds (a grid point
 takes hours). stop_campaign stops new launches; running children finish.
 leaderboard shows a study's rows, best first by its first objective.
+
+Reports: every campaign ends with a report by the reporting agent, started
+by closed_loop itself at loop exit (campaign_status "reports", trigger
+"exit"); you never need to ask for that one. While a campaign runs you may
+call start_report(name_prefix, note) when there is something worth telling
+the operator: the first scored rows, a new best, a run of broken children,
+before you stop or change a campaign. Say why in note. A report reads the
+records only; it launches nothing and costs no grid time. One at a time per
+campaign; read it with report(name_prefix, report_id) once campaign_status
+shows it done. "checked" false means a number in it is not in the tool
+outputs: say so when you pass it on.
 """
 
 svc = CheckService()
@@ -145,6 +156,21 @@ def leaderboard(study: str, name_prefix: str | None = None,
     """A study's board: {study, board, n_rows, objective, rows}, rows best
     first by the first objective, optionally one campaign's only."""
     return campaigns.leaderboard(study, name_prefix, top)
+
+
+@server.tool(structured_output=True)
+def start_report(name_prefix: str, note: str = "") -> dict[str, Any]:
+    """Start a mid-campaign report by the reporting agent on one campaign;
+    returns {report_id, dir, pid} at once. `note`: why now (quoted in the
+    report). The loop-exit report is automatic."""
+    return campaigns.start_report(name_prefix, note)
+
+
+@server.tool(structured_output=True)
+def report(name_prefix: str, report_id: str) -> dict[str, Any]:
+    """One report: {report_id, trigger, state, exit_code, checked,
+    unsupported, report (its path), text (the Markdown, once done)}."""
+    return campaigns.report_text(name_prefix, report_id)
 
 
 if __name__ == "__main__":

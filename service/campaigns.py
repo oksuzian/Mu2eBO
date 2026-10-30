@@ -19,7 +19,8 @@ Liveness is the records' flocks, so a campaign on any node that shares the
 data root shows as running.
 
 Only the standard library and bare core/ modules (paths, study, leaderboard,
-kit_registry): never modes, so one broken study file cannot stop the server.
+kit_registry, report): never modes, so one broken study file cannot stop the
+server.
 """
 from __future__ import annotations
 
@@ -38,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
 
 import kit_registry  # noqa: E402
 import paths  # noqa: E402
+import report as rep  # noqa: E402
 import study as st  # noqa: E402
 from campaign_dir import CampaignDir, is_child  # noqa: E402,F401  (re-exported)
 from leaderboard import Leaderboard, LeaderboardError  # noqa: E402
@@ -244,6 +246,7 @@ class CampaignService:
                 "parent": self._parent(camp, record),
                 "stopping": camp.stopping(),
                 "children": children, "rows": rows, "best": best,
+                "reports": rep.reports(camp.path),
                 "board_error": board_error,
                 "error": "; ".join(errors) or None}
 
@@ -263,6 +266,35 @@ class CampaignService:
                             "launched_by": camp.launched_by(),
                             "error": error})
         return out
+
+    # -- reports -----------------------------------------------------------
+
+    def start_report(self, name_prefix: str, note: str = "") -> Dict[str, Any]:
+        """A mid-campaign ("milestone") report by the reporting agent
+        (core/report.py); the loop-exit report needs no call."""
+        _check_prefix(name_prefix)
+        camp = self.camp(name_prefix)
+        try:
+            record = camp.record()
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"{camp.path / 'campaign.json'}: {exc}") from None
+        if not record or not record.get("study"):
+            raise ValueError(f"no campaign record for {name_prefix!r}")
+        running = [r for r in rep.reports(camp.path) if r["state"] == "running"]
+        if running:
+            raise ValueError(f"report {running[0]['report_id']} of "
+                             f"{name_prefix!r} is still running; read it "
+                             f"with campaign_status first")
+        return rep.start(camp.path, record["study"], "milestone", note,
+                         env=self.env)
+
+    def report_text(self, name_prefix: str, report_id: str) -> Dict[str, Any]:
+        _check_prefix(name_prefix)
+        for r in rep.reports(self.camp(name_prefix).path):
+            if r["report_id"] == report_id:
+                text = (Path(r["report"]).read_text() if r["report"] else None)
+                return {**r, "text": text}
+        raise ValueError(f"no report {report_id!r} for {name_prefix!r}")
 
     # -- stop --------------------------------------------------------------
 

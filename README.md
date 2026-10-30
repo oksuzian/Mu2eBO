@@ -39,6 +39,7 @@ run a point and a campaign, follow it, read the results.
 | `graph/` | the runners: `run`, `closed_loop`, `check_study`; `draw_study` |
 | `service/` | the `autoresearch` MCP server (study and campaign tools) and the dashboard |
 | `surrogate/` | the `surrogate` MCP server (GP fit, predict, suggest over the boards) |
+| `core/report.py` | starts the reporting agent (sibling checkout `mu2ebo-reporter`) at loop exit and on `start_report` |
 | `mode_specs/` | the studies |
 | `stage_entries/` | the prodtools job templates a step names as its `entry` (hashed into `measure_sha`) |
 | `kits.toml` | native kits and the servers the adapters start |

@@ -1,0 +1,19 @@
+#!/bin/bash
+# Stand-in for the mu2ebo-reporter launcher (tests only): records its argv, writes a report, never calls a model.
+set -u
+out=""; trigger=""; prefix=""
+args=("$@")
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out) out="$2"; shift 2 ;;
+    --trigger) trigger="$2"; shift 2 ;;
+    --prefix) prefix="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+mkdir -p "$out"
+printf '%s\n' "${args[@]}" > "$out/argv.txt"
+printf '# fake report %s (%s)\n' "$prefix" "$trigger" > "$out/report.md"
+echo '{"numbers_checked": 0, "unsupported": [], "docdb_lines": [], "ok": true}' > "$out/check.json"
+[[ "${FAKE_REPORTER_SLEEP:-0}" == 0 ]] || sleep "$FAKE_REPORTER_SLEEP"
+exit "${FAKE_REPORTER_RC:-0}"

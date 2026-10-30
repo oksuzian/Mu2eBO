@@ -216,8 +216,10 @@ class TestStdio(_Svc):
                     names = sorted(t.name for t in (await s.list_tools()).tools)
                     self.assertEqual(names, [
                         "campaign_status", "check_result", "leaderboard",
-                        "list_studies", "show_study", "start_campaign",
-                        "start_check", "stop_campaign", "study_guide"])
+                        "list_studies", "report", "show_study",
+                        "start_campaign", "start_check", "start_report",
+                        "stop_campaign", "study_guide"])
+                    self.assertIn("start_report", init.instructions)
                     self.assertIn("confirm=false", init.instructions)
                     res = await s.call_tool("start_campaign", {
                         "study": "toystudy", "name_prefix": "mcpdry",
