@@ -163,4 +163,4 @@ See [CLAUDE](/CLAUDE.md) for the schema and maintenance contract.
 - [mu2e-offline-radiation-damage](/external/mu2e-offline-radiation-damage.md) — Offline has NO DPA/NIEL scorer (2026-06-07); only G4PSDoseDeposit3D + custom scorerDose{Prompt,Residual} in Mu2eG4ScoringManager.cc
 - [aitools-skills-symlink-dependency](/external/aitools-skills-symlink-dependency.md) — (**resolved 2026-07-17**: clone relocated to /exp/mu2e/app/users/oksuzian/aitools, 12 ~/.claude/skills symlinks re-pointed) was: in-tree clone silently load-bearing for user skills
 - [open-knowledge-format](/external/open-knowledge-format.md) — OKF v0.1 spec digest + wiki-conversion assessment (2026-07-17): wiki CONVERTED to OKF 2026-07-17 (117 pages, 1052 links, 0 errors)
-- [anakit](/external/anakit.md) — M. MacKenzie's analysis MCP server, checkout of his main pinned at 3ba8d23, run on the SimJob MDC2025ay Musing; feeds the _ax studies and ce_chain; needs mcp<2 (ana 2.7.0, -P)
+- [anakit](/external/anakit.md) — M. MacKenzie's analysis MCP server, checkout of his main pinned at 53c5afa, run on the SimJob MDC2025ay Musing; feeds the _ax studies and ce_chain; needs mcp<2 (ana 2.7.0, -P)

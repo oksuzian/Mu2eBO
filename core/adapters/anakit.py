@@ -51,7 +51,11 @@ VERSION = "anakit-adapter/2"
 # analyses' defaults and the DIO constants sit outside measure_basis, so a
 # moved checkout is caught there. Bump it deliberately after re-validating,
 # and bump VERSION too when an analysis now computes differently.
-ANAKIT_PIN_SHA = "3ba8d23bbf47f97b5b11c36a0e20ce695a1089af"
+# 2026-10-30: main 53c5afa (PRs #5-#10: total_edep_per_pot, EdepAna step
+# counts, mu-/mu+ stop split, catalog inputs). edep's and muon_stop_rate's
+# existing metrics are unchanged (col5r01R00_00 stops reproduced exactly),
+# so VERSION stays.
+ANAKIT_PIN_SHA = "53c5afa69bff26871b57d212cb1abaa38a32a721"
 SERVER = "anakit"                      # kits.toml [servers.anakit]
 CHECKOUT_ENV = "AUTORESEARCH_ANAKIT"       # the anakit checkout
 RESULT_NAME = "anakit_result.json"
@@ -70,6 +74,10 @@ OWN_PARAMS = ("musing", "analysis")  # read here, never sent to anakit
 # keeps only the upstream files whose names match one of its patterns (one
 # step may produce several kinds of file).
 OPTIONAL_OWN_PARAMS = ("input_glob",)
+# Declared metrics anakit leaves out by design: edep's step counts exist only
+# where the Musing's EdepAna has Offline PR #2067. A study that reads one
+# still fails, at scoring (ScoreError), when it is absent.
+OPTIONAL_METRIC_MARK = "_nsteps"
 # Where published Musings live: <root>/<Musing>/<version> (anakit's own
 # tools/mu2e_env.py MUSINGS_ROOT). Read to refuse an unpublished Musing at
 # launch; never searched.
@@ -323,11 +331,12 @@ class AnakitKit:
                                 f"broken.txt to run it again)")
         reply = rec["reply"]
         meta = dict(reply.get("metadata") or {})
-        missing = [m for m in rec["metrics"] if m not in meta]
+        missing = [m for m in rec["metrics"]
+                   if m not in meta and OPTIONAL_METRIC_MARK not in m]
         if missing:
             raise ContractError(self.name, "results", f"anakit's reply "
                                 f"lacks declared metric(s) {missing}")
-        metrics = {m: meta.pop(m) for m in rec["metrics"]}
+        metrics = {m: meta.pop(m) for m in rec["metrics"] if m in meta}
         files = [{"name": Path(p).name, "uri": Path(p).resolve().as_uri(),
                   "kind": Path(p).suffix.lstrip(".") or "file"}
                  for p in reply.get("files", [])]

@@ -28,7 +28,12 @@ from tests.fakeanakit import CATALOGUE  # noqa: E402
 
 MUSING = "SimJob MDC2025ay"
 STOPS_METRICS = {"n_events": 296174.0, "n_gen_events": 3e6, "prescale": 1.0,
-                 "stops_per_gen_event": 0.0987, "stops_per_pot": 1.26e-3}
+                 "stops_per_gen_event": 0.0987, "stops_per_pot": 1.26e-3,
+                 "n_muminus": 296174.0, "n_muplus": 0.0,
+                 "muminus_stops_per_gen_event": 0.0987,
+                 "muminus_stops_per_pot": 1.26e-3,
+                 "muplus_stops_per_gen_event": 0.0,
+                 "muplus_stops_per_pot": 0.0}
 SUCCESS = {"status": "success", "files": [], "message": "muon_stop_rate ok",
            "metadata": {**STOPS_METRICS, "analysis": "muon_stop_rate",
                         "log_path": "/x.log"}}
@@ -514,6 +519,24 @@ class TestStatusAndResults(_Kit):
             kit.results("cfg1.stops", "w")
         self.assertIn("rerun the step", str(cm.exception))
 
+    def test_edep_without_step_counts_returns_the_rest(self):
+        """On a Musing without Offline #2067 edep leaves out its declared
+        *_nsteps_* metrics by design; the rest are still required."""
+        edep = [m for m in CATALOGUE["edep"]["metrics"] if "_nsteps" not in m]
+        reply = {**SUCCESS, "metadata": {m: 1.0 for m in edep}}
+        kit = self.kit(reply=reply)
+        kit.submit("cfg1.flash", {"musing": MUSING, "analysis": "edep"}, [],
+                   self.inputs, "w")
+        self.assertEqual(sorted(kit.results("cfg1.flash", "w").metrics),
+                         sorted(edep))
+        reply["metadata"].pop("avg_trk_edep_per_gen_event_mev")
+        kit = self.kit(reply=reply)
+        kit.submit("cfg2.flash", {"musing": MUSING, "analysis": "edep"}, [],
+                   self.inputs, "w")
+        with self.assertRaises(ContractError) as cm:
+            kit.results("cfg2.flash", "w")
+        self.assertIn("avg_trk_edep_per_gen_event_mev", str(cm.exception))
+
     def test_results_refuses_a_missing_or_non_number_metric(self):
         # The second case's needle names both the key AND its (non-number)
         # value, so it can only match if stops_per_pot is the offender.
@@ -713,7 +736,10 @@ class TestOverStdio(_Kit):
         res = kit.results("cfg1.stops", "w")
         self.assertEqual(res.metrics, {
             "n_events": 1.0, "n_gen_events": 1.0, "prescale": 1.0,
-            "stops_per_gen_event": 1.0, "stops_per_pot": 1.26e-3})
+            "stops_per_gen_event": 1.0, "stops_per_pot": 1.26e-3,
+            "n_muminus": 1.0, "n_muplus": 1.0,
+            "muminus_stops_per_gen_event": 1.0, "muminus_stops_per_pot": 1.0,
+            "muplus_stops_per_gen_event": 1.0, "muplus_stops_per_pot": 1.0})
         self.assertEqual(res.metadata["musing"], MUSING)
         self.assertEqual(res.files[0]["name"], "nts.fake.root")
 

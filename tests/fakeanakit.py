@@ -6,7 +6,7 @@ answers run_analysis with canned numbers, and writes one ROOT-named file
 into output_dir so the adapter has a file to report.
 
 CATALOGUE is M. MacKenzie's list_analyses reply for the four analyses the
-studies run, as of his main at 3ba8d23 (descriptions and units dropped).
+studies run, as of his main at 53c5afa (descriptions and units dropped).
 
 No `from __future__ import annotations` here (see tests/toykit.py).
 """
@@ -24,7 +24,10 @@ CATALOGUE = {
     "muon_stop_rate": {
         "input_kind": "art_files", "takes_data_files": True,
         "metrics": ["n_events", "n_gen_events", "prescale",
-                    "stops_per_gen_event", "stops_per_pot"],
+                    "stops_per_gen_event", "stops_per_pot", "n_muminus",
+                    "n_muplus", "muminus_stops_per_gen_event",
+                    "muminus_stops_per_pot", "muplus_stops_per_gen_event",
+                    "muplus_stops_per_pot"],
         "parameters": {
             "prescale_filter": _p(False, "text",
                                   default="TargetStopPrescaleFilter"),
@@ -37,10 +40,27 @@ CATALOGUE = {
                     "n_events_calo_edep_above_50mev",
                     "avg_trk_edep_per_event_mev",
                     "avg_trk_edep_per_gen_event_mev",
-                    "n_events_selected", "selected_per_gen_event"],
+                    "n_events_selected", "selected_per_gen_event",
+                    *(f"{det}_nsteps{cut}_{q}" for det in ("calo", "trk")
+                      for cut in ("", "_ecut", "_ecut_tcut")
+                      for q in ("total", "per_event", "per_gen_event"))],
         "parameters": {
             "selection": _p(False, "text",
-                            default="event_calo_edep_vis > 50")}},
+                            default="event_calo_edep_vis > 50"),
+            "trk_step_energy_threshold_mev": _p(False, minimum=0.0,
+                                                maximum=1000.0,
+                                                default=0.0005),
+            "trk_step_time_min_ns": _p(False, minimum=0.0, maximum=1e12,
+                                       default=500.0),
+            "trk_step_time_max_ns": _p(False, minimum=0.0, maximum=1e12,
+                                       default=1e9),
+            "calo_step_energy_threshold_mev": _p(False, minimum=0.0,
+                                                 maximum=10000.0,
+                                                 default=0.5),
+            "calo_step_time_min_ns": _p(False, minimum=0.0, maximum=1e12,
+                                        default=500.0),
+            "calo_step_time_max_ns": _p(False, minimum=0.0, maximum=1e12,
+                                        default=1e9)}},
     "total_edep_per_pot": {
         "input_kind": "parameters", "takes_data_files": False,
         "metrics": ["total_edep_per_pot_mev", "ebeam_edep_per_pot_mev",
@@ -115,8 +135,10 @@ def make_server():
         canned = {"stops_per_pot": 1.26e-3,
                   "avg_trk_edep_per_gen_event_mev": 6.58e-6,
                   "sensitivity": 1.35, "n_selected": 40.0}
+        # As on a Musing without Offline #2067: no edep step counts.
         metrics = {m: canned.get(m, 1.0)
-                   for m in CATALOGUE[analysis]["metrics"]}
+                   for m in CATALOGUE[analysis]["metrics"]
+                   if "_nsteps" not in m}
         return {"status": "success", "files": [str(nts)],
                 "message": f"{analysis} over {len(inputs)} file(s)",
                 "metadata": {"analysis": analysis, "musing": musing,

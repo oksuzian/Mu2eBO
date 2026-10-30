@@ -6,6 +6,11 @@ heading at the TOP (create it if absent). One bullet per change:
 superseded, linted.
 
 ## 2026-10-30
+- **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md), QUICKSTART.md:
+  `ANAKIT_PIN_SHA` 3ba8d23 -> 53c5afa (his main with PRs #5-#10); existing `edep`/`muon_stop_rate` metrics
+  unchanged (col5r01R00_00 stops_per_pot reproduced to all digits), VERSION stays `anakit-adapter/2`.
+  The adapter now lets edep's declared `*_nsteps_*` metrics be absent (older Musings), else every
+  existing study's edep step would have failed results.
 - **updated** [contract-engine](/drivers/contract-engine.md), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md),
   [bo-foilsflash](/projects/bo-foilsflash.md): PR #42 review — prodtools `fixed.required_log_lines` (each successful
   job's log must hold each line); `foilsflash_col5bf_*` require the per-map `scaled by` lines; anakit runs on

@@ -448,7 +448,7 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
 
 ### anakit adapter (`core/adapters/anakit.py`)
 - Drives M. MacKenzie's analysis MCP server, his `main` checked out at
-  `$AUTORESEARCH_ANAKIT` (pinned `ANAKIT_PIN_SHA` 3ba8d23, asserted by the
+  `$AUTORESEARCH_ANAKIT` (pinned `ANAKIT_PIN_SHA` 53c5afa, asserted by the
   suite). The server starts with `--musing <kits.anakit.musing>` (`"SimJob
   MDC2025ay"`). Details, the per-electron flash factor and history:
   [anakit](/external/anakit.md).
