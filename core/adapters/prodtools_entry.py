@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import errno
+import fnmatch
 import getpass
 import hashlib
 import json
@@ -122,8 +123,36 @@ def entry_for_step(template, *, config, fixed, code_tarball, dsconf,
         entry["sequential_aux"] = t["sequential_aux"]
     facts = {"desc": t["desc_fmt"], "dsconf": label,
              "njobs": njobs, "events_per_job": events,
-             "output_glob": t["output_glob"]}
+             "output_glob": output_globs(t["output_glob"], "output_glob")}
     return entry, facts
+
+
+def output_globs(value, key) -> list:
+    """A template's output_glob (or input_glob) as a non-empty list of
+    patterns: one string, or a list of them when a stage's downstream steps
+    read more than one of its outputs (each picks its own with input_glob)."""
+    globs = [value] if isinstance(value, str) else value
+    if (not isinstance(globs, list) or not globs
+            or not all(isinstance(g, str) and g for g in globs)):
+        raise ValueError(f"stage template: {key} must be a pattern or a "
+                         f"non-empty list of patterns, got {value!r}")
+    return list(globs)
+
+
+def select_inputs(inputs, template) -> list:
+    """The upstream files a step reads: all of them, or, when its template
+    names an input_glob, those whose name matches one of its patterns. A
+    filter that keeps nothing is an error: the step would run on no input."""
+    if template.get("input_glob") is None:
+        return list(inputs)
+    globs = output_globs(template["input_glob"], "input_glob")
+    kept = [r for r in inputs
+            if any(fnmatch.fnmatch(r["name"], g) for g in globs)]
+    if inputs and not kept:
+        raise ValueError(f"stage template: input_glob {globs} matches none "
+                         f"of the {len(inputs)} upstream files, e.g. "
+                         f"{inputs[0]['name']!r}")
+    return kept
 
 
 def include_files(template, templates_root) -> list:

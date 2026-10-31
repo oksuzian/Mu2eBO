@@ -400,6 +400,21 @@ class TestSubmit(_Kit):
         self.assertEqual(os.stat(staged / refs[0]["name"]).st_ino,
                          os.stat(self.tmp / "up" / refs[0]["name"]).st_ino)
 
+    def test_input_glob_stages_only_the_matching_inputs(self):
+        refs = self.upstream()
+        flash = self.tmp / "up" / "dts.x.EarlyMuBeamFlash.y.0.art"
+        flash.write_text("f")
+        refs.append({"name": flash.name, "uri": flash.as_uri(),
+                     "kind": "art"})
+        entry = dict(json.loads((ROOT / "stage_entries" / "mustops_ce.json")
+                                .read_text()),
+                     input_glob="sim.*.TargetStops.*.art")
+        self.submit(self.kit(), name="cfg1.mustops_ce", step="mustops_ce",
+                    inputs=refs, entry=entry)
+        entry = self.fake.entries[self.run_name("Run1A_CeEndpoint_cfg1")]
+        self.assertEqual(entry["input_data"],
+                         {r["name"]: 1 for r in refs[:2]})
+
     def test_grid_staging_never_copies(self):
         exdev = OSError(errno.EXDEV, "cross-device link")
         with mock.patch.object(pe.os, "link", side_effect=exdev), \
@@ -547,6 +562,37 @@ class TestStatus(_Kit):
         self.assertEqual(s.state, "failed")
         self.assertIn("GeomSolids1001", s.message)
 
+    def test_a_required_log_line_in_every_successful_job_completes(self):
+        kit, name = self.submitted(required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 0}, log=False)
+        for paths in self.fake.runs[name]["outputs"].values():
+            (Path(paths[0]).parent / "job.log").write_text(
+                "BFieldManagerMaker: map DSMap scaled by 1.05\n")
+        self.assertEqual(self.state(kit).state, "completed")
+
+    def test_a_job_log_without_a_required_line_fails_the_step(self):
+        kit, name = self.submitted(required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 0})
+        s = self.state(kit)
+        self.assertEqual(s.state, "failed")
+        self.assertIn("lacks the required line 'map DSMap scaled'", s.message)
+
+    def test_a_failed_jobs_log_need_not_hold_a_required_line(self):
+        kit, name = self.submitted(quorum=0.5,
+                                   required_log_lines=["map DSMap scaled"])
+        self.fake.finish(name, {0: 0, 1: 1})        # job 1's log: "ok"
+        paths = self.fake.runs[name]["outputs"]["0"]
+        (Path(paths[0]).parent / "job.log").write_text("map DSMap scaled\n")
+        self.assertEqual(self.state(kit).state, "completed")
+
+    def test_a_record_from_before_required_log_lines_still_completes(self):
+        kit, name = self.submitted()
+        rec = self.record()
+        del rec["required_log_lines"]
+        self.record_path().write_text(json.dumps(rec))
+        self.fake.finish(name, {0: 0, 1: 0})
+        self.assertEqual(self.state(kit).state, "completed")
+
     def test_a_successful_job_without_a_log_waits_then_fails_the_step(self):
         kit, name = self.submitted()
         self.fake.finish(name, {0: 0, 1: 0}, log=False)
@@ -568,6 +614,27 @@ class TestStatus(_Kit):
             (Path(paths[0]).parent / "job.log").write_text("ok\n")
         self.clock[0] += 60
         self.assertEqual(self.state(kit).state, "completed")
+
+    def test_every_output_matching_a_listed_glob_is_a_result_file(self):
+        entry = dict(json.loads((ROOT / "stage_entries" / "mubeam.json")
+                                .read_text()),
+                     output_glob=["sim.*.TargetStops.*.art",
+                                  "dts.*.EarlyMuBeamFlash.*.art"])
+        kit, name = self.submitted(entry=entry)
+        self.fake.finish(name, {0: 0, 1: 0})
+        for i, paths in self.fake.runs[name]["outputs"].items():
+            extra = Path(paths[0]).parent
+            for n in (f"dts.x.EarlyMuBeamFlash.y.{i}.art",
+                      f"nts.x.mubeam.y.{i}.root"):
+                (extra / n).write_text("x")
+                paths.append(str(extra / n))
+        self.assertEqual(self.state(kit).state, "completed")
+        names = sorted(f["name"] for f in
+                       kit.results("cfg1.mubeam", "w").files)
+        self.assertEqual(names, ["dts.x.EarlyMuBeamFlash.y.0.art",
+                                 "dts.x.EarlyMuBeamFlash.y.1.art",
+                                 "sim.x.TargetStops.y.00000000.art",
+                                 "sim.x.TargetStops.y.00000001.art"])
 
     def test_no_output_matching_the_glob_fails(self):
         kit, name = self.submitted()

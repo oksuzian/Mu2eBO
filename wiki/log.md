@@ -5,6 +5,37 @@ heading at the TOP (create it if absent). One bullet per change:
 `<verb> <what changed> — <page>`; verbs: created, updated, merged,
 superseded, linted.
 
+## 2026-10-30
+- **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md), QUICKSTART.md:
+  `ANAKIT_PIN_SHA` 3ba8d23 -> 53c5afa (his main with PRs #5-#10); existing `edep`/`muon_stop_rate` metrics
+  unchanged (col5r01R00_00 stops_per_pot reproduced to all digits), VERSION stays `anakit-adapter/2`.
+  The adapter now lets edep's declared `*_nsteps_*` metrics be absent (older Musings), else every
+  existing study's edep step would have failed results.
+- **updated** [contract-engine](/drivers/contract-engine.md), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md),
+  [bo-foilsflash](/projects/bo-foilsflash.md): PR #42 review — prodtools `fixed.required_log_lines` (each successful
+  job's log must hold each line); `foilsflash_col5bf_*` require the per-map `scaled by` lines; anakit runs on
+  `Offline v13_43_00` (has #2067 step counts); anakit `input_glob` may be a list; pileup stop reuse ~3.8x.
+
+## 2026-10-29
+- **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md): anakit
+  `total_edep_per_pot` (PR #9, input_kind `parameters`) and adapter support for file-less analyses;
+  `foilsflash_col5bf_ax`'s dose objective is now the total tracker edep per POT (e-beam + mu-beam flash
+  + mu-stop pileup); new zero-knob `foilsflash_col5bf_nominal` holds the total-dose budget (to measure).
+- **updated** [bo-foilsflash](/projects/bo-foilsflash.md): edep/occupancy by component at optchk04 — e-beam
+  flash 61% of tracker edep but 14% of tracker steps at t >= 500 ns; mu-stop pileup 84% of those.
+- **updated** [contract-engine](/drivers/contract-engine.md): prodtools `output_glob` may be a list;
+  `input_glob` (prodtools template / anakit fixed) picks a consumer's inputs. `foilsflash_col5bf_ax`: 50-job
+  mubeam/mustops_ce (skip 2000), new `mustops_pileup` stage (23 ms/stop, 1.7% leave steps), muflash/pileup
+  edep steps; per-source edep and step counts as extra metrics, per-POT totals as columns. The step
+  counts need Offline PR #2067 (no published Musing yet, v13_41_01 lacks it): a new Musing is planned.
+- **created** [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md): per-map field scale
+  keys in the geometry file (GeometryService patch, Code_mdc2025ax_bfscale.tar.bz2), validated with
+  BFieldPlotter; drives `mode_specs/foilsflash_col5bf_ax.json` (extra foils + COL5 rIn + DS/TSd
+  field scales 0.75–1.1); Offline PR Mu2e/Offline#2079.
+- **updated** [bo-foilsflash](/projects/bo-foilsflash.md): optchk01-08 job audit (foilspfbpz_ax). Per point
+  ~99 CPU-h, 68 of them elebeam_flash; flash jackknife error 2.7-4.2% (> the 2.3% noise); sob ~0.24%.
+  E-beam early flash is 92% of tracker / 86% of calo early-flash edep per POT vs the mu-beam's (optchk04).
+
 ## 2026-10-15
 - **created** [reporter](/drivers/reporter.md): campaign reports. `graph.closed_loop` starts the reporting agent
   (`core/report.py`, sibling checkout `mu2ebo-reporter`, `AUTORESEARCH_REPORTER`) at every loop exit, a detached

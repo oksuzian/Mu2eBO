@@ -131,6 +131,17 @@ def _string_list(v, where):
     return list(v)
 
 
+def _globs(v, where):
+    """One file-name pattern, or a non-empty list of them (as a prodtools
+    stage template's output_glob / input_glob). Kept in the form given."""
+    if isinstance(v, str) and v:
+        return v
+    if isinstance(v, list) and v and all(isinstance(s, str) and s for s in v):
+        return list(v)
+    raise ValueError(f"{where}: must be a pattern or a non-empty list of "
+                     f"patterns, got {v!r}")
+
+
 def _dsconf(v, where):
     """A prodtools run label (json2jobdef's dsconf): one per config, so it
     holds {cfg}; with {cfg} filled it goes into prodtools' dot-separated
@@ -256,7 +267,8 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             study_keys={"code_tarball": _path, "dsconf": _dsconf,
                         "fatal_log_codes": _string_list},
             fixed_keys={"njobs": _job_count, "events_per_job": _positive_int,
-                        "memory_mb": _positive_int, "quorum": _fraction},
+                        "memory_mb": _positive_int, "quorum": _fraction,
+                        "required_log_lines": _string_list},
             required_fixed=frozenset({"quorum"}),
             uses_entries=True, step_kit=True, check_kit=False,
             executors=("grid", "local"), launch_stagger_s=90.0,
@@ -281,7 +293,7 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
             study_keys={"musing": _musing},
             fixed_keys={"analysis": _string, "upstream_eff": _number,
                         "cosmic_rate_per_s_per_mev": _number,
-                        "trigger_paths": _string},
+                        "trigger_paths": _string, "input_glob": _globs},
             required_fixed=frozenset({"analysis"}), uses_entries=False,
             step_kit=True, check_kit=False,
             executors=("grid", "local"), launch_stagger_s=0.0,

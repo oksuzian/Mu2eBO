@@ -39,7 +39,7 @@ bash prodtools/mcp/scripts/install.sh       # its MCP venv
 
 # anakit: M. MacKenzie's analysis server, run by the *_ax studies and ce_chain (pinned)
 git clone https://github.com/michaelmackenzie/analysis-mcp-server.git analysis-mcp-server
-git -C analysis-mcp-server switch --detach 3ba8d23   # = ANAKIT_PIN_SHA in core/adapters/anakit.py
+git -C analysis-mcp-server switch --detach 53c5afa   # = ANAKIT_PIN_SHA in core/adapters/anakit.py
 
 # mu2ebo-reporter: the reporting agent every campaign runs at loop exit
 git clone https://github.com/RobMina/mu2ebo-reporter.git mu2ebo-reporter

@@ -28,7 +28,12 @@ from tests.fakeanakit import CATALOGUE  # noqa: E402
 
 MUSING = "SimJob MDC2025ay"
 STOPS_METRICS = {"n_events": 296174.0, "n_gen_events": 3e6, "prescale": 1.0,
-                 "stops_per_gen_event": 0.0987, "stops_per_pot": 1.26e-3}
+                 "stops_per_gen_event": 0.0987, "stops_per_pot": 1.26e-3,
+                 "n_muminus": 296174.0, "n_muplus": 0.0,
+                 "muminus_stops_per_gen_event": 0.0987,
+                 "muminus_stops_per_pot": 1.26e-3,
+                 "muplus_stops_per_gen_event": 0.0,
+                 "muplus_stops_per_pot": 0.0}
 SUCCESS = {"status": "success", "files": [], "message": "muon_stop_rate ok",
            "metadata": {**STOPS_METRICS, "analysis": "muon_stop_rate",
                         "log_path": "/x.log"}}
@@ -226,6 +231,52 @@ class TestSubmit(_Kit):
         self.kit().submit("cfg1.stops", self.params(), [], self.inputs, "w")
         self.assertEqual(self.run_call()[1]["parameters"],
                          {"upstream_eff": 0.01278168})
+
+    def test_input_glob_picks_the_inputs_and_is_not_sent(self):
+        flash = self.tmp / "in" / "dts.t.EarlyMuBeamFlash.c.0.art"
+        flash.write_text("")
+        inputs = self.inputs + [{"name": flash.name, "uri": flash.as_uri(),
+                                 "kind": "art"}]
+        params = self.params(input_glob="dts.*.EarlyMuBeamFlash.*.art")
+        self.kit().submit("cfg1.stops", params, [], inputs, "w")
+        args = self.run_call()[1]
+        self.assertEqual(args["data_files"], [str(flash)])
+        self.assertEqual(args["parameters"], {"upstream_eff": 0.01278168})
+
+    def test_a_list_input_glob_keeps_files_matching_any_pattern(self):
+        flash = self.tmp / "in" / "dts.t.EarlyMuBeamFlash.c.0.art"
+        flash.write_text("")
+        inputs = self.inputs + [{"name": flash.name, "uri": flash.as_uri(),
+                                 "kind": "art"}]
+        params = self.params(input_glob=["dts.*.EarlyMuBeamFlash.*.art",
+                                         inputs[0]["name"]])
+        self.kit().submit("cfg1.stops", params, [], inputs, "w")
+        files = self.run_call()[1]["data_files"]
+        self.assertEqual(len(files), 2)
+        self.assertIn(str(flash), files)
+
+    def test_an_input_glob_matching_nothing_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.kit().submit("cfg1.stops", self.params(input_glob="x*"), [],
+                              self.inputs, "w")
+        self.assertIn("matches none", str(cm.exception))
+
+    DOSE = {"musing": MUSING, "analysis": "total_edep_per_pot",
+            "ebeam_edep_per_gen_event_mev": 6.9e-6,
+            "mubeam_edep_per_gen_event_mev": 1.3e-7,
+            "mustop_edep_per_gen_event_mev": 2.8e-4, "stops_per_pot": 1.15e-3}
+
+    def test_a_parameters_analysis_runs_with_no_input_files(self):
+        self.kit().submit("cfg1.dose", self.DOSE, [], [], "w")
+        args = self.run_call()[1]
+        self.assertNotIn("data_files", args)
+        self.assertNotIn("data_file", args)
+        self.assertEqual(args["parameters"]["stops_per_pot"], 1.15e-3)
+
+    def test_a_parameters_analysis_given_input_files_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            self.kit().submit("cfg1.dose", self.DOSE, [], self.inputs, "w")
+        self.assertIn("reads no files", str(cm.exception))
 
     def test_the_result_records_the_musing(self):
         kit = self.kit()
@@ -468,6 +519,24 @@ class TestStatusAndResults(_Kit):
             kit.results("cfg1.stops", "w")
         self.assertIn("rerun the step", str(cm.exception))
 
+    def test_edep_without_step_counts_returns_the_rest(self):
+        """On a Musing without Offline #2067 edep leaves out its declared
+        *_nsteps_* metrics by design; the rest are still required."""
+        edep = [m for m in CATALOGUE["edep"]["metrics"] if "_nsteps" not in m]
+        reply = {**SUCCESS, "metadata": {m: 1.0 for m in edep}}
+        kit = self.kit(reply=reply)
+        kit.submit("cfg1.flash", {"musing": MUSING, "analysis": "edep"}, [],
+                   self.inputs, "w")
+        self.assertEqual(sorted(kit.results("cfg1.flash", "w").metrics),
+                         sorted(edep))
+        reply["metadata"].pop("avg_trk_edep_per_gen_event_mev")
+        kit = self.kit(reply=reply)
+        kit.submit("cfg2.flash", {"musing": MUSING, "analysis": "edep"}, [],
+                   self.inputs, "w")
+        with self.assertRaises(ContractError) as cm:
+            kit.results("cfg2.flash", "w")
+        self.assertIn("avg_trk_edep_per_gen_event_mev", str(cm.exception))
+
     def test_results_refuses_a_missing_or_non_number_metric(self):
         # The second case's needle names both the key AND its (non-number)
         # value, so it can only match if stops_per_pot is the offender.
@@ -534,6 +603,27 @@ class TestStepProblems(_Kit):
                                  files_from=())
         problems = self.kit().step_problems(study, step)
         self.assertTrue(any("no files_from" in p for p in problems), problems)
+
+    DOSE_FROM = {"ebeam_edep_per_gen_event_mev":
+                 "flash.avg_trk_edep_per_gen_event_mev",
+                 "mubeam_edep_per_gen_event_mev":
+                 "muflash.avg_trk_edep_per_gen_event_mev",
+                 "mustop_edep_per_gen_event_mev":
+                 "pileup.avg_trk_edep_per_gen_event_mev",
+                 "stops_per_pot": "stops.stops_per_pot"}
+
+    def test_a_parameters_analysis_needs_no_files_from(self):
+        study, step = self.study({"analysis": "total_edep_per_pot"},
+                                 metric="sob.total_edep_per_pot_mev",
+                                 params_from=self.DOSE_FROM, files_from=())
+        self.assertEqual(self.kit().step_problems(study, step), [])
+
+    def test_a_parameters_analysis_with_files_from_is_refused(self):
+        study, step = self.study({"analysis": "total_edep_per_pot"},
+                                 metric="sob.total_edep_per_pot_mev",
+                                 params_from=self.DOSE_FROM)
+        problems = self.kit().step_problems(study, step)
+        self.assertTrue(any("reads no files" in p for p in problems), problems)
 
     def test_a_params_from_param_the_analysis_does_not_take(self):
         study, step = self.study(self.GOOD,
@@ -646,7 +736,10 @@ class TestOverStdio(_Kit):
         res = kit.results("cfg1.stops", "w")
         self.assertEqual(res.metrics, {
             "n_events": 1.0, "n_gen_events": 1.0, "prescale": 1.0,
-            "stops_per_gen_event": 1.0, "stops_per_pot": 1.26e-3})
+            "stops_per_gen_event": 1.0, "stops_per_pot": 1.26e-3,
+            "n_muminus": 1.0, "n_muplus": 1.0,
+            "muminus_stops_per_gen_event": 1.0, "muminus_stops_per_pot": 1.0,
+            "muplus_stops_per_gen_event": 1.0, "muplus_stops_per_pot": 1.0})
         self.assertEqual(res.metadata["musing"], MUSING)
         self.assertEqual(res.files[0]["name"], "nts.fake.root")
 

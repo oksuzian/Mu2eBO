@@ -1,0 +1,26 @@
+{
+ "_comment": "Muon-stop pileup (2026-10-29): resamples the mubeam TargetStops through Production's MuStopPileup.fcl (capture products and DIO from each stop, the Pileup generator) and keeps the detector steps, with no time cut. The edep analysis on its output gives the tracker/calo deposition and step counts per stop; times stops_per_pot, per POT. Like mustops_ce: DS field on (bfgeom_v01), FTFP_BERT, one staged mubeam file per job (sequential_aux), input_glob keeps the TargetStops files. MaxEventsToSkip 2000 for 60k-event mubeam files (about 5-6k stops each). Timing on optchk04's geometry: 23 ms CPU per stop, 1.7% of stops leave detector steps (single-thread local run of 1000 stops, 2026-10-29).",
+ "desc_fmt": "Run1A_MuStopPileup_{cfg}",
+ "output_glob": "dts.*.MuStopPileup.*.art",
+ "input_glob": "sim.*.TargetStops.*.art",
+ "njobs": 50,
+ "fcl": "Production/JobConfig/pileup/MuStopPileup.fcl",
+ "fcl_overrides": {
+  "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+  "services.SeedService.baseSeed": 1,
+  "outputs.Output.fileName": "dts.owner.MuStopPileup.version.sequencer.art",
+  "services.GeometryService.inputFile": "{geom}",
+  "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+  "physics.filters.TargetStopResampler.mu2e.MaxEventsToSkip": 2000
+ },
+ "resampler_name": "TargetStopResampler",
+ "inloc": "disk",
+ "sequential_aux": true,
+ "outloc": {
+  "*.art": "outstage",
+  "*.root": "outstage"
+ },
+ "run": 1802,
+ "memory": 3000,
+ "events": 20000
+}

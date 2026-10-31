@@ -26,7 +26,7 @@ status_note: '**CHAMPION: foilsflash11R00_07 (sob 3.31, flash 5.976e-7), 2026-07
   **1.3σ** at σ_sob 0.4% → needs a 400-job confirm re-eval before champion status
   (same flat-top-tie discipline as the 3.31 flash champion). Line is **near-saturated,
   not saturated**.'
-timestamp: '2026-08-01'
+timestamp: '2026-10-29'
 updated_note: 'Run1Bak→Run1Bap +5% sob shift MECHANISM ISOLATED + MAGNITUDE CONFIRMED
   (2026-08-01): PrimaryFilter (DetectorStepFilter) gained two calo-acceptance relaxations
   between the releases (Offline PR#1819 + Production PR#539), confirmed jointly (not
@@ -698,8 +698,35 @@ half-thickness; writes `docs/foilsflash_predicted_cloud.png`). Render:
 @marp-team/marp-cli@latest --html --allow-local-files foilsflash_talk.md -o foilsflash_talk.html`.
 No commit/push (operator reviews, like foils/ipa).
 
+- **E-beam vs mu-beam early flash, and per-point precision (2026-10-29, foilspfbpz_ax optchk04).**
+  Per POT (11.537 POT per resampled electron; 78.24 per MuBeamCat event, i.e. upstream_eff 0.01278168):
+  tracker edep e-beam 5.98e-7 (+-4%) vs mu-beam 5.1e-8 MeV/POT (+-26%), so the e-beam is 92%; calo
+  1.90e-4 vs 3.1e-5, 86%. The mu-beam number used the EarlyMuBeamFlash stream at its default prescale
+  30 (138 events); `foilsflash_col5bf_ax` runs it at 1 (entry `mubeam_earlyflash1`). Both are all-time
+  sums and exclude stopped-muon daughters (FlashFilter vetoes them). Job-level jackknife over the
+  optchk01-08 points: flash 2.7-4.2% per point (100 x 110k electrons), above the 2.3% the `_ax`
+  studies assume; sob ~0.24% (stops 0.18% + CE box efficiency 0.15%), above the assumed 0.0021.
+  Per point ~99 CPU-h: mubeam 14, mustops_ce 17, elebeam_flash 68; rare CPU-bound events make
+  5-10 h jobs (75k-event mustops_ce jobs worst).
+
+- **Edep and occupancy by pileup component (2026-10-29, optchk04 geometry).** EdepAna from Offline
+  main (PR #2067 step counts; built locally, in no published Musing yet), per POT, shares of the total:
+  tracker edep (all t) e-beam flash 61% / mu-beam flash 5% / mu-stop pileup 34%; tracker steps
+  (>0.5 keV) all t 83/4/13%, but at t >= 500 ns 14/2/84%; calo steps (>0.5 MeV) at t >= 500 ns
+  7/12/81%. Totals at t >= 500 ns: 3.1e-5 tracker and 2.1e-5 calo steps per POT (~490 / ~330 per
+  1.6e7-POT microbunch). Raw G4 times, no microbunch folding; steps are not hits. Samples: 11M
+  electrons (100 files), 3M mu-beam events at prescale 30 (15 files), 50k stops (10 local jobs,
+  11 ms CPU per stop, 1.6% leave steps). Work dir /exp/mu2e/data/users/mmackenz/flash_compare_optchk04/.
+  So the e-beam flash dominates the prompt deposition (the flash objective), and the mu-stop pileup
+  dominates the in-window occupancy.
+- **`foilsflash_col5bf_ax` pileup statistics (2026-10-30, PR #42 review).** Each `mustops_pileup`
+  job draws 20k stops from one 60k-event mubeam file holding ~5.3k (0.088 stops/event);
+  `TargetStopResampler` has `wrapFiles: true`, so each stop is reused ~3.8 times with fresh
+  capture/decay products. Per-stop averages are unbiased, but the 50 x 20k = 1M "stops" are
+  ~265k independent stop positions; quote that where pileup statistics are given.
+
 ## Cross-links
-- Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
+- Related: [bo-foilspf](/projects/bo-foilspf.md) (successor line: profile-parameterized all-foils stack against these objectives), [bfield-map-scale-patch](/concepts/bfield-map-scale-patch.md) (2026-10-29 extension `foilsflash_col5bf_ax`: + COL5 rIn, DS and TSd field scales), [bo-foils](/projects/bo-foils.md), [bo-ipa](/projects/bo-ipa.md), [foilsg-grid-tarball-scalar-holeradius-fallback](/incidents/foilsg-grid-tarball-scalar-holeradius-fallback.md)
 - Source files: `bo_driver.py` (FoilsFlashMode),
   `pipeline_templates/elebeam_flash/template.fcl`, `pipeline.py` (STAGES + Step 7),
   `graph/config.py` (chain/musing/targets), `mmackenz_table_plots/gp_predict_foilsflash.py`

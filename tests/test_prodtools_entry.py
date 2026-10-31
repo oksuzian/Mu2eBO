@@ -172,6 +172,45 @@ class TestTheEntry(unittest.TestCase):
         self.assertEqual(e["outloc"], {"*.art": "tape"})
 
 
+class TestGlobs(unittest.TestCase):
+    """output_glob may list several patterns; input_glob picks a step's
+    inputs among an upstream step's outputs."""
+    REFS = [{"name": n, "uri": f"file:///x/{n}", "kind": "art"}
+            for n in ("sim.a.TargetStops.b.0.art",
+                      "dts.a.EarlyMuBeamFlash.b.0.art")]
+
+    def test_one_pattern_or_a_list(self):
+        self.assertEqual(pe.output_globs("a*", "output_glob"), ["a*"])
+        self.assertEqual(pe.output_globs(["a*", "b*"], "output_glob"),
+                         ["a*", "b*"])
+        for bad in ([], "", ["a*", ""], 3, None):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                pe.output_globs(bad, "output_glob")
+
+    def test_without_input_glob_every_input_is_kept(self):
+        self.assertEqual(pe.select_inputs(self.REFS, {}), self.REFS)
+
+    def test_input_glob_keeps_the_matching_inputs(self):
+        kept = pe.select_inputs(self.REFS,
+                                {"input_glob": "sim.*.TargetStops.*.art"})
+        self.assertEqual([r["name"] for r in kept],
+                         ["sim.a.TargetStops.b.0.art"])
+
+    def test_an_input_glob_matching_nothing_is_refused(self):
+        with self.assertRaises(ValueError) as cm:
+            pe.select_inputs(self.REFS, {"input_glob": "nts.*.root"})
+        self.assertIn("matches none", str(cm.exception))
+
+    def test_the_facts_carry_the_list(self):
+        t = dict(template("mubeam"),
+                 output_glob=["sim.*.TargetStops.*.art",
+                              "dts.*.EarlyMuBeamFlash.*.art"])
+        _, facts = pe.entry_for_step(t, config="c", fixed={},
+                                     code_tarball="/t.tar.bz2",
+                                     dsconf="D_{cfg}", geom_name="g.txt")
+        self.assertEqual(facts["output_glob"], t["output_glob"])
+
+
 class TestSubstitutePlaceholders(unittest.TestCase):
     """substitute_placeholders on its own (moved from
     tests/test_prodtools_exec.py in Phase C3, which reached it through the

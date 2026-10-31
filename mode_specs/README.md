@@ -22,6 +22,25 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   `flash` (`edep` on `elebeam_flash`). `flash_edep` is MeV per generated
   beam electron; the factor to the per-POT budget is in
   `wiki/external/anakit.md`.
+- `foilsflash_col5bf_ax` — `foilsflash_ax` plus the COL5 inner radius
+  (`ts.coll5.Radius1`) and scale factors on the DS and downstream-TS fields
+  (`bfield.mapScale.DSMap`/`DSExtension` and `TSdMap`, 0.75–1.1). The scale
+  keys need a patched GeometryService (`Code_mdc2025ax_bfscale.tar.bz2`,
+  Mu2e/Offline#2079); stock Offline ignores them. See
+  `wiki/concepts/bfield-map-scale-patch.md`. Besides the two objectives it
+  measures the muon-beam early flash (`muflash`) and the muon-stop pileup
+  (stage `mustops_pileup`, step `pileup`) with `edep`; their deposition and
+  step counts (the edep-based occupancy estimate) are extra metrics, and
+  the `*_per_pot` columns sum the three sources per POT. Its dose
+  objective is the total tracker deposition per POT from the three
+  sources, summed by anakit's `total_edep_per_pot` (step `dose`, fed only
+  through `params_from`). The step counts need EdepAna from Offline PR
+  #2067: before launching, point `kits.anakit.musing` at a Musing that has
+  it (none is published yet).
+- `foilsflash_col5bf_nominal` — the deployed target (no knobs) in
+  `foilsflash_col5bf_ax`'s environment and steps. Its dose is that study's
+  total-dose budget: run it, then set `foilsflash_col5bf_ax`'s constraint
+  to it (it has none until then).
 - `foilspf_nominal` — the deployed target (37 foils, no knobs) in
   `foilspfbpz_ax`'s geometry and environment. Its board holds the baseline
   sob and the flash damage budget.
@@ -159,6 +178,11 @@ hashes it), so the layout is for readable diffs.
   `kits.prodtools.dsconf`: it must contain `{cfg}` and, filled in, hold
   only letters, digits and `_` (the `_ax` studies say `MDC2025ax_{cfg}`).
   A template still carrying `dsconf_fmt` is refused.
+- A stage template's `output_glob` is one pattern or a list of them; when a
+  step makes more than one kind of output, each downstream step names the
+  files it reads with `input_glob` (in its stage template for prodtools, in
+  `fixed` for anakit). Example: `foilsflash_col5bf_ax`'s mubeam feeds
+  target stops to mustops_ce and its early flash to the `muflash` edep step.
 - `"preflight": {"kit": "offline_preflight", ...}` gates each point on
   `mu2e -n 1` with G4's surface check, run on this node from
   `kits.offline_preflight.code_tarball`, which must equal

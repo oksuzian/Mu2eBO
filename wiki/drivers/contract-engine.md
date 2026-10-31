@@ -3,7 +3,7 @@ type: driver
 title: Contract engine
 description: 'The only runner — studies as JSON, kits over MCP (prodtools, offline_preflight, anakit, beamkit), run_steps, measure_sha boards, graph.run / graph.closed_loop, check_study, params_from'
 status: active
-timestamp: '2026-10-08'
+timestamp: '2026-10-29'
 ---
 
 # Contract engine
@@ -357,6 +357,15 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   `submit_once`, `run_local`, `run_status` and `cancel_run` come from that
   checkout (cvmfs v3.2.0 and v3.3.4 lack them). Every tool it calls needs a
   timeout in kits.toml, or the kit refuses to start.
+- **Several outputs, chosen per consumer (2026-10-29):** a template's
+  `output_glob` may be a list (`mubeam_earlyflash1` keeps TargetStops and
+  EarlyMuBeamFlash); every match is a result file. A consumer picks its
+  inputs with `input_glob`: a key of its stage template for a prodtools
+  step (`pe.select_inputs`, before staging), a `fixed` key for an anakit
+  step (read by the adapter, never sent). Both take a pattern or a list
+  (anakit's list form since 2026-10-30). A glob that keeps none of the
+  inputs is an error. Without the keys nothing changes, so neither adapter
+  VERSION moved.
 - **The entry:** `step_params` hands the step's stage template as
   `params["entry"]` to a `uses_entries` kit; `prodtools_entry.entry_for_step`
   fills `{cfg}`/`{geom}` and builds the json2jobdef entry. The run label
@@ -383,6 +392,12 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
   fails (`{ok}/{njobs} jobs ok, below quorum`).
 - **Log scan:** every successful job needs a `.log`; every log is grepped
   for `kits.prodtools.fatal_log_codes` (foilspf: `GeomSolids1001`).
+  The opposite check, opt-in per step (2026-10-30): each string in the
+  step's `fixed.required_log_lines` must appear in every successful job's
+  logs, or the step fails (failed jobs' logs are not read). A patched build
+  prints a line no stock build does, so a stock tarball fails loudly
+  (`foilsflash_col5bf_*`: BFieldManagerMaker's `map <name> scaled by`).
+  Absent, nothing changes: no VERSION bump, older records complete.
 - **Timeouts:** `run_status` `unknown` fails after `UNKNOWN_LIMIT_S` 6 h;
   outputs missing after the jobs ended fail after `STAGEOUT_LIMIT_S`
   30 min.
@@ -433,10 +448,14 @@ campaign (q=2, 8 points) runs end to end in 28.7 s.
 
 ### anakit adapter (`core/adapters/anakit.py`)
 - Drives M. MacKenzie's analysis MCP server, his `main` checked out at
-  `$AUTORESEARCH_ANAKIT` (pinned `ANAKIT_PIN_SHA` 3ba8d23, asserted by the
+  `$AUTORESEARCH_ANAKIT` (pinned `ANAKIT_PIN_SHA` 53c5afa, asserted by the
   suite). The server starts with `--musing <kits.anakit.musing>` (`"SimJob
   MDC2025ay"`). Details, the per-electron flash factor and history:
   [anakit](/external/anakit.md).
+- **Analyses that read no file (2026-10-29):** anakit's input_kind
+  `"parameters"` (e.g. `total_edep_per_pot`) computes from its parameters
+  alone. Such a step has no `files_from`; its inputs come through
+  `params_from`, and the launch check and submit refuse files for it.
 - **One server per step:** anakit runs one analysis at a time, so
   `submit` starts a fresh server, runs the analysis to the end, writes
   `<GRID_DATA_ROOT>/<config>/anakit/<step>/anakit_result.json` and closes
