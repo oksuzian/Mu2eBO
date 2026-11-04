@@ -755,7 +755,9 @@ class TestAnakitPin(unittest.TestCase):
         constants sit outside measure_basis, so a moved checkout must be
         caught here; activate.sh's default is the sibling checkout."""
         root = Path(os.environ.get("AUTORESEARCH_ANAKIT")
-                    or ROOT.parent / "analysis-mcp-server")
+                    or next((p for p in (ROOT.parent / "analysis-mcp",
+                                         ROOT.parent / "analysis-mcp-server")
+                             if p.exists()), ROOT.parent / "analysis-mcp"))
         if not (root / ".git").exists():
             self.skipTest(f"no anakit git checkout at {root}")
         head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"],

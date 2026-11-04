@@ -130,13 +130,23 @@ class TestKitCheckoutDefaults(unittest.TestCase):
 
     def test_existing_siblings_become_the_defaults(self):
         with TemporaryDirectory() as tmp:
-            root = self.layout(tmp, "analysis-mcp-server", "prodtools",
+            root = self.layout(tmp, "analysis-mcp", "prodtools",
                                "beamkit", "mu2ebo-reporter")
             out = self.source(root)
-            self.assertEqual(out["A"], str(root / "analysis-mcp-server"))
+            self.assertEqual(out["A"], str(root / "analysis-mcp"))
             self.assertEqual(out["P"], str(root / "prodtools"))
             self.assertEqual(out["B"], str(root / "beamkit"))
             self.assertEqual(out["R"], str(root / "mu2ebo-reporter"))
+
+    def test_anakit_under_its_old_name_is_still_found(self):
+        with TemporaryDirectory() as tmp:
+            root = self.layout(tmp, "analysis-mcp-server")
+            self.assertEqual(self.source(root)["A"], str(root / "analysis-mcp-server"))
+
+    def test_anakit_new_name_wins_over_the_old_one(self):
+        with TemporaryDirectory() as tmp:
+            root = self.layout(tmp, "analysis-mcp", "analysis-mcp-server")
+            self.assertEqual(self.source(root)["A"], str(root / "analysis-mcp"))
 
     def test_prodtools_inside_a_muse_work_area_is_still_found(self):
         with TemporaryDirectory() as tmp:
@@ -158,7 +168,7 @@ class TestKitCheckoutDefaults(unittest.TestCase):
 
     def test_exported_values_win(self):
         with TemporaryDirectory() as tmp:
-            root = self.layout(tmp, "analysis-mcp-server", "prodtools",
+            root = self.layout(tmp, "analysis-mcp", "prodtools",
                                "beamkit")
             out = self.source(root, {"AUTORESEARCH_ANAKIT": "/elsewhere/a",
                                      "AUTORESEARCH_PRODTOOLS": "/elsewhere/p",

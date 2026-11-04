@@ -86,14 +86,21 @@ fi
 # The kit checkouts the engine starts servers from (kits.toml,
 # core/adapters/). An exported value always wins. Otherwise each defaults to
 # a sibling of this repo, the convention AUTORESEARCH_SURROKIT already uses
-# (core/paths.py): the anakit checkout at ../analysis-mcp-server and prodtools
+# (core/paths.py): the anakit checkout at ../analysis-mcp (the repository's
+# name since it moved to Mu2e/analysis-mcp; ../analysis-mcp-server, the old
+# name, is still found) and prodtools
 # at ../prodtools, or else inside a Muse work area at ../muse_050125/prodtools.
 # A default is taken only when that directory exists. A missing one stays
 # unset, so the runner refuses with "not set" rather than pointing a kit at
 # a path that is not there.
 _parent="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -z "${AUTORESEARCH_ANAKIT:-}" && -d "$_parent/analysis-mcp-server" ]]; then
-    export AUTORESEARCH_ANAKIT="$_parent/analysis-mcp-server"
+if [[ -z "${AUTORESEARCH_ANAKIT:-}" ]]; then
+    for _d in "$_parent/analysis-mcp" "$_parent/analysis-mcp-server"; do
+        if [[ -d "$_d" ]]; then
+            export AUTORESEARCH_ANAKIT="$_d"
+            break
+        fi
+    done
 fi
 if [[ -z "${AUTORESEARCH_PRODTOOLS:-}" ]]; then
     for _d in "$_parent/prodtools" "$_parent/muse_050125/prodtools"; do
