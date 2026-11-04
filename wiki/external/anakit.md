@@ -10,7 +10,7 @@ timestamp: '2026-10-29'
 
 ## Summary
 anakit is M. MacKenzie's analysis MCP server
-(github.com/michaelmackenzie/analysis-mcp-server). The contract engine
+(github.com/Mu2e/analysis-mcp, formerly michaelmackenzie/analysis-mcp-server). The contract engine
 drives it through `core/adapters/anakit.py`
 ([contract-engine](/drivers/contract-engine.md), "anakit kit") for every
 `kit: "anakit"` step. Since 2026-10-07 the physics lives only in his repo:
@@ -162,7 +162,7 @@ with three analyses of our own; a short history is kept below.
 - Source files: `core/adapters/anakit.py`, `kits.toml[servers.anakit]`,
   `core/kit_registry.py` (`KitDecl("anakit", ...)`),
   `tests/test_anakit_kit.py`, `tests/fakeanakit.py`
-- External: github.com/michaelmackenzie/analysis-mcp-server; the checkout
+- External: github.com/Mu2e/analysis-mcp; the checkout
   at `$AUTORESEARCH_ANAKIT`
 
 ## Open questions / TODO
