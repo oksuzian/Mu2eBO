@@ -1,0 +1,47 @@
+{
+ "_comment": "mubeam with its early flash output unprescaled, for the foilsnopa studies' per-design muon-flash occupancy (spec docs/superpowers/specs/2026-10-30-foilsnopa-study-design.md). The early output keeps detector steps (StrawGasSteps, CaloShowerSteps) at any time; at Production's prescale of 30 it held 2 in-window straw hits from 3e6 muons on bpzup18. The regular flash output stays as mubeam writes it (simulation products, sim_kept_products_extras.fcl), without detector steps. output_glob is every art file: consumers pick theirs with a files_from pattern, mubeam:sim.*.TargetStops.*.art or mubeam:dts.*.EarlyMuBeamFlash.*.art. The TargetStops output and its filters are mubeam's.",
+ "desc_fmt": "Run1A_MuBeamDts_{cfg}",
+ "output_glob": "*.art",
+ "njobs": 200,
+ "fcl": "Production/JobConfig/pileup/MuBeamResampler.fcl",
+ "fcl_overrides": {
+  "#include": [
+   "Production/JobConfig/pileup/epilog_1b.fcl",
+   "sim_kept_products_extras.fcl",
+   "mubeam_targetstop_path.fcl"
+  ],
+  "physics.producers.g4run.physics.physicsListName": "FTFP_BERT",
+  "physics.producers.compressDetStepMCs.compressionOptions.keepNGenerations": -1,
+  "outputs.EarlyFlashOutput.fileName": "dts.owner.EarlyMuBeamFlash.version.sequencer.art",
+  "outputs.FlashOutput.fileName": "dts.owner.MuBeamFlash.version.sequencer.art",
+  "outputs.IPAStopOutput.fileName": "sim.owner.IPAStops.version.sequencer.art",
+  "outputs.TargetStopOutput.fileName": "sim.owner.TargetStops.version.sequencer.art",
+  "services.TFileService.fileName": "nts.owner.mubeam.version.sequencer.root",
+  "services.SeedService.baseSeed": 1,
+  "physics.filters.TargetStopPrescaleFilter.nPrescale": 1,
+  "services.GeometryService.inputFile": "{geom}",
+  "services.GeometryService.bFieldFile": "Offline/Mu2eG4/geom/bfgeom_v01.txt",
+  "physics.filters.muminusSelector.module_type": "ParticleCodeFilter",
+  "physics.filters.muminusSelector.SimParticles": "TargetStopFilter",
+  "physics.filters.muminusSelector.ParticleCodes": [
+   [
+    13,
+    "uninitialized",
+    "muMinusCaptureAtRest"
+   ]
+  ],
+  "physics.filters.muminusSelector.PrintLevel": 0,
+  "physics.filters.EarlyPrescaleFilter.nPrescale": 1
+ },
+ "resampler_name": "beamResampler",
+ "input_data": {
+  "sim.mu2e.MuBeamCat.Run1Baa.art": 1
+ },
+ "inloc": "tape",
+ "outloc": {
+  "*.art": "outstage",
+  "*.root": "outstage"
+ },
+ "run": 1800,
+ "events": 5000
+}

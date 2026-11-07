@@ -477,3 +477,24 @@ class TestLinkInputs(TmpCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFoilsnopaTemplates(unittest.TestCase):
+    """The stage template the foilsnopa studies add (spec 2026-10-30); their
+    pileup stage is main's mustops_pileup."""
+
+    def entry(self, step):
+        return pe.entry_for_step(template(step), config="c1", fixed={},
+                                 code_tarball="CODE", dsconf="MDC2025bc_{cfg}",
+                                 geom_name="g.txt")
+
+    def test_mubeam_dts_template(self):
+        entry, facts = self.entry("mubeam_dts")
+        base, _ = self.entry("mubeam")
+        self.assertEqual(entry["fcl"], base["fcl"])
+        self.assertEqual(entry["fcl_overrides"]["physics.filters.EarlyPrescaleFilter.nPrescale"], 1)
+        self.assertEqual({k: v for k, v in entry["fcl_overrides"].items()
+                          if k != "physics.filters.EarlyPrescaleFilter.nPrescale"},
+                         base["fcl_overrides"])
+        self.assertEqual(entry["desc"], "Run1A_MuBeamDts_c1")
+        self.assertEqual(facts["output_glob"], ["*.art"])

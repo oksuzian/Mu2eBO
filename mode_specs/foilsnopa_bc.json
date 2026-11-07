@@ -1,0 +1,596 @@
+{
+ "schema": 2,
+ "name": "foilsnopa_bc",
+ "note": "Stopping target with no inner or outer proton absorber (the inner one is not built, the outer one is DS vacuum, their supports are off), the foilsflash_ax extra foils (37 fixed + 6 up + 6 down) and a target shift toward the tracker, on SimJob MDC2025bc. It steers on S/sqrt(B) and the busiest tracker-region hit rate. The busiest-channel tracker rate is edep_occupancy_combine's busiest region (12 planes x 8 straw numbers x the six panels, the mean per straw; unbiased at a design point's statistics, unlike a single row) in the digitizers' event window, from three pileup components each normalized per generated event (gen_events_per_pot) at 1.58e7 POT per microbunch; the beam-flash neutrons and gammas are left out. Design: docs/superpowers/specs/2026-10-30-foilsnopa-study-design.md, revision 2026-11-05 (local).",
+ "knobs": [
+  {
+   "name": "extra_rOut_up",
+   "type": "real",
+   "min": 50.0,
+   "max": 250.0,
+   "unit": "",
+   "fmt": "{:.4f}"
+  },
+  {
+   "name": "extra_rOut_dn",
+   "type": "real",
+   "min": 50.0,
+   "max": 250.0,
+   "unit": "",
+   "fmt": "{:.4f}"
+  },
+  {
+   "name": "extra_halfThickness_up",
+   "type": "real",
+   "min": 0.002,
+   "max": 1.0,
+   "unit": "",
+   "fmt": "{:.6f}"
+  },
+  {
+   "name": "extra_halfThickness_dn",
+   "type": "real",
+   "min": 0.002,
+   "max": 1.0,
+   "unit": "",
+   "fmt": "{:.6f}"
+  },
+  {
+   "name": "extra_f_up",
+   "type": "real",
+   "min": 0.0,
+   "max": 0.95,
+   "unit": "",
+   "fmt": "{:.4f}"
+  },
+  {
+   "name": "extra_f_dn",
+   "type": "real",
+   "min": 0.0,
+   "max": 0.95,
+   "unit": "",
+   "fmt": "{:.4f}"
+  },
+  {
+   "name": "target_dz",
+   "type": "real",
+   "min": 0.0,
+   "max": 1900.0,
+   "unit": "",
+   "fmt": "{:.2f}"
+  }
+ ],
+ "derive": {
+  "consts": {
+   "n_up": 6,
+   "n_dn": 6,
+   "base_n": 37,
+   "base_rOut": 75.0,
+   "base_hT": 0.0528,
+   "base_hole": 21.5,
+   "z0_nominal": 5871.0
+  },
+  "exprs": {
+   "rIn_up": "extra_f_up * extra_rOut_up",
+   "rIn_dn": "extra_f_dn * extra_rOut_dn",
+   "z0_st": "z0_nominal + target_dz"
+  },
+  "profiles": {}
+ },
+ "geom": {
+  "writer": "offline_simpleconfig",
+  "base": "Offline/Mu2eG4/geom/geom_run1_a.txt",
+  "lines": [
+   {
+    "comment": "=== foilsnopa (7D: foilsflash extras + target_dz, no IPA, no OPA) ==="
+   },
+   {
+    "comment": "{base_n} base foils (DOE-2017, rOut={base_rOut}, hT={base_hT}, holeRadius={base_hole})"
+   },
+   {
+    "comment": "+ {n_up} up at (rOut={extra_rOut_up:.2f}, hT={extra_halfThickness_up:.4f}, rIn={rIn_up:.2f})"
+   },
+   {
+    "comment": "+ {n_dn} dn at (rOut={extra_rOut_dn:.2f}, hT={extra_halfThickness_dn:.4f}, rIn={rIn_dn:.2f})"
+   },
+   {
+    "comment": "holeRadii vector decouples extras-rIn from base-rIn (patched lib)."
+   },
+   {
+    "comment": "EMC_Source relocated 5300 -> 5000. It is a 20um disc of ds.vacuumMaterial (vd.halfLength=0.01) -- ZERO mass, no scattering, no absorption -- and NO foils-family stage reads virtual detectors (only pot_only instantiates ReadVirtualDetector). At 5300 it was the UPSTREAM wall of the zero-overlap corridor, capping the stack at 6271-5300=971mm. zEMCSourceInMu2e is a plain c.getDouble default at VirtualDetectorMaker.cc:189, so this is one config line, no source patch. EMC_Source2 stays at 4800, so ordering is preserved."
+   },
+   {
+    "key": "zEMCSourceInMu2e",
+    "type": "double",
+    "value": 5000.0
+   },
+   {
+    "comment": "No inner and no outer proton absorber. Offline v13_44_00 builds hasProtonAbsorber=false (PR #2089), but without the outer absorber the virtual detectors ST_In, ST_Out and STMUpstream take the DS2 bore minus 5 mm (constructVirtualDetectors.cc) and overlap Coupler_DS2_1 and others, so the absorbers stay but are inert: protonabsorber.ipa.build=false drops the IPA and its wires and end rings; the OPA is filled with DS vacuum (outerPAMaterialName covers both sections) and kept only for those detectors' radius; oPASupportNSupportRing=0 skips the whole OPA support block: the rings, the cross supports and the target support slats."
+   },
+   {
+    "key": "protonabsorber.ipa.build",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "key": "protonabsorber.outerPAMaterialName",
+    "type": "string",
+    "value": "DSVacuum"
+   },
+   {
+    "key": "protonabsorber.oPASupportNSupportRing",
+    "type": "int",
+    "value": 0
+   },
+   {
+    "comment": "The unbuilt IPA is still computed: zStartInMu2e keeps it at its hardware position 6901.02-7901.02 (upstream in v13_43_00) instead of following the target end."
+   },
+   {
+    "key": "protonabsorber.zStartInMu2e",
+    "type": "double",
+    "value": 6901.02
+   },
+   {
+    "comment": "Target shift toward the tracker: z0 = 5871 + target_dz. At 1900 mm the 49-foil mother (half-length 538.33) ends at 8309.3, 29.7 mm inside DS2Vacuum (to 8339)."
+   },
+   {
+    "key": "stoppingTarget.z0InMu2e",
+    "type": "double",
+    "expr": "z0_st",
+    "fmt": "{:.4f}"
+   },
+   {
+    "key": "hasTSdA",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "key": "tsda.helical.build",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "key": "stoppingTarget.radii",
+    "type": "vector<double>",
+    "fmt": "{:.4f}",
+    "segments": [
+     {
+      "count": "n_up",
+      "expr": "extra_rOut_up"
+     },
+     {
+      "count": "base_n",
+      "expr": "base_rOut"
+     },
+     {
+      "count": "n_dn",
+      "expr": "extra_rOut_dn"
+     }
+    ]
+   },
+   {
+    "key": "stoppingTarget.halfThicknesses",
+    "type": "vector<double>",
+    "fmt": "{:.6f}",
+    "segments": [
+     {
+      "count": "n_up",
+      "expr": "extra_halfThickness_up"
+     },
+     {
+      "count": "base_n",
+      "expr": "base_hT"
+     },
+     {
+      "count": "n_dn",
+      "expr": "extra_halfThickness_dn"
+     }
+    ]
+   },
+   {
+    "comment": "POISON PILL: an unpatched StoppingTargetMaker ignores holeRadii and reads"
+   },
+   {
+    "comment": "this scalar. 1e6 forces a loud G4Tubs crash instead of a silently uniform"
+   },
+   {
+    "comment": "stack -- emitting a 'sensible' scalar is how 62 foilsg rows were lost."
+   },
+   {
+    "key": "stoppingTarget.holeRadius",
+    "type": "double",
+    "raw": "1.0e6"
+   },
+   {
+    "key": "stoppingTarget.holeRadii",
+    "type": "vector<double>",
+    "fmt": "{:.4f}",
+    "segments": [
+     {
+      "count": "n_up",
+      "expr": "rIn_up"
+     },
+     {
+      "count": "base_n",
+      "expr": "base_hole"
+     },
+     {
+      "count": "n_dn",
+      "expr": "rIn_dn"
+     }
+    ]
+   },
+   {
+    "comment": "Degrader parked at 120 deg (mmackenz hardware detent)"
+   },
+   {
+    "key": "degrader.build",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "key": "degrader.rotation",
+    "type": "double",
+    "value": 120.0
+   },
+   {
+    "key": "ts.coll5.material1Name",
+    "type": "string",
+    "value": "COL5Poly"
+   },
+   {
+    "comment": "TT_MidInner -> DS2Vacuum workaround REMOVED 2026-07-28 (Run1Bap migration). Under v13_12_10 constructVirtualDetectors:502 parented the tracker VDs on `isDumbbell` (always false here), nailing them into DS2Vacuum while Mu2eWorld:346 put the tracker itself in DS3Vacuum -- VDs protruded 1.8-3.5 m outside their mother, GeomMgt0002 fatal. Forcing tracker.inDS2Vacuum=true + ds2.halfLength=3825 made the two agree. v13_32_10 keys VD parenting on !tracker.inDS2Vacuum, so stock is self-consistent and the workaround is not just redundant but harmful: it re-parented EMC_0_Front into DS2Vacuum as a sibling of StoppingTargetMother, which WAS the last remaining overlap. Measured 2x2 on foilspf corner_hi: Run1Bak+override 1 overlap, Run1Bap+override 1, Run1Bak-override 6 + rc=134 core dump, Run1Bap-override 0."
+   },
+   {
+    "key": "ds.hasServicePipes",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "comment": "Overlap-suppression (foil-support off + rail shrink)"
+   },
+   {
+    "key": "stoppingTarget.foilTarget_supportStructure",
+    "type": "bool",
+    "value": false
+   },
+   {
+    "key": "ds.lengthRail2",
+    "type": "double",
+    "value": 0.1
+   },
+   {
+    "key": "ds.lengthRail3",
+    "type": "double",
+    "value": 0.1
+   }
+  ]
+ },
+ "kits": {
+  "prodtools": {
+   "code_tarball": "${ARTIFACT}/autoresearch_muse/Code_mdc2025bc.tar.bz2",
+   "dsconf": "MDC2025bc_{cfg}",
+   "fatal_log_codes": [
+    "GeomSolids1001"
+   ]
+  },
+  "offline_preflight": {
+   "code_tarball": "${ARTIFACT}/autoresearch_muse/Code_mdc2025bc.tar.bz2",
+   "dumps_gdml": true,
+   "verifies_foil_gdml": true,
+   "checks_managed_overlap": true,
+   "require_zero_overlaps": true
+  },
+  "anakit": {
+   "musing": "SimJob MDC2025bc"
+  }
+ },
+ "preflight": {
+  "kit": "offline_preflight",
+  "params": {},
+  "files": [
+   "geom"
+  ]
+ },
+ "evaluate": [
+  {
+   "step": "mubeam",
+   "kit": "prodtools",
+   "entry": "mubeam_dts",
+   "files": [
+    "geom"
+   ],
+   "files_from": [],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "njobs": 15,
+    "events_per_job": 200000,
+    "memory_mb": 2000,
+    "quorum": 0.8
+   }
+  },
+  {
+   "step": "mustops_ce",
+   "kit": "prodtools",
+   "entry": "mustops_ce",
+   "files": [
+    "geom"
+   ],
+   "files_from": [
+    "mubeam:sim.*.TargetStops.*.art"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "njobs": 15,
+    "events_per_job": 75000,
+    "memory_mb": 2000,
+    "quorum": 0.8
+   }
+  },
+  {
+   "step": "elebeam_flash",
+   "kit": "prodtools",
+   "entry": "elebeam_flash",
+   "files": [
+    "geom"
+   ],
+   "files_from": [],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "njobs": 100,
+    "events_per_job": 110000,
+    "memory_mb": 2000,
+    "quorum": 0.8
+   }
+  },
+  {
+   "step": "mustops_pileup",
+   "kit": "prodtools",
+   "entry": "mustops_pileup",
+   "files": [
+    "geom"
+   ],
+   "files_from": [
+    "mubeam:sim.*.TargetStops.*.art"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "njobs": 20,
+    "events_per_job": 50000,
+    "memory_mb": 3000,
+    "quorum": 0.8
+   }
+  },
+  {
+   "step": "stops",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "mubeam:sim.*.TargetStops.*.art"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "muon_stop_rate",
+    "upstream_eff": 0.01278168
+   }
+  },
+  {
+   "step": "ce_edep",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "mustops_ce"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "edep"
+   }
+  },
+  {
+   "step": "sob",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "ce_edep"
+   ],
+   "params": {},
+   "params_from": {
+    "stops_per_pot": "stops.stops_per_pot"
+   },
+   "fixed": {
+    "analysis": "approx_ce_sensitivity",
+    "cosmic_rate_per_s_per_mev": 0.0018181818181818182
+   }
+  },
+  {
+   "step": "flash",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "elebeam_flash"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "edep"
+   }
+  },
+  {
+   "step": "pileup_occ",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "mustops_pileup"
+   ],
+   "params": {},
+   "params_from": {
+    "gen_events_per_pot": "stops.stops_per_pot"
+   },
+   "fixed": {
+    "analysis": "edep_occupancy",
+    "label": "stopped_mu",
+    "pot_per_microbunch": 15800000.0
+   }
+  },
+  {
+   "step": "eflash_occ",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "elebeam_flash"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "edep_occupancy",
+    "label": "ele_flash",
+    "gen_events_per_pot": 0.08667976,
+    "pot_per_microbunch": 15800000.0
+   }
+  },
+  {
+   "step": "muflash_occ",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "mubeam:dts.*.EarlyMuBeamFlash.*.art"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "edep_occupancy",
+    "label": "mu_flash",
+    "gen_events_per_pot": 0.01278168,
+    "pot_per_microbunch": 15800000.0
+   }
+  },
+  {
+   "step": "occupancy",
+   "kit": "anakit",
+   "entry": null,
+   "files": [],
+   "files_from": [
+    "pileup_occ:occupancy_per_microbunch.root",
+    "eflash_occ:occupancy_per_microbunch.root",
+    "muflash_occ:occupancy_per_microbunch.root"
+   ],
+   "params": {},
+   "params_from": {},
+   "fixed": {
+    "analysis": "edep_occupancy_combine",
+    "region_planes": 12,
+    "region_straws": 8
+   }
+  }
+ ],
+ "objectives": [
+  {
+   "name": "sob",
+   "metric": "sob.sensitivity",
+   "direction": "max",
+   "transform": "none",
+   "noise": 0.0021,
+   "fmt": "{:.5f}"
+  },
+  {
+   "name": "max_hit_rate",
+   "metric": "occupancy.trk_peak_region_hit_rate_khz",
+   "direction": "min",
+   "transform": "log10",
+   "noise": 0.014,
+   "fmt": "{:.2f}"
+  }
+ ],
+ "constraints": [],
+ "extra_metrics": [
+  {
+   "name": "max_hit_rate_err",
+   "metric": "occupancy.trk_peak_region_hit_rate_khz_err",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "max_hit_plane",
+   "metric": "occupancy.trk_peak_region_plane",
+   "fmt": "{:.0f}"
+  },
+  {
+   "name": "max_hit_radius",
+   "metric": "occupancy.trk_peak_region_radius_mm",
+   "fmt": "{:.1f}"
+  },
+  {
+   "name": "peak_row_rate",
+   "metric": "occupancy.trk_peak_row_hit_rate_khz",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "peak_straw_rate",
+   "metric": "occupancy.trk_peak_straw_hit_rate_khz",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "mean_hit_rate",
+   "metric": "occupancy.trk_mean_straw_hit_rate_khz",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "max_edep_rate",
+   "metric": "occupancy.trk_peak_region_edep_rate_mev_per_s",
+   "fmt": "{:.4e}"
+  },
+  {
+   "name": "max_calo_rate",
+   "metric": "occupancy.calo_peak_crystal_hit_rate_khz",
+   "fmt": "{:.1f}"
+  },
+  {
+   "name": "hits_per_mb",
+   "metric": "occupancy.trk_hits_per_ub",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "hits_per_mb_stopped_mu",
+   "metric": "pileup_occ.trk_hits_per_ub",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "hits_per_mb_ele_flash",
+   "metric": "eflash_occ.trk_hits_per_ub",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "hits_per_mb_mu_flash",
+   "metric": "muflash_occ.trk_hits_per_ub",
+   "fmt": "{:.2f}"
+  },
+  {
+   "name": "flash_edep",
+   "metric": "flash.avg_trk_edep_per_gen_event_mev",
+   "fmt": "{:.5e}"
+  },
+  {
+   "name": "stops_per_pot",
+   "metric": "stops.stops_per_pot",
+   "fmt": "{:.5e}"
+  }
+ ],
+ "extra_columns": [],
+ "leaderboard": {
+  "file": "leaderboards/leaderboard_bo_foilsnopa_bc.tsv",
+  "layout": "v2",
+  "context": []
+ }
+}

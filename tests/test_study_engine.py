@@ -161,12 +161,15 @@ class TestLoadedStudies(TmpCase):
         # (foilsflash_ax, foilspfbpz_ax), foilsflash_col5bf_ax (foilsflash_ax
         # + COL5 rIn + DS/TSd field scales) and its deployed-target
         # baseline foilsflash_col5bf_nominal, the deployed-target baseline
-        # foilspf_nominal and ptg4bl (G4beamline through beamkit), and
+        # foilspf_nominal, ptg4bl (G4beamline through beamkit), the
+        # no-proton-absorber study foilsnopa_bc and its with-absorber twin
+        # foilsflash_bc, and
         # ENGINE_STUDIES holds branin, prodtools_smoke and the C2b local
         # acceptance fixture foilspfbpz_local.
         self.assertEqual(r.stdout.strip().splitlines()[-1],
                          "['branin', 'ce_chain', 'foilsflash_ax', "
-                         "'foilsflash_col5bf_ax', 'foilsflash_col5bf_nominal', "
+                         "'foilsflash_bc', 'foilsflash_col5bf_ax', "
+                         "'foilsflash_col5bf_nominal', 'foilsnopa_bc', "
                          "'foilspf_nominal', 'foilspfbpz_ax', "
                          "'foilspfbpz_local', 'prodtools_smoke', 'ptg4bl']")
 

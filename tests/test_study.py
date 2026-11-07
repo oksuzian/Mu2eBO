@@ -719,11 +719,14 @@ class TestProdtoolsKeys(_Tmp):
 # 2026-10-08 with its sha unchanged (its board holds the damage budget).
 # foilsflash_col5bf_ax and its nominal pinned at their addition on 2026-10-29
 # (re-pinned 2026-10-30: required_log_lines, anakit Musing Offline v13_43_00).
+# foilsflash_bc and foilsnopa_bc (SimJob MDC2025bc) were added on 2026-11-06.
 PINNED = {
     "ce_chain": "3a300aecbea8dba8d289c4f78c4a941b01ec18c2293a14a793b86f7263e59189",
     "foilsflash_ax": "b96e6c99648c677b5046f7f223df5477eba156dc27ecb15aaed57d31e6b904bd",
+    "foilsflash_bc": "c13a29cff0be30f91b18831c2490d26b1f2a798e381ce6e7deb91d5eb7a8ebf1",
     "foilsflash_col5bf_ax": "5df01513fc122a92997cae83699ac67e34df1e5e3f8ab5515383feaa546c1909",
     "foilsflash_col5bf_nominal": "bda9a1cd2276bebf3cc47bf6b10dbac89d81db1e6bad2b965cf2d14ef8ed0efc",
+    "foilsnopa_bc": "8d9d64f78a46dfbea92da7897cc87ecf48588171a7cd07f72e576c1696aa2159",
     "foilspf_nominal": "f0a9aa00d9d06eeb8235281fc035ad78b0852b4cdf3e487c919412e247539310",
     "foilspfbpz_ax": "fa84cd6e195e4ef865d62c42f8085deb24a81213197a814e23aab49f8856c570",
     "ptg4bl": "b52fce7c37525597cae53862efe0f272af28f766c6deaefa22b71f08a6861689",
@@ -768,13 +771,14 @@ class TestParamsFrom(_Tmp):
             ("a self reference", _params_from("sob", {"x": "sob.v"}),
              "params_from.x", "its own result"),
             # The fork's analyses took these; M. MacKenzie's do not
-            # (wiki/external/anakit.md).
+            # (wiki/external/anakit.md). pot_per_electron and source went
+            # again with our straw_map/straw_rates (2026-11-06).
             *[(f"retired anakit setting {key}",
                lambda d, key=key: _step(d, "sob")["fixed"].update(
                    {key: "/t.tbl" if key == "dio_table" else 0.5}),
                key)
               for key in ("input_correction", "dio_fraction", "dio_table",
-                          "pot_per_electron")],
+                          "pot_per_electron", "source")],
             # The setting is hashed as written, so a second spelling of the
             # same Musing would give a second measure_sha (a board refused
             # at launch).
@@ -855,3 +859,28 @@ class TestParamsFrom(_Tmp):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFilesFromPattern(_Tmp):
+    """A files_from entry may pick an upstream step's files by name pattern,
+    "step:glob" (foilsnopa_bc: one muon-beam step feeds TargetStops to the CE
+    and pileup steps and its early flash to the occupancy step)."""
+
+    def test_files_from_pattern_parses(self):
+        self.assertEqual(st.split_files_from("mubeam:dts.*.EarlyMuBeamFlash.*.art"),
+                         ("mubeam", "dts.*.EarlyMuBeamFlash.*.art"))
+        self.assertEqual(st.split_files_from("mubeam"), ("mubeam", None))
+
+    def test_files_from_pattern_must_name_an_earlier_step(self):
+        doc = _doc()
+        _step(doc, "mustops_ce")["files_from"] = ["nosuch:*.art"]
+        with self.assertRaises(ValueError) as cm:
+            self.load(doc)
+        self.assertIn("nosuch", str(cm.exception))
+
+    def test_a_pattern_entry_waits_on_its_step_and_is_kept_as_written(self):
+        doc = _doc()
+        _step(doc, "mustops_ce")["files_from"] = ["mubeam:sim.*.TargetStops.*.art"]
+        step = next(s for s in self.load(doc).steps if s.step == "mustops_ce")
+        self.assertEqual(step.upstream, ("mubeam",))
+        self.assertEqual(step.files_from, ("mubeam:sim.*.TargetStops.*.art",))

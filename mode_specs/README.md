@@ -49,6 +49,23 @@ reads one file and calls the field checks (`_knobs`, `_derive_and_geom`,
   knobs. The ntuple is the triggered stream, so it checks the chain, not
   the trigger.
 - `ptg4bl` — the production target on G4beamline (kit `beamkit`).
+- `foilsnopa_bc` — the stopping target with no inner or outer proton
+  absorber (the inner one is not built, the outer one is DS vacuum, their
+  supports are off), `foilsflash_ax`'s extra foils and a target shift
+  toward the tracker (`target_dz`, 0–1900 mm), on SimJob MDC2025bc.
+  `hasProtonAbsorber = false` builds there, but then ST_In, ST_Out and
+  STMUpstream span the DS2 bore and overlap Coupler_DS2_1. Objectives:
+  S/√B and the busiest tracker-region hit rate. A pileup stage
+  (`mustops_pileup`) and the early flash outputs feed M. MacKenzie's
+  `edep_occupancy`, one step per pileup component (stopped μ⁻, early
+  electron flash, early muon flash from `mubeam_dts`), normalized per
+  generated event (`gen_events_per_pot`: the stops step's stops per POT, or
+  a fixed value; 1.58e7 POT per microbunch); `edep_occupancy_combine`
+  sums them and gives the busiest 12-plane × 8-straw region (analysis-mcp
+  v01_03_00). The beam-flash neutrons and gammas are left out.
+- `foilsflash_bc` — `foilsflash_ax` on MDC2025bc with the same occupancy
+  steps as saved columns: the release shift against `foilsflash_ax`, and
+  the with-IPA reference for `foilsnopa_bc`.
 
 ## Starting a new study
 
@@ -170,6 +187,11 @@ hashes it), so the layout is for readable diffs.
   bumps it by hand: bump an adapter's `VERSION` when a step would measure
   anew, including an anakit checkout change that alters an analysis (pull
   his `main` only on purpose, and read the diff first).
+- A `files_from` entry is a step name (every file it produced) or
+  `"step:glob"` (only the files whose names match): `foilsnopa_bc` feeds
+  `"mubeam:sim.*.TargetStops.*.art"` to its CE and pileup steps and
+  `"mubeam:dts.*.EarlyMuBeamFlash.*.art"` to its muon-flash occupancy. A glob that
+  matches none of the step's files fails the step.
 - A prodtools step must set `quorum` in `fixed` (below it the step
   fails) and at most 200 `njobs`; `kits.prodtools.fatal_log_codes` lists
   the log codes that fail a step (foilspf: `GeomSolids1001`).
@@ -189,6 +211,11 @@ hashes it), so the layout is for readable diffs.
   `kits.prodtools.code_tarball`. A failure (or an `ambiguous` run) marks
   the point broken before anything is submitted; the log is
   `<GRID_DATA_ROOT>/<config>/preflight/preflight.log`.
+- `kits.anakit.musing` names where anakit's mu2e jobs get their code: a
+  published Musing (`"SimJob MDC2025ay"`, passed as `--musing`) or a muse
+  work area (`"${ARTIFACT}/<work area>"`, passed as `--work-area`)
+  holding a module no Musing has. The launch check refuses a
+  work area without `backing` and `build`.
 - `knobs: []` is a one-shot study: `graph.run` without `--x`;
   `graph.closed_loop` refuses it.
 - One broken study file — here or on `$AUTORESEARCH_STUDY_PATH` — stops
