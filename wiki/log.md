@@ -5,6 +5,27 @@ heading at the TOP (create it if absent). One bullet per change:
 `<verb> <what changed> — <page>`; verbs: created, updated, merged,
 superseded, linted.
 
+## 2026-11-06
+- **updated** [anakit](/external/anakit.md): the _bb studies are dropped (never on main; boards nopa01, nopasmk02, ffbbref01 kept as files), with our straw_map/straw_rates and the source/pot_per_electron settings; anakit pins plain v01_03_00 on both branches.
+- **updated** [anakit](/external/anakit.md): split test of the region-peak hit rate on nopa01: 3.3% statistical error, unbiased at 1/5 statistics; the tool's `_err` is about 2.2x too small.
+- **updated** [mu2ebo-musing-bundle](/concepts/mu2ebo-musing-bundle.md): how SimJob is released (MuseConfig line + Jenkins), Ray's ai/mcp/<kit>/<version> layout, and the release manifest + installer, test-installed for analysis-mcp and beamkit.
+- **created** [no-opa-virtual-detector-overlap](/incidents/no-opa-virtual-detector-overlap.md): without the outer proton absorber three virtual detectors overlap DS2 volumes; foilsnopa_bc keeps the bb geometry.
+- **updated** [anakit](/external/anakit.md): pin moved to straw-maps-v01_02 (v01_02_00 + our straw tools); nopa01's four analysis steps replay bit for bit.
+- **updated** [anakit](/external/anakit.md): edep_occupancy normalizes per stored event; per-design samples need per generated event, and EdepAna already counts generated events in the same job.
+
+## 2026-11-05
+- **updated** [anakit](/external/anakit.md): SimJob MDC2025bc (Offline v13_44_00) carries Offline PR #2097 (EdepAna occupancy histograms, needed by edep_occupancy) and PR #2089 (hasProtonAbsorber=false builds).
+
+## 2026-11-04
+- **updated** [anakit](/external/anakit.md): the repo moved to Mu2e/analysis-mcp (v01_00_00 = de4b509); its edep_occupancy does what our straw tools do but needs Offline PR #2097, in no release yet.
+- **updated** [mu2ebo-musing-bundle](/concepts/mu2ebo-musing-bundle.md): surrokit belongs in the manifest; a stale ~/.local copy shadows the pinned checkout for a bare import.
+
+## 2026-11-03
+- **created** [mu2ebo-musing-bundle](/concepts/mu2ebo-musing-bundle.md): a Mu2eBO Musing is feasible with muse as it is; what blocks it.
+
+## 2026-10-31
+- **created** [edepana-v13-43-required-step-params](/incidents/edepana-v13-43-required-step-params.md): MDC2025bb's EdepAna requires six step-count parameters; the foilsnopa smoke's flash step died at construction until anakit moved to M. MacKenzie's a96b57a.
+
 ## 2026-10-30
 - **updated** [anakit](/external/anakit.md), [contract-engine](/drivers/contract-engine.md), QUICKSTART.md:
   `ANAKIT_PIN_SHA` 3ba8d23 -> 53c5afa (his main with PRs #5-#10); existing `edep`/`muon_stop_rate` metrics
