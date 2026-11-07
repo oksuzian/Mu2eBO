@@ -45,15 +45,22 @@ def _string(v, where):
     return v
 
 
-def _musing(v, where):
-    # One spelling only: the setting is hashed as written, so
-    # "SimJob/MDC2025ay" would give the same Musing a second measure_sha.
+def _anakit_env(v, where):
+    # Where anakit's mu2e jobs get their code: a published Musing, or a muse
+    # work area (a path) holding modules no Musing has. One key carries both
+    # forms because every study key of a kit is required, so two exclusive
+    # keys would need an optional-key mechanism. One spelling only: the
+    # setting is hashed as written, so "SimJob/MDC2025ay" would give the
+    # same Musing a second measure_sha.
+    if isinstance(v, str) and (v.startswith("/") or v.startswith("${ARTIFACT}/")):
+        return v
     if (not isinstance(v, str) or len(v.split(" ")) != 2
             or not all(p and "/" not in p and p == p.strip()
                        for p in v.split(" "))):
         raise ValueError(f"{where}: must be a Musing and its version "
                          f"separated by one space, e.g. 'SimJob "
-                         f"MDC2025ay', got {v!r}")
+                         f"MDC2025ay', or a muse work area path starting "
+                         f"with '/' or '${{ARTIFACT}}/', got {v!r}")
     return v
 
 
@@ -290,10 +297,15 @@ KITS: Dict[str, KitDecl] = {d.name: d for d in (
     # An analysis reads an earlier step's files; its mu2e jobs run where
     # the analysis server runs, not as grid jobs.
     KitDecl("anakit",
-            study_keys={"musing": _musing},
+            study_keys={"musing": _anakit_env},
             fixed_keys={"analysis": _string, "upstream_eff": _number,
                         "cosmic_rate_per_s_per_mev": _number,
-                        "trigger_paths": _string, "input_glob": _globs},
+                        "trigger_paths": _string, "input_glob": _globs,
+                        # edep_occupancy (analysis-mcp v01_02_00)
+                        "label": _string, "gen_events_per_pot": _number,
+                        "pot_per_microbunch": _number,
+                        # edep_occupancy(_combine) region (v01_03_00)
+                        "region_planes": _number, "region_straws": _number},
             required_fixed=frozenset({"analysis"}), uses_entries=False,
             step_kit=True, check_kit=False,
             executors=("grid", "local"), launch_stagger_s=0.0,

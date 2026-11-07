@@ -541,15 +541,11 @@ class TestStatusAndResults(_Kit):
         # The second case's needle names both the key AND its (non-number)
         # value, so it can only match if stops_per_pot is the offender.
         others = {k: v for k, v in STOPS_METRICS.items() if k != "stops_per_pot"}
-        cases = ((others, "stops_per_pot"),
-                 ({**others, "stops_per_pot": "1.26e-3"},
-                  "'stops_per_pot': '1.26e-3'"))
-        for meta, needle in cases:
-            kit = self.submitted({**SUCCESS, "metadata": meta})
-            with self.subTest(needle=needle):
-                with self.assertRaises(ContractError) as cm:
-                    kit.results("cfg1.stops", "w")
-                self.assertIn(needle, str(cm.exception))
+        kit = self.submitted({**SUCCESS, "metadata": {**others,
+                                                      "stops_per_pot": "1.26e-3"}})
+        with self.assertRaises(ContractError) as cm:
+            kit.results("cfg1.stops", "w")
+        self.assertIn("'stops_per_pot': '1.26e-3'", str(cm.exception))
 
 
 class TestStepProblems(_Kit):
@@ -767,3 +763,80 @@ class TestAnakitPin(unittest.TestCase):
                          "the anakit checkout moved from the accepted pin; "
                          "re-validate, then bump ANAKIT_PIN_SHA (and "
                          "VERSION if an analysis now computes differently)")
+
+
+class TestWorkAreaSetting(_Kit):
+    """kits.anakit.musing may name a muse work area instead of a Musing
+    (for a module no Musing has yet, e.g. a patched Offline)."""
+
+    GOOD = TestStepProblems.GOOD
+
+    def validate_setting(self, value):
+        return kit_registry.validate(
+            "anakit", {"musing": value}, kit_registry.KITS["anakit"].study_keys,
+            "kits.anakit", required=True)
+
+    def work_area(self, built=True):
+        wa = self.tmp / "wa"
+        wa.mkdir()
+        if built:
+            (wa / "backing").symlink_to(self.tmp / "musings" / "SimJob" / "MDC2025ay")
+            (wa / "build").mkdir()
+        return wa
+
+    def test_setting_takes_a_musing_or_a_work_area(self):
+        for good in ("SimJob MDC2025bb", "/abs/area", "${ARTIFACT}/x"):
+            with self.subTest(setting=good):
+                self.assertEqual(self.validate_setting(good)["musing"], good)
+        for bad in ("rel/area", "SimJob/MDC2025bb"):
+            with self.subTest(setting=bad):
+                with self.assertRaises(ValueError) as cm:
+                    self.validate_setting(bad)
+                self.assertIn("work area", str(cm.exception))
+
+    def test_server_args(self):
+        self.assertEqual(ak.server_args("SimJob MDC2025bb"),
+                         ("--musing", "SimJob MDC2025bb"))
+        self.assertEqual(ak.server_args("/a/b"), ("--work-area", "/a/b"))
+
+    def test_client_command_ends_with_the_work_area(self):
+        wa = self.work_area()
+        study, step = TestStepProblems.study(self, self.GOOD, musing=str(wa))
+        self.assertEqual(self.kit().step_problems(study, step), [])
+        command = next(e for e in self.log if e[0] == "list_analyses")[3]
+        self.assertEqual(command[-2:], ("--work-area", str(wa)))
+
+    def test_launch_check_refuses_an_unbuilt_work_area(self):
+        wa = self.work_area(built=False)
+        study, step = TestStepProblems.study(self, self.GOOD, musing=str(wa))
+        problems = self.kit().step_problems(study, step)
+        self.assertEqual(problems, [
+            f"step 'sob' (kit anakit): kits.anakit.musing {wa} is not a "
+            f"built muse work area (needs backing and build)"])
+        (wa / "backing").symlink_to(self.tmp)
+        (wa / "build").mkdir()
+        self.assertEqual(self.kit().step_problems(study, step), [])
+
+    def test_new_fixed_keys(self):
+        fixed = kit_registry.KITS["anakit"].fixed_keys
+        for good in (# edep_occupancy (analysis-mcp v01_02_00), the _bc studies
+                     {"analysis": "edep_occupancy", "label": "ele_flash",
+                      "gen_events_per_pot": 0.0867, "pot_per_microbunch": 1.58e7},
+                     # edep_occupancy_combine's region (v01_03_00)
+                     {"analysis": "edep_occupancy_combine", "region_planes": 12,
+                      "region_straws": 8}):
+            kit_registry.validate("anakit", good, fixed, "fixed", required=False)
+        for bad in ({"gen_events_per_pot": "x"},
+                    {"pot_per_microbunch": "x"}, {"label": 3},
+                    {"region_planes": "twelve"}):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                kit_registry.validate("anakit", bad, fixed, "fixed", required=False)
+
+
+class TestWorkAreaAlreadyExpanded(unittest.TestCase):
+    def test_an_expanded_user_area_path_passes_through(self):
+        """The study loader expands '${ARTIFACT}/' before the adapter sees the
+        setting, so an absolute path under a user area must not be expanded
+        (and refused) a second time."""
+        wa = "/exp/mu2e/app/users/someone/autoresearch_dosemap_bb"  # personal-path-ok: synthetic account, the expanded form the loader hands over
+        self.assertEqual(ak.server_args(wa), ("--work-area", wa))

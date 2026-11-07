@@ -45,6 +45,14 @@ _TRANSFORMS = ("none", "log10")
 _ARTIFACT_TOKEN = "${ARTIFACT}/"
 
 
+def split_files_from(entry: str):
+    """(step, glob or None) from a files_from entry: "mubeam" takes every
+    file of step mubeam, "mubeam:sim.*.TargetStops.*.art" only the files
+    whose names match the glob."""
+    step, _, glob = entry.partition(":")
+    return step, (glob or None)
+
+
 @dataclass(frozen=True)
 class Knob:
     name: str
@@ -72,7 +80,8 @@ class Step:
         params_from source, in param-name order; none twice."""
         sources = [self.params_from[k].split(".", 1)[0]
                    for k in sorted(self.params_from)]
-        return tuple(dict.fromkeys(list(self.files_from) + sources))
+        files = [split_files_from(e)[0] for e in self.files_from]
+        return tuple(dict.fromkeys(files + sources))
 
     @property
     def sent_params(self) -> frozenset:
@@ -432,7 +441,8 @@ def _steps(raw, has_geom, names, where):
     if len(set(step_names)) != len(step_names):
         raise ValueError(f"{where}[evaluate]: duplicate step names {step_names}")
     for s in out:
-        for up in s.files_from:
+        for entry in s.files_from:
+            up = split_files_from(entry)[0]
             if up not in step_names:
                 raise ValueError(f"{where}[evaluate.{s.step}.files_from]: "
                                  f"unknown step {up!r}")

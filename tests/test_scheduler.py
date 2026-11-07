@@ -759,3 +759,48 @@ class TestEntryParam(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TwoFileKit(FakeKit):
+    """Step "a" yields a TargetStops file and an early-flash file."""
+
+    def results(self, handle, workflow):
+        s = handle.split(".", 1)[1]
+        if s != "a":
+            return super().results(handle, workflow)
+        with self._lock:
+            self.events.append(("done", s))
+        files = tuple({"name": n, "uri": f"file:///tmp/{n}", "kind": "art"}
+                      for n in ("sim.x.TargetStops.0.art",
+                                "dts.x.EarlyMuBeamFlash.0.art"))
+        return Results({"v": 1.0}, files, {})
+
+
+class TestFilesFromPattern(_Run):
+    def inputs_of(self, kit, name):
+        return [f["name"] for f in next(s for s in kit.submits
+                                        if s[0] == f"c.{name}")[3]]
+
+    def test_scheduler_filters_by_pattern(self):
+        kit = TwoFileKit()
+        out = self.run_steps(study(
+            step("a"), step("b", ["a:sim.*.TargetStops.*.art"]),
+            step("m", ["a:dts.*.EarlyMuBeamFlash.*.art"])), kit)
+        self.assertTrue(all(o.ok for o in out.values()), out)
+        self.assertEqual(self.inputs_of(kit, "b"), ["sim.x.TargetStops.0.art"])
+        self.assertEqual(self.inputs_of(kit, "m"),
+                         ["dts.x.EarlyMuBeamFlash.0.art"])
+
+    def test_plain_name_takes_every_file(self):
+        kit = TwoFileKit()
+        self.run_steps(study(step("a"), step("b", ["a"])), kit)
+        self.assertEqual(self.inputs_of(kit, "b"),
+                         ["sim.x.TargetStops.0.art", "dts.x.EarlyMuBeamFlash.0.art"])
+
+    def test_scheduler_empty_pattern_selection_fails(self):
+        kit = TwoFileKit()
+        out = self.run_steps(study(step("a"), step("b", ["a:*.nomatch"])), kit)
+        self.assertFalse(out["b"].ok)
+        self.assertIn("files_from 'a:*.nomatch' matched none of 2 files of "
+                      "step a", out["b"].message)
+        self.assertNotIn(("submit", "b"), kit.events)

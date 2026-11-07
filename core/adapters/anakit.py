@@ -4,7 +4,8 @@
 anakit is M. MacKenzie's analysis MCP server, run from the checkout of his
 main that $AUTORESEARCH_ANAKIT names. Its mu2e jobs set up the published
 Musing the study's `musing` setting names (e.g. "SimJob MDC2025ay"), which
-the server is started on with --musing. A step names the analysis in its
+the server is started on with --musing; or, when the setting is a path, the
+muse work area it names (--work-area), for modules no Musing has. A step names the analysis in its
 fixed `analysis`; every other param except the study's `musing` setting is
 passed to that analysis as a parameter. The physics lives in anakit; this
 module holds none.
@@ -55,7 +56,13 @@ VERSION = "anakit-adapter/2"
 # counts, mu-/mu+ stop split, catalog inputs). edep's and muon_stop_rate's
 # existing metrics are unchanged (col5r01R00_00 stops reproduced exactly),
 # so VERSION stays.
-ANAKIT_PIN_SHA = "53c5afa69bff26871b57d212cb1abaa38a32a721"
+# 2026-11-06: his release v01_03_00 (e40d3d4): edep_occupancy with
+# gen_events_per_pot (PR #3) and the busiest tracker region (PR #4), for the
+# _bc studies. Replaying nopa01 (MDC2025bb) and ffaxref01 (MDC2025ay) stops,
+# ce_edep, sob and flash on v01_02_00 gave every recorded metric bit for
+# bit; v01_03_00 adds only the occupancy analyses; total_edep_per_pot is
+# unchanged since 53c5afa. VERSION stays.
+ANAKIT_PIN_SHA = "e40d3d46d153af48fcbfb0029f513e8adbca16ec"
 SERVER = "anakit"                      # kits.toml [servers.anakit]
 CHECKOUT_ENV = "AUTORESEARCH_ANAKIT"       # the anakit checkout
 RESULT_NAME = "anakit_result.json"
@@ -138,6 +145,24 @@ def musing_parts(musing: str):
     anakit's Mu2eEnv.for_musing splits it; None unless exactly two."""
     parts = str(musing).replace("/", " ").split()
     return tuple(parts) if len(parts) == 2 else None
+
+
+def is_work_area(setting: str) -> bool:
+    """kits.anakit.musing names a muse work area (a path), not a Musing."""
+    return str(setting).startswith(("/", "${ARTIFACT}/"))
+
+
+def server_args(setting: str) -> tuple:
+    """The anakit server's command-line arguments for its code: a work area
+    (--work-area, for modules no Musing has) or a Musing (--musing). A loaded
+    study's setting is already expanded (study.py expands kit settings), so
+    only a raw '${ARTIFACT}/' path is expanded here."""
+    if not is_work_area(setting):
+        return ("--musing", str(setting))
+    setting = str(setting)
+    if setting.startswith("${ARTIFACT}/"):
+        setting = expand_artifact(setting, "kits.anakit.musing")
+    return ("--work-area", setting)
 
 
 split_handle = partial(kit_registry.split_handle, "anakit")
@@ -351,14 +376,20 @@ class AnakitKit:
         musing = study.kits.get(self.name, {}).get("musing")
         if not musing:
             return [f"{where}: kits.anakit.musing is not set"]
-        parts = musing_parts(musing)
-        if parts is None:
-            return [f"{where}: kits.anakit.musing {musing!r}: expected a "
-                    f"Musing and a version, e.g. 'SimJob MDC2025ay'"]
-        published = MUSINGS_ROOT.joinpath(*parts)
-        if not published.is_dir():
-            return [f"{where}: Musing {musing!r} is not published (no "
-                    f"{published})"]
+        if is_work_area(musing):
+            area = Path(server_args(musing)[1])
+            if not ((area / "backing").exists() and (area / "build").is_dir()):
+                return [f"{where}: kits.anakit.musing {area} is not a built "
+                        f"muse work area (needs backing and build)"]
+        else:
+            parts = musing_parts(musing)
+            if parts is None:
+                return [f"{where}: kits.anakit.musing {musing!r}: expected a "
+                        f"Musing and a version, e.g. 'SimJob MDC2025ay'"]
+            published = MUSINGS_ROOT.joinpath(*parts)
+            if not published.is_dir():
+                return [f"{where}: Musing {musing!r} is not published (no "
+                        f"{published})"]
         problems = []
         analyses = self._catalogue(musing,
                                    f"{self.campaign}/launch/{self.name}")
@@ -440,7 +471,7 @@ class AnakitKit:
     def _client(self, musing):
         cfg = dataclasses.replace(
             self._server,
-            command=tuple(self._server.command) + ("--musing", str(musing)))
+            command=tuple(self._server.command) + server_args(musing))
         return self._factory(cfg)
 
     def _call(self, client, tool, args, workflow):

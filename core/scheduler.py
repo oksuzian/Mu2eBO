@@ -28,6 +28,7 @@ error still crashes loudly instead of hanging silently.
 """
 from __future__ import annotations
 
+import fnmatch
 import math
 import threading
 import time
@@ -41,7 +42,27 @@ import measure
 from contract import ContractError
 from kits import KitError
 from point_dir import PointDir
-from study import expand_artifact
+from study import expand_artifact, split_files_from
+
+
+def step_inputs(step, upstream) -> list:
+    """The step's input files: for each files_from entry, every file of
+    that upstream step, or only those whose names match the entry's glob
+    ("step:glob"). A glob that matches nothing is a failure, not an empty
+    input: it is a typo or an upstream output that never appeared."""
+    inputs = []
+    for entry in step.files_from:
+        up, glob = split_files_from(entry)
+        files = upstream[up]["files"]
+        if glob is None:
+            inputs.extend(files)
+            continue
+        picked = [f for f in files if fnmatch.fnmatch(f["name"], glob)]
+        if not picked:
+            raise ValueError(f"step {step.step}: files_from {entry!r} matched "
+                             f"none of {len(files)} files of step {up}")
+        inputs.extend(picked)
+    return inputs
 
 
 @dataclass(frozen=True)
@@ -253,7 +274,7 @@ def _run_one(study, step, config, state_dir, env, files, kits, upstream,
     try:
         params = step_params(study, step, env, accepts_lists, upstream)
         step_files = [files[f] for f in step.files]
-        inputs = [ref for up in step.files_from for ref in upstream[up]["files"]]
+        inputs = step_inputs(step, upstream)
     except (KeyError, ValueError) as exc:
         return failed(exc)
     pd = PointDir(state_dir)
